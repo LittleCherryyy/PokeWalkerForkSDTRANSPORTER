@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build host LZSS compressor
         run: |
-          cc -O2 core/bootstrap/lzss.c -o lzss
+          cc -static -O2 core/bootstrap/lzss.c -o lzss
           test -s lzss
       - uses: actions/upload-artifact@v4
         with:

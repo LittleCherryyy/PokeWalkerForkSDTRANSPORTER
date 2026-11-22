@@ -72,6 +72,7 @@ def direct_arm_access(word,expected_base):
 
 
 def audit_static_image(image,base,metadata):
+    v84.verify_original_entry(image,base)
     if not metadata["entry_opcode_guard_passed"]:
         raise ThreadLayoutError("V8.4 original thread flag validation absent")
     sites=metadata["literal_xrefs"]

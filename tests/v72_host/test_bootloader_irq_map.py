@@ -30,7 +30,9 @@ class BootIrqReport(unittest.TestCase):
                 "walkerIrqImageSize","walkerIrqTableMethod")
         self.assertLess(hdr.index("u32 walkerBootStatus;"),
                         hdr.index("u32 walkerIrqTableAddress;"))
-        self.assertIn("u32 walkerIrqTableMethod;\n} cardengineArm7;",hdr)
+        self.assertIn("u32 walkerIrqBootInstalledIpc;\n} cardengineArm7;",hdr)
+        self.assertLess(hdr.index("u32 walkerIrqTableMethod;"),
+                        hdr.index("u32 walkerIrqBootOriginalVblank;"))
         for name in fields:
             self.assertIn("u32 "+name+";",hdr)
             self.assertIn(".global "+name,asm)

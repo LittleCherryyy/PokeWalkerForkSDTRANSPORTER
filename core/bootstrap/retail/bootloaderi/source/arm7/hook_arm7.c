@@ -385,6 +385,10 @@ int hookNdsRetailArm7(
 
 	ce7->intr_vblank_orig_return  = *vblankHandler;
 	ce7->intr_fifo_orig_return    = *ipcSyncHandler;
+	/* V7.2.7: save what boot actually observed, before installing the
+	 * existing VBlank/IPC hooks. No new IRQ writes or handler changes. */
+	ce7->walkerIrqBootOriginalVblank = ce7->intr_vblank_orig_return;
+	ce7->walkerIrqBootOriginalIpc = ce7->intr_fifo_orig_return;
 	ce7->cheatEngineAddr          = cheatEngineOffset;
 	ce7->quitFileCluster          = quitFileCluster;
 	ce7->fileCluster              = fileCluster;
@@ -549,6 +553,10 @@ int hookNdsRetailArm7(
 		}
 	}*/
 	}
+	/* V7.2.7: capture installed pointers immediately after the stock
+	 * hooks, while their slots are known to be live at boot time. */
+	ce7->walkerIrqBootInstalledVblank = *vblankHandler;
+	ce7->walkerIrqBootInstalledIpc = *ipcSyncHandler;
 
 	/*extern bool setDmaPatched;
 

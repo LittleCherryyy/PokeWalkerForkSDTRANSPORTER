@@ -85,6 +85,7 @@
 /* Append-only shared state for direct DSi sync. Keep legacy field offsets stable. */
 #include "walker_direct_bridge.h"
 #include "walker_hgss_net.h"
+#include "walker_push_stream.h"
 typedef struct WalkerControl {
 	/* Written once by the bootloader. */
 	unsigned int magic;
@@ -123,6 +124,11 @@ typedef struct WalkerControl {
 	/* Appended to preserve legacy field offsets and bridge ABI. Written by
 	 * the ARM9 virtual-IR blob, observed by the ARM7 durable SD bridge. */
 	volatile unsigned int checkoutState;
+    /* ARM9 TCP state is held in the existing, deliberately reserved 4 KiB
+     * control page. This keeps the very small resident ARM9 cardengine
+     * inside its fixed 0x2FA0 memory budget. The stream belongs to a
+     * completed checkout, never to HGSS's IR scratch/packet buffers. */
+    WalkerPushStream directPushStream;
 } WalkerControl;
 
 #define WALKER_ASSERT(name, cond) typedef char walker_assert_##name[(cond) ? 1 : -1]

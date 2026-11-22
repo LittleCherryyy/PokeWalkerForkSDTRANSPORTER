@@ -76,7 +76,7 @@ int walkerArm9ThreadAvailabilityRaw(uint32_t *out) {
         code[2] != 0xE12FFF1Eu ||
         code[3] != 0x021E1688u)
         return 0;
-    const uint32_t candidate = code[3];
+    const uint32_t candidate = 0x021E1688u; /* fixed after literal guard */
     if ((candidate & 3u) || candidate < 0x02000000u ||
         candidate > 0x02400000u - 4u)
         return 0;

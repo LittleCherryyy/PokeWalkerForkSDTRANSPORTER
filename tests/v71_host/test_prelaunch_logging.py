@@ -42,7 +42,7 @@ class WalkerPrelaunchChecks(unittest.TestCase):
 
     def test_ui_tells_user_where_to_check(self):
         igm=(ROOT/"core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c").read_text()
-        self.assertIn("VIRTUAL POKEWALKER V7.2.0",igm)
+        self.assertIn("VIRTUAL POKEWALKER V7.2.1",igm)
         self.assertIn("Check Walker error log",igm)
         self.assertIn("Wi-Fi: NOT ENABLED",igm)
 

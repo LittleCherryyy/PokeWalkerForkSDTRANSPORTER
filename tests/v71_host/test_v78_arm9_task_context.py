@@ -44,6 +44,10 @@ class Arm9TaskContextTests(unittest.TestCase):
         self.assertNotIn('Wifi_Init(', code)
         self.assertNotIn('SOC_Connect(', code)
         self.assertNotIn('REG_IE =', code)
+        self.assertEqual(source.count(
+            "#if !defined(TWLSDK) && !defined(B4DS) && !defined(DLDI) && !defined(GSDD)"),2)
+        self.assertIn("0u, 0u, 0u, 0u", source)
+
         self.assertNotIn('walkerWrite(', code)
         self.assertLess(code.index('walkerArm9GetCpsrMode();'), code.index('initialize();'))
 

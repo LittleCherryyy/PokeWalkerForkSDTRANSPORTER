@@ -155,6 +155,15 @@ linker/real-device validation was performed in this source-only session.
 Do not copy the existing generated bootstrap onto the DSi expecting
 network operation.
 
+**Additional mandatory memory-safety gate:** The virtual Pokéwalker
+ARM9 blob deliberately disables the game's MPU to access its reserved
+EEPROM/control memory. Normal ARM9 card-read callbacks may not have access
+to that same region with MPU enabled. The integrated worker now returns
+without even dereferencing WalkerControl when the radio backend is absent.
+Before enabling a real radio backend, validate normal-MPU accessibility,
+cross-CPU cache coherency and, if necessary, create a safe bounded staging
+path. Do NOT turn on the backend by guessing Wi-Fi API addresses.
+
 **Before any DSi test:** implement and link a verified resident Wi-Fi
 association/TCP backend for physical DSi DS-mode HGSS, identify a safe
 regular non-IRQ ARM9 worker, wire its socket write/read to

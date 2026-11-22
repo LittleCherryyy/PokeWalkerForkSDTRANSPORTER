@@ -50,6 +50,12 @@
 #define WALKER_OP_WRITE     1u /* a = buffer (0xAA-scrambled), b = length */
 #define WALKER_OP_INIT      2u /* the game is setting up a new IR session */
 
+/* Export only after an actual HGSS stroll starts AND the IR exchange
+ * completes. Neither registration nor unrelated EEPROM writes qualify. */
+#define WALKER_CHECKOUT_NONE      0u
+#define WALKER_CHECKOUT_STARTED   1u
+#define WALKER_CHECKOUT_COMPLETE  2u
+
 #define WALKER_PACKET_MAX   0x88u /* 8-byte header + 128-byte payload */
 /* While linked, this many reads in a row with nothing to answer means the
  * game has dropped the link (cancelled, finished, or timed out without a
@@ -114,6 +120,9 @@ typedef struct WalkerControl {
 	/* V7.1: shared bridge state, unused by older walker protocol callers. */
 	WalkerDirectBridge direct;
 	WalkerHgssNetApi hgssNet;
+	/* Appended to preserve legacy field offsets and bridge ABI. Written by
+	 * the ARM9 virtual-IR blob, observed by the ARM7 durable SD bridge. */
+	volatile unsigned int checkoutState;
 } WalkerControl;
 
 #define WALKER_ASSERT(name, cond) typedef char walker_assert_##name[(cond) ? 1 : -1]

@@ -132,7 +132,8 @@ public final class DirectSyncService extends Service {
                  * even if steps changed the EEPROM since it was received.
                  * Any different payload, profile or return-in-progress fails
                  * closed rather than overwriting a walking Pokémon. */
-                if(s.returnPending||s.directCheckoutCrc.isEmpty()||
+                if(s.returnPending||s.visitBlocked||!s.error.isEmpty()||
+                   s.directCheckoutCrc.isEmpty()||
                    !s.directCheckoutCrc.equals(incomingCrc)||
                    !s.trainerKey.equals(key))
                     throw new IOException("Conflicting DSi checkout retry");

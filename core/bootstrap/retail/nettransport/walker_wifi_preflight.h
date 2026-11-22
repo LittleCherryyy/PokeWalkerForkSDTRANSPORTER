@@ -6,6 +6,7 @@
 #define WALKER_WIFI_PREFLIGHT_H
 
 #include <stdint.h>
+#include "walker_wifi_irq_audit.h"
 
 /* The integrating code MUST establish each ownership bit independently;
  * values seen in a screenshot are NOT proof that a peripheral is free. */
@@ -22,6 +23,8 @@ typedef struct {
     uint8_t arm7WifiIrqChainingVerified;
     uint8_t arm7WifiServiceVerified;
     uint8_t arm9CooperativeWorkerVerified;
+    /* Require a 25-entry in-image table; runtime tables remain unverified. */
+    WalkerWifiIrqLayout irqLayout;
 } WalkerWifiPreflight;
 
 enum {
@@ -35,6 +38,7 @@ enum {
     WALKER_WIFI_BLOCK_IRQ_WIFI = (1u << 7),
     WALKER_WIFI_BLOCK_ARM7_SERVICE = (1u << 8),
     WALKER_WIFI_BLOCK_ARM9_WORKER = (1u << 9),
+    WALKER_WIFI_BLOCK_IRQ_TABLE_UNVERIFIED = (1u << 10),
     WALKER_WIFI_BLOCK_NO_POLICY = 0xFFFFFFFFu
 };
 

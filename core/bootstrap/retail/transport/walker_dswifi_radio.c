@@ -36,6 +36,9 @@ static unsigned long gateway;
 
 static int available(void) {
     if(state==3) return 0;
+    /* Never ask a retail game to touch radio registers from an uninitialized
+     * DSWifi9 context. The corresponding ARM7 service must already exist. */
+    if(!Wifi_CheckInit()) return 0;
     if(Wifi_AssocStatus()!=ASSOCSTATUS_ASSOCIATED) return 0;
     struct in_addr gw;
     (void)Wifi_GetIPInfo(&gw,0,0,0);

@@ -51,9 +51,9 @@ class LiveSchedulerGuard(unittest.TestCase):
         start=MENU.index("static void walkerArm9WifiCodeMenu(void) {")
         end=MENU.index("\n#endif\n\nstatic void virtualPokewalkerMenu(void) {",start)
         view=MENU[start:end]
-        self.assertIn("V8.6 ARM9 THREAD RAM",view)
-        self.assertIn("walkerArm9ThreadAliasWords(words)",view)
-        self.assertIn("OS flag: 1",view)
+        self.assertIn("V8.7 ARM9 OS HEADER",view)
+        self.assertIn("walkerArm9ThreadHeaderWords(words)",view)
+        self.assertIn("A0+0:0x",view)
         self.assertIn("OS gate FAILED",view)
         self.assertIn("walkerArm9ThreadAliasWords(words)",view)
         self.assertIn("Wi-Fi: NOT ENABLED",view)

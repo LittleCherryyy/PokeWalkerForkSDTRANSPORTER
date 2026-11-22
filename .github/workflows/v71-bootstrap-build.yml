@@ -75,3 +75,27 @@ jobs:
             LIBDIRS="/opt/devkitpro/libnds" \
             PYTHON=python3 GIT_VER=sdlang2 LZSS=/tmp/lzss all
           test -s core/bootstrap/retail/bin/nds-bootstrap.nds
+      - name: Collect bounded cardengine linker diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          for dir in core/bootstrap/retail/cardengine/arm9/build \
+                     core/bootstrap/retail/cardengine/arm9_32/build; do
+            echo "== $dir =="
+            for map in "$dir"/*.map; do
+              test -f "$map" || continue
+              grep -A 15 -E '^\\.bss |^ \\.bss ' "$map" | tail -n 55 || true
+            done
+            find "$dir" -maxdepth 1 -name '*.o' -exec \
+              /opt/devkitpro/devkitARM/bin/arm-none-eabi-size -A {} + \
+              | grep -E '(^|[[:space:]])\\.bss[[:space:]]' | tail -n 60 || true
+          done
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: v71-cardengine-linker-maps
+          path: |
+            core/bootstrap/retail/cardengine/arm9/build/*.map
+            core/bootstrap/retail/cardengine/arm9_32/build/*.map
+          if-no-files-found: ignore
+          retention-days: 7

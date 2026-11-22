@@ -16,6 +16,7 @@
 #include "nds_header.h"
 #include "walker_emu.h"
 #include "walker_hgss_net.h"
+#include "walker_irq_live_guard.h"
 #include "tonccpy.h"
 
 #define sleepMode BIT(17)
@@ -44,6 +45,8 @@ extern u32 walkerBootStatus;
 #define WALKER_RESOURCE_REPLY   0x4B535057u /* WPSK */
 #define WALKER_TABLE_REQUEST    0x51545057u /* WPTQ */
 #define WALKER_TABLE_REPLY      0x4B545057u /* WPTK */
+#define WALKER_PEEK_REQUEST     0x514B5057u /* WPKQ */
+#define WALKER_PEEK_REPLY       0x4B4B5057u /* WPKK */
 extern u32 walkerIrqTableAddress;
 extern u32 walkerIrqImageStart;
 extern u32 walkerIrqImageSize;
@@ -57,6 +60,25 @@ static void walkerIrqTableReadOnlyDiagnostics(void) {
     sharedAddr[2]=walkerIrqImageSize;
     sharedAddr[3]=walkerIrqTableMethod;
     sharedAddr[4]=WALKER_TABLE_REPLY;
+}
+/* V7.2.6: read at most three raw words in a loaded, bounded NTR RAM area.
+ * This is menu-only. The table is not reinterpreted as a verified 25-slot
+ * IRQ dispatch array, even if the memory is readable. */
+static void walkerIrqPeekReadOnlyDiagnostics(void) {
+    const u32 addr = walkerIrqTableAddress;
+    const int safe = walkerIrqReadOnlyRangeOk(
+        addr, walkerIrqImageStart, walkerIrqImageSize, walkerIrqTableMethod);
+    sharedAddr[0] = safe ? 1u : 0u;
+    sharedAddr[1] = 0u;
+    sharedAddr[2] = 0u;
+    sharedAddr[3] = 0u;
+    if (safe) {
+        const volatile u32* const entries = (const volatile u32*)(uintptr_t)addr;
+        sharedAddr[1] = entries[0];  /* VBlank candidate */
+        sharedAddr[2] = entries[16]; /* IPC candidate */
+        sharedAddr[3] = entries[24]; /* RAW word: not necessarily IRQ_WIFI */
+    }
+    sharedAddr[4] = WALKER_PEEK_REPLY;
 }
 static u32 radioIeBeforeMenu, radioImeBeforeMenu;
 static u16 radioTimersBeforeMenu[4];
@@ -304,6 +326,9 @@ void inGameMenu(void) {
                 case WALKER_TABLE_REQUEST: // WPTQ: bootloaderi IRQ metadata
                     walkerIrqTableReadOnlyDiagnostics();
                     break;
+                case WALKER_PEEK_REQUEST: // WPKQ: guarded raw table words
+                    walkerIrqPeekReadOnlyDiagnostics();
+                    break;
                 #endif
 				case 0x524D4152: // RAMR
 					u32* dst = (u32*)((u32)sharedAddr[0]);
@@ -351,6 +376,7 @@ void inGameMenu(void) {
                 && sharedAddr[4] != WALKER_RADIO_REPLY
                 && sharedAddr[4] != WALKER_RESOURCE_REPLY
                 && sharedAddr[4] != WALKER_TABLE_REPLY
+                && sharedAddr[4] != WALKER_PEEK_REPLY
                 #endif
                 && sharedAddr[4] == menuCommandSeen
             ) {

@@ -8,12 +8,14 @@ on:
       - "core/bootstrap/retail/bootloaderi/**"
       - "core/bootstrap/retail/common/**"
       - "core/bootstrap/retail/cardenginei/**"
+      - "core/bootstrap/retail/cardengine/**"
       - ".github/workflows/v71-bootstrap-build.yml"
   pull_request:
     paths:
       - "core/bootstrap/retail/bootloaderi/**"
       - "core/bootstrap/retail/common/**"
       - "core/bootstrap/retail/cardenginei/**"
+      - "core/bootstrap/retail/cardengine/**"
       - ".github/workflows/v71-bootstrap-build.yml"
   workflow_dispatch:
 

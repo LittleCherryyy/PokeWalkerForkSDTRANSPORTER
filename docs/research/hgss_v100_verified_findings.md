@@ -1,5 +1,7 @@
 # HGSS V10.0 — Caller and ABI syntax analysis (2026-11-22)
 
+> **Errata V10.1 (2026-11-22):** A V10.0 marcou em `0x020D1898` a sintaxe `BX LR`, mas seu JSON **não registrou a condição ARM (CPSR)** dessa instrução. Portanto, é incorreto tratá-la previamente como um retorno *incondicional* confirmado. A primeira V10.1 falhou exigindo isso; a versão corrigida no commit `e6315d5` agora registra a condição observada, sem abortar a ROM. Os possíveis limites de função permanecem hipóteses.
+
 Source: user-supplied `wifi_v100_hgss_callsite_abi.json` from both original USA Rev0 ROMs. Both variants match across all three analyzed regions. All findings are *static A32 candidates*, with no runtime execution or Nintendo ABI proof.
 
 ## Main observation: candidate return boundaries invalidate naive linear provenance

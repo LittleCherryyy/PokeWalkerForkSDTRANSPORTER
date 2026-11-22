@@ -22,7 +22,7 @@ C11 PING-only packet/state-machine component. The engine:
 - Accepts only the zero-payload OP_OK response with matching magic/version,
   zero flags, zero CRC, and zeroed session/trainer.
 - Handles partial writes, partial reads, would-block, socket errors, a
-  monotonic frame deadline, and 32-bit counter wrap.
+  monotonic frame deadline, explicit cancel on menu exit, and 32-bit counter wrap.
 - Performs **at most one I/O callback per step** (zero sleeps/spins), so an
   eventual adapter can call it from a cooperative ARM9 worker *outside IRQ*.
 - Does **not** access SD, 64 KiB Walker EEPROM, game saves, sockets, or radio.
@@ -72,3 +72,7 @@ Persistent socket connection/close policy remains an adapter decision.
 The earlier standalone DSi V6.7 diagnostic noted a blocking `close()`
 behavior on its DSWifi build; do not import its blocking network calls into
 an interrupt handler.
+
+The adapter must translate a POSIX `recv()==0` (peer EOF) into an engine
+error (negative callback return); a callback return of zero is **would-block**,
+not a successful empty socket read. The adapter owns all socket cleanup.

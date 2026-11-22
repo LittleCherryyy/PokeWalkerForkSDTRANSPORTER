@@ -7,13 +7,9 @@
 #ifndef TWLSDK
 extern u32 walkerControl;
 
-/* Network backend contract. A later DSi transport unit supplies strong
- * definitions. Keeping weak no-op definitions makes this bridge safe in
- * builds where the radio transport has not been linked yet. */
-__attribute__((weak)) bool walkerDirectTransportAvailable(void) { return false; }
-__attribute__((weak)) int walkerDirectTransportPush(WalkerControl *c) { (void)c; return 0; }
-__attribute__((weak)) int walkerDirectTransportPull(WalkerControl *c) { (void)c; return 0; }
-__attribute__((weak)) int walkerDirectTransportConfirm(WalkerControl *c) { (void)c; return 0; }
+/* ARM7 owns SD durability and may run this coordinator during VBlank.
+ * Do not perform WCM, SOC, or any potentially blocking network call here.
+ * The future ARM9 worker consumes PUSH_READY only outside IRQ context. */
 
 static WalkerControl *directControl(void) {
     WalkerControl *c=(WalkerControl *)walkerControl;
@@ -102,9 +98,9 @@ static void walkerDirectSnapshotTick(WalkerControl *c) {
     c->direct.state=WALKER_DIRECT_PUSH_READY;
 }
 
-/* Called from VBlank. Backends must be incremental/non-blocking; a return of
- * >0 means complete, 0 means still pending/unavailable, <0 means retryable
- * error. */
+/* Called from VBlank. This function ONLY prepares a durable outbound
+ * image. Radio association, packet I/O and ACK processing must be done by
+ * a separate ARM9 worker in a confirmed safe non-IRQ execution context. */
 void walkerDirectBridgeTick(void) {
     WalkerControl *c=directControl();
     if(!c || c->direct.magic!=WALKER_DIRECT_BRIDGE_MAGIC) {crcPending=false;return;}
@@ -118,30 +114,8 @@ void walkerDirectBridgeTick(void) {
        durableImageStable(c,c->writeSeq))
         walkerDirectBridgeCommitted(c,c->writeSeq);
     walkerDirectSnapshotTick(c);
-    if(!walkerDirectTransportAvailable()) return;
-    int rc=0;
-    switch(c->direct.state) {
-    case WALKER_DIRECT_PUSH_READY:
-    case WALKER_DIRECT_PUSHING:
-        c->direct.state=WALKER_DIRECT_PUSHING;
-        rc=walkerDirectTransportPush(c);
-        if(rc>0){c->direct.state=WALKER_DIRECT_PHONE_OWNS;c->direct.error=0;}
-        else if(rc<0){c->direct.state=WALKER_DIRECT_PUSH_READY;c->direct.error=WALKER_DIRECT_ERR_TRANSPORT;c->direct.attempts++;}
-        break;
-    case WALKER_DIRECT_PULL_READY:
-    case WALKER_DIRECT_PULLING:
-        c->direct.state=WALKER_DIRECT_PULLING;
-        rc=walkerDirectTransportPull(c);
-        if(rc>0){c->direct.state=WALKER_DIRECT_CONFIRM_READY;c->direct.error=0;}
-        else if(rc<0){c->direct.state=WALKER_DIRECT_PULL_READY;c->direct.error=WALKER_DIRECT_ERR_TRANSPORT;c->direct.attempts++;}
-        break;
-    case WALKER_DIRECT_CONFIRM_READY:
-        rc=walkerDirectTransportConfirm(c);
-        if(rc>0){c->direct.state=WALKER_DIRECT_IDLE;c->direct.error=0;}
-        else if(rc<0){c->direct.error=WALKER_DIRECT_ERR_TRANSPORT;c->direct.attempts++;}
-        break;
-    default: break;
-    }
+    /* No socket operations in VBlank. State remains PUSH_READY until the
+     * ARM9 transport can genuinely send the 64 KiB image and verify OK. */
 }
 
 void walkerDirectBridgeRequestPull(void) {

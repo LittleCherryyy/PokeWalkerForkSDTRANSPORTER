@@ -221,3 +221,51 @@ No automated change has been made to IRQ tables or timer controls.
 This is a source-code finding, not a claim of Wi-Fi connectivity or a
 conclusive runtime ownership map. The observed `REG_IE=0x00050019`
 contains no IRQ_WIFI enable flag.
+
+## V7.2.1 — ARM7 DMA3 and ARM9 resource view (read-only)
+
+The real V7.2.0 photo already established that ARM7 timer 0/1 are active,
+timer 2/3 were disabled at the capture instant, and IRQ_WIFI is not enabled.
+The next conservative diagnostic deliberately **does not enable radio**.
+
+On the **V7.2.1** in-game diagnostics page, press **X** for the existing
+ARM7 IRQ/timer snapshot, then **Y** for the new resource page. The page shows:
+
+- **ARM7 DMA3_CR, DMA3_SRC, DMA3_DST**, captured alongside the IRQ and
+  timer values *before* the ARM7 menu enters its critical section.
+- **ARM9 TIMER3, REG_IE and REG_IME**, sampled *after the menu has
+  opened*. These are explicitly labeled **(menu)**; they are NOT
+  evidence of what HeartGold ARM9 had configured during active gameplay.
+- The DMA3 enable bit from the control register, with a warning that a
+  disabled channel does not imply software ownership or future availability.
+- `Wi-Fi: NOT ENABLED` and `No IRQ/DMA ownership proof`.
+
+ARM7 serves a new **WPSD / WPSK** read-only IPC request using the same
+bounded, retry-on-idle 90-frame pattern as the earlier diagnostic
+messages. The ARM7 dispatcher preserves WPSK until ARM9 has read its
+data. The code **never writes to DMA registers, IRQ tables, hardware timers
+or the Wi-Fi device**.
+
+**Next on-device test (after successful CI build):**
+
+1. Back up your working V7.1.5 `nds-bootstrap-nightly.nds` and all
+   expendable `.sav`, `.walker` and lease/phone state files.
+2. Temporarily install the new V7.2.1 diagnostic Nightly binary.
+3. Open HeartGold and open the nds-bootstrap Virtual Pokéwalker panel.
+   Confirm the title shows `V7.2.1`; press **X**, then **Y**.
+4. Photograph both the IRQ/timer panel and the new **DMA3/ARM9 AUDIT**
+   panel, including all hexadecimal values.
+5. Press **B** to return and confirm the game resumes. Do not attempt
+   any Android transfer or touch important saves during diagnostics.
+
+If `ARM7 DMA3_CR` has its enable bit set, this is an immediate reason
+not to claim the DMA3 resource is safely reusable. If the bit is clear,
+DMA3 is only **idle in that snapshot**; this still does not establish
+whether DSWifi may take ownership. Similarly, a zero ARM9 TIMER3 while
+the game is paused does not show it was idle during gameplay.
+
+**Implementation gate after this:** inspect which runtime ARM7 IRQ table
+contains slot 24 (`IRQ_WIFI`) and whether its handler can safely chain,
+then evaluate DMA3 ownership and the ARM7/ARM9 timer service strategy
+before any PING inside HGSS. No release or Wi-Fi claim is justified by
+these snapshots alone.

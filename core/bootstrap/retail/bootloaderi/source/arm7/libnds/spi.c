@@ -28,9 +28,7 @@
 #include <nds/system.h>
 
 //---------------------------------------------------------------------------------
-/* Preserve legacy SPI transaction under a private name. Modern Calico
- * exports writePowerManagement with an incompatible typed declaration. */
-int walkerLegacyWritePowerManagement(int reg, int command) {
+int writePowerManagement(int reg, int command) {
 //---------------------------------------------------------------------------------
 	int oldIME=enterCriticalSection();
 	// Write the register / access mode (bit 7 sets access mode)

@@ -49,3 +49,38 @@ uint32_t walkerWifiCheckStaticCode(uint32_t out[WALKER_WIFI_SIG_COUNT]) {
     return entryMask;
 #endif
 }
+
+/* V8.3 HGSS USA Rev0 only; derived from the user's matching V8.2 report.
+ *
+ * 020D1AC4  LDR r0, [pc,#4]       literal at 020D1AD0
+ * 020D1AC8  LDR r0, [r0]          single data read
+ * 020D1ACC  BX  lr                return
+ * 020D1AD0  .word 021E1688       original NTR RAM global
+ *
+ * Read the fixed original instruction sequence and literal first.  A
+ * mismatch is a hard no-read condition. The global is read only once,
+ * with no pointer chasing, loop, mutating operation, or OS API call.
+ * This value is returned as RAW DATA; it is NOT evidence of a healthy
+ * scheduler, available OSThread storage, or permission to create threads.
+ */
+int walkerArm9ThreadAvailabilityRaw(uint32_t *out) {
+    if (!out) return 0;
+    *out = 0u;
+#if defined(B4DS) || defined(TWLSDK)
+    return 0;
+#else
+    const volatile uint32_t * const code =
+        (const volatile uint32_t *)(uintptr_t)0x020D1AC4u;
+    if (code[0] != 0xE59F0004u ||
+        code[1] != 0xE5900000u ||
+        code[2] != 0xE12FFF1Eu ||
+        code[3] != 0x021E1688u)
+        return 0;
+    const uint32_t candidate = code[3];
+    if ((candidate & 3u) || candidate < 0x02000000u ||
+        candidate > 0x02400000u - 4u)
+        return 0;
+    *out = *(const volatile uint32_t *)(uintptr_t)candidate;
+    return 1;
+#endif
+}

@@ -169,7 +169,10 @@ void inGameMenu(void) {
 			while (REG_VCOUNT != 191) swiDelay(100);
 			while (REG_VCOUNT == 191) swiDelay(100);
 
-			switch (sharedAddr[4]) {
+			/* Snapshot the command actually dispatched this frame. A new
+			 * ARM9 request may arrive between dispatch and the idle reset. */
+			const u32 menuCommandSeen=sharedAddr[4];
+			switch (menuCommandSeen) {
 				/* case 0x54495845: // EXIT
 					exitMenu = true;
 					break; */
@@ -281,7 +284,9 @@ void inGameMenu(void) {
                 #ifndef TWLSDK
                 && sharedAddr[4] != WALKER_DIAG_REPLY
                 #endif
+                && sharedAddr[4] == menuCommandSeen
             ) {
+                /* Don't discard a fresh WPDG posted after the switch. */
 				sharedAddr[4] = 0x554E454D; // MENU
 			}
 		}

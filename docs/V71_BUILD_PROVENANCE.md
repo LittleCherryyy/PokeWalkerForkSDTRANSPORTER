@@ -38,3 +38,15 @@ The pipeline uses Git sparse checkout and merges **missing** files without overw
 ## Credit
 
 This project derives from [SD-Transporter by Shinygati](https://github.com/Shinygati/SD-Transporter) and builds on nds-bootstrap, TWiLight Menu++, devkitPro, Pokéwalker reverse engineering, and numerous original contributors. Preserve their copyright and licensing notices; see `ATTRIBUTION.md`, `CREDITS-UPSTREAM.md`, and `LICENSE`. Android home-screen widget and skins are a first-class workstream (issue #2), not replaced by the network research.
+
+## Ping-only resident ARM9 preparation
+
+V7.1 now includes a deliberately restricted, small ARM9 module in the **actual DSi cardengine source directory** (`cardenginei/arm9/source/walker_ping_diagnostic.c`). It exposes only:
+- `walkerV71MakePing(output, capacity)`: builds exactly 88 protocol bytes, no save payload
+- `walkerV71CheckPingOk(frame, length)`: accepts only the exact PING acknowledgement header, and rejects truncated/oversized frames, nonzero CRC, session/trainer bytes, malformed magic/version/flags, and any transfer opcode
+
+Both functions use the common `walker_ping_only.h` framing implementation. Native tests run the exact ARM9 module against malformed packets; C-to-Java interoperability tests verify the same 88-byte format accepted by Android V18. A separate devkitARM cross-compile check validates the portable header.
+
+**Crucial distinction:** this is only a protocol primitive *linked into* the DSi cardengine; neither function is currently invoked from a runtime network path. There is still no resident Wi-Fi initialization, TCP handshake, or PING sent while HGSS runs. The unsigned WCM/SOCL pointers remain zero and transactions PUSH/PULL/CONFIRM remain disabled. It is not a testable HGSS transfer release.
+
+The Android home-screen widget and skins remain separate tracked work and should be included in future APK updates without discarding upstream attribution.

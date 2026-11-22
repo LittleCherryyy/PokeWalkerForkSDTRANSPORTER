@@ -1,11 +1,12 @@
-/* V7.7 read-only ARM9 code residency fingerprint; does NOT call Wi-Fi. */
+/* V7.7: fixed 32-byte ARM9 code CRC32 residency audit, no Wi-Fi calls. */
 #ifndef WALKER_ARM9_WIFI_SIG_H
 #define WALKER_ARM9_WIFI_SIG_H
 #include <stdint.h>
 #define WALKER_WIFI_SIG_COUNT 5u
 #define WALKER_WIFI_SIG_ALL 0x1Fu
-/* Digest of EXACTLY 32 memory bytes, the same window used by V7.6. */
-void walkerSha256Fixed32(const volatile uint8_t *source, uint8_t digest[32]);
-/* Bit i means a matching 32-byte code signature; no network readiness proof. */
-uint32_t walkerWifiCheckStaticCode(void);
+/* IEEE CRC32 of EXACTLY 32 bytes (same windows as V7.6 SHA256 report). */
+uint32_t walkerCrc32Fixed32(const volatile uint8_t *source);
+/* Writes CRC32 into out[5], returns bit mask for ARM entry prologues.
+ * Does NOT establish a callable ABI or a working Wi-Fi interface. */
+uint32_t walkerWifiCheckStaticCode(uint32_t out[WALKER_WIFI_SIG_COUNT]);
 #endif

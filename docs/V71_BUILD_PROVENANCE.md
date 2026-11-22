@@ -58,3 +58,11 @@ Added a CI symbol check using `arm-none-eabi-nm` on the primary DSi `cardenginei
 A complete build exposed a `.bss` overflow in `cardenginei_arm9_dldi` after introducing this helper; the runtime source is now conditioned on `!DLDI && !GSDD && !TWLSDK`, so that alternative cardengines do not import the experimental path or have their fixed memory limits expanded. Recheck whole-build CI before treating the change as verified.
 
 The PING-only helper remains uncalled by any Wi-Fi backend; no new in-game functionality has been shown on hardware.
+
+## 2026-11-22 — PING-only linked symbol verification
+
+The previous `v71-bootstrap-build.yml` edit had accidentally duplicated sections and broken YAML. It was reconstructed as a valid two-job workflow with the historical devkitARM r65-compatible SDK, pinned official compatibility sources, and explicit non-release status.
+
+In GitHub Actions [run 44983036243](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/44983036243), the **actual primary DSi ARM9 ELF** was checked with `arm-none-eabi-nm`, and both `walkerV71MakePing` and `walkerV71CheckPingOk` were present. The independent ARM7/ARM9/IGM modules passed. The **complete experimental nds-bootstrap build step also passed**.
+
+These symbols currently encode/validate packets **only**; they do not open sockets or perform any resident Wi-Fi handshake. No HGSS hardware PING or Pokémon transfer has been verified. No modified bootstrap from this experiment should be promoted as a functional in-game direct-sync release until the resident runtime is independently tested with disposable saves.

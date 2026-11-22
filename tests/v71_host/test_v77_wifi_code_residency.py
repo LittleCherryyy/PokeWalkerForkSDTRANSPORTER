@@ -42,7 +42,7 @@ class ResidentCodeFingerprintContracts(unittest.TestCase):
         end=src.index("static void virtualPokewalkerMenu(void)",start)
         snippet=src[start:end]
         self.assertIn("walkerArm9ThreadAvailabilityRaw(&raw)",snippet)
-        self.assertIn("printHex(17,5,raw,4",snippet)
+        self.assertIn("printHex(6,4,raw,4",snippet)
         self.assertIn("Wi-Fi: NOT ENABLED",snippet)
         self.assertNotIn("REG_IE =",snippet)
         self.assertNotIn("walkerWrite(",snippet)

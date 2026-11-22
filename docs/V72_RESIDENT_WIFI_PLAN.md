@@ -528,3 +528,62 @@ All new code remains **offline**, not linked into the DSi binary.
 module; regression tests verify that the synthetic "all resources
 verified" case stops passing if its IRQ table is changed to a truncated
 or unbounded runtime variant.
+
+## V7.2.5 — medir a tabela IRQ do carregador NTR real (HeartGold)
+
+Uma revisão mais detalhada distinguiu **dois** mecanismos neste fork:
+`cardenginei/arm7/source/patcher/hook_arm7.c` é chamado em caminhos
+especiais (notadamente tratamento de jogos Gen5), enquanto a inicialização
+normal do HeartGold passa por
+`bootloaderi/source/arm7/hook_arm7.c::hookNdsRetailArm7()`.
+
+Esta rotina principal encontra a tabela IRQ do jogo através de endereço
+salvo no cache, layout SDK conhecido, varredura de assinatura/marcador ou
+cálculo relativo aos literais do handler; em seguida instala seus
+hooks existentes de **VBlank (slot 0)** e **IPC (slot 16)**.
+O resultado anterior baseado na garantia de 17 entradas do patcher
+específico, portanto, não basta para determinar a extensão da tabela
+real de HeartGold.
+
+### Instrumentação somente leitura
+
+A V7.2.5 adiciona quatro palavras **no final** do cabeçalho ARM7 do
+cardengine (C/assembly alinhados):
+
+- `walkerIrqTableAddress`: endereço da tabela já encontrado pelo
+  carregador principal;
+- `walkerIrqImageStart`: início da imagem ARM7 carregada;
+- `walkerIrqImageSize`: tamanho da imagem ARM7 carregada;
+- `walkerIrqTableMethod`: 1=cache, 2=layout SDK, 3=busca por marcador,
+  4=cálculo relativo; zero=desconhecido.
+
+O próprio hook de inicialização guarda esses dados ao aceitar a tabela,
+**sem ler novos índices nem alterar a instalação existente**. O menu
+do ARM7 responde ao novo pedido de diagnóstico `WPTQ/WPTK` com as
+quatro palavras. No menu **Virtual Pokéwalker V7.2.5**, pressione
+**Y** para visualizar a página **ARM7 BOOT IRQ MAP**.
+
+A página calcula apenas se **100 bytes a partir do endereço da tabela
+caberiam numericamente na imagem ARM7**. Uma mensagem de encaixe
+significa apenas isso: não comprova layout real de 25 entradas,
+memória gravável, controle de IRQ_WIFI ou funcionamento de rádio.
+Quando a tabela está fora da imagem (ou vem de um cache/SDK), é
+esperado que a capacidade permaneça **não comprovada**. O código
+não faz `table[24]`, não registra IRQ_WIFI, não escreve em DMA/timers,
+não inicializa DSWifi e não altera save/EEPROM.
+
+### Teste no DSi — somente após passar a compilação completa
+
+1. Fazer backup do `/_nds/nds-bootstrap-nightly.nds` que já funciona
+   e dos saves/Walker de teste.
+2. Instalar somente o artefato de diagnóstico `v72-5-hgss-ntr-irq-table-diagnostic-test-only`.
+3. Abrir HeartGold usando a versão Nightly e um save descartável;
+   no painel `Virtual Pokéwalker V7.2.5`, pressionar **Y**.
+4. Fotografar `IRQ table`, `ARM7 image`, `Image bytes` e
+   `Method` junto do aviso sobre os 25 slots.
+5. Pressionar B e verificar que o jogo ainda retorna normalmente.
+   Restaurar a versão funcional se houver qualquer instabilidade.
+
+**Sem necessidade de modificar APK Android, hotspot ou ROM.**
+A validação de propriedade real de IRQ_WIFI continua pendente; a
+V7.2.5 não é uma versão de transporte Wi-Fi.

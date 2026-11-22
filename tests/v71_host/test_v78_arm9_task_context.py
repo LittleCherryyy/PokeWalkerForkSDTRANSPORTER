@@ -62,7 +62,7 @@ class Arm9TaskContextTests(unittest.TestCase):
         self.assertIn("romReadCalls", menu)
         self.assertIn("postReadEligibleCalls", menu)
         self.assertIn("dryRunStage", menu)
-        self.assertIn("0 idle 1 queued 2 done", menu)
+        self.assertIn("Read only, not ABI proof", menu)
         self.assertIn("Wi-Fi: NOT ENABLED", menu)
         self.assertNotIn("WCM_Init(", menu)
         self.assertNotIn("REG_IE =", menu)

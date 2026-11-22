@@ -1,3 +1,8 @@
+/* The WCM/SOCL resolver only belongs to DSi's NTR bootstrap path.
+ * B4DS cardengines have smaller linker regions and no resident DSi Wi-Fi
+ * transport. Exclude this unused code from B4DS without affecting NTR.
+ */
+#ifndef B4DS
 /* HGSS resident network resolver (V7.1, fail-closed). GPL-3.0-or-later.
  *
  * A title code or known RAM address is NOT a callable Wi-Fi API. Until an
@@ -30,3 +35,5 @@ int walkerResolveHgssNet(const u32 *arm9, u32 base, u32 bytes,
     out->ready = walkerHgssNetMissingMask(out) == 0u;
     return 1;
 }
+
+#endif /* !B4DS */

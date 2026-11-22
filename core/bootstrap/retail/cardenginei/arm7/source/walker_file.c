@@ -7,6 +7,7 @@
 #include "my_fat.h"
 #include "walker_file.h"
 #include "walker_emu.h"
+#include "walker_direct_bridge_api.h"
 
 #ifndef TWLSDK
 /* HGSS uses the NTR cardengine. The TWL SDK variants cannot install this
@@ -84,7 +85,16 @@ void walkerWrite(bool force) {
             }
         }
 	}
-	c->flushedSeq = seq;
+	/* Only offer a .walker image to Direct Sync after all dirty sectors have
+	 * been physically verified and no newer write raced the snapshot. On
+	 * interruption, the earlier return leaves sectors dirty for retry. */
+	if (c->writeSeq == seq) {
+		c->flushedSeq = seq;
+		walkerDirectBridgeCommitted(c, seq);
+	} else {
+		/* Another update occurred while draining. Keep the sequence pending. */
+		walkerIdleFrames = WALKER_IDLE_FRAMES;
+	}
 	c->flushes++;
 	walkerIdleFrames = 0;
 }

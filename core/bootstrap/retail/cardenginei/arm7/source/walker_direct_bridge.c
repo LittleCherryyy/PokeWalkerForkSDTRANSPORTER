@@ -56,7 +56,11 @@ void walkerDirectBridgeInit(WalkerControl *c) { if(c) walkerDirectBridgeReset(&c
 void walkerDirectBridgeCommitted(WalkerControl *c,u32 seq) {
     if(!durableImageStable(c,seq)) return;
     c->direct.durableSeq=seq;
-    if(c->checkoutState!=WALKER_CHECKOUT_COMPLETE) return;
+    /* No backend means no CRC scan, SD phone lock, or background
+     * 64 KiB access during ordinary HGSS play. ARM9 sets the request
+     * only after confirming a usable resident radio backend. */
+    if(c->checkoutState!=WALKER_CHECKOUT_COMPLETE ||
+       !c->direct.lockRequested) return;
     if(seq==c->direct.offeredSeq ||
        (crcPending && crcSeq==seq)) return;
     /* A checked-out image must not be replaced by a new offer. */
@@ -71,6 +75,7 @@ void walkerDirectBridgeCommitted(WalkerControl *c,u32 seq) {
 static void walkerDirectSnapshotTick(WalkerControl *c) {
     if(!crcPending) return;
     if(c->checkoutState!=WALKER_CHECKOUT_COMPLETE ||
+       !c->direct.lockRequested ||
        !durableImageStable(c,crcSeq) ||
        (c->direct.state!=WALKER_DIRECT_IDLE &&
         c->direct.state!=WALKER_DIRECT_PUSH_READY)) {
@@ -96,7 +101,8 @@ static void walkerDirectSnapshotTick(WalkerControl *c) {
     c->direct.error=WALKER_DIRECT_ERR_NONE;
     c->direct.attempts=0;
     c->direct.lockReady=0;
-    c->direct.lockRequested=0;
+    /* Keep ARM9's request: the next ARM7 mutex-protected flush
+     * must persist PENDING before ARM9 can send any TCP bytes. */
     c->direct.state=WALKER_DIRECT_PUSH_READY;
 }
 
@@ -110,7 +116,8 @@ void walkerDirectBridgeTick(void) {
      * committed the last dirty sector. Pick up that completed stroll here
      * even when there are no further writes to trigger the commit callback.
      * This is safe only if all sectors are clean and flushedSeq matches. */
-    if(c->checkoutState==WALKER_CHECKOUT_COMPLETE && !crcPending &&
+    if(c->checkoutState==WALKER_CHECKOUT_COMPLETE &&
+       c->direct.lockRequested && !crcPending &&
        c->direct.state==WALKER_DIRECT_IDLE &&
        c->writeSeq!=c->direct.offeredSeq &&
        durableImageStable(c,c->writeSeq))

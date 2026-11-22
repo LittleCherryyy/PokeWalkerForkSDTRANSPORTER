@@ -16,9 +16,14 @@
  * **not** yet a production radio lifecycle.
  *
  * To preserve the current fail-closed release, compile this file without
- * WALKER_RESIDENT_DSWIFI_ARM7_VERIFIED. Default builds contain no backend.
+ * WALKER_RESIDENT_DSWIFI_ARM7_VERIFIED, in-game EEPROM memory mapping
+ * validation and a verified ARM9 scheduler. These are separate necessary
+ * conditions; a standalone homebrew PING does NOT satisfy them.
+ * Default builds contain no backend.
  */
 #if defined(WALKER_RESIDENT_DSWIFI_ARM7_VERIFIED) && \
+    defined(WALKER_RESIDENT_EEPROM_MEMORY_VERIFIED) && \
+    defined(WALKER_RESIDENT_ARM9_SCHEDULER_VERIFIED) && \
     !defined(TWLSDK) && !defined(B4DS) && !defined(DLDI) && !defined(GSDD)
 #include <dswifi9.h>
 #include <sys/socket.h>

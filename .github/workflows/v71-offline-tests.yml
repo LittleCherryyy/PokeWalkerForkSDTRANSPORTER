@@ -59,7 +59,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cc -std=c11 -Wall -Wextra -Werror \
+          cc -std=c11 -Wall -Wextra -Werror -DWALKER_PING_FSM_EXPERIMENT \
             -Icore/bootstrap/retail/common/include \
             core/bootstrap/retail/cardenginei/arm9/source/walker_ping_fsm.c \
             tools/v7_1/test_ping_fsm.c -o /tmp/v71-interop/test-ping-fsm

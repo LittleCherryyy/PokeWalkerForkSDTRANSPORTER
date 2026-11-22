@@ -9,6 +9,10 @@ on:
       - 'core/bootstrap/retail/common/include/walker_emu.h'
       - 'core/bootstrap/retail/common/include/walker_hgss_net.h'
       - 'core/bootstrap/retail/common/source/walker_hgss_net.c'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/cardengine.c'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/walker_direct_bridge.c'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/walker_file.c'
+      - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_boot.c'
       - 'tests/v71_host/**'
       - 'tools/v7_1/identify_hgss_nds.py'
   pull_request:
@@ -17,6 +21,10 @@ on:
       - 'core/bootstrap/retail/common/include/walker_emu.h'
       - 'core/bootstrap/retail/common/include/walker_hgss_net.h'
       - 'core/bootstrap/retail/common/source/walker_hgss_net.c'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/cardengine.c'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/walker_direct_bridge.c'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/walker_file.c'
+      - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_boot.c'
       - 'tests/v71_host/**'
 
 permissions:

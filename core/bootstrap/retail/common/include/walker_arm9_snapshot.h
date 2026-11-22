@@ -27,9 +27,8 @@ typedef struct {
      * menu exit queues one dry-run; the next eligible completion consumes
      * it by updating counters. No network or save I/O is performed. */
     u32 postReadEligibleCalls;
-    u32 dryRunQueued;
-    u32 dryRunDone;
-    u32 dryRunPending;
+    /* 0 idle, 1 queued once on menu exit, 2 consumed after ROM I/O. */
+    u32 dryRunStage;
 } WalkerArm9Snapshot;
 
 #endif

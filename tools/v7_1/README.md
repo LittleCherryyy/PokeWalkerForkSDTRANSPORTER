@@ -51,3 +51,25 @@ python -m unittest discover -s tools/v7_1 -p "test_*.py" -v
 ```
 
 The GitHub Actions workflow `.github/workflows/v71-offline-tests.yml` runs these tests in CI; no physical DSi or Android test is performed there.
+
+## First live test — Android V18 PING (no DSi build required)
+
+This checks the **existing Android direct-sync server** from your Windows computer. It is a real TCP connection but **does not prove PING while HeartGold/SoulSilver runs**.
+
+1. Open the installed Android Pokéwalker app (V18) and enable **Direct DSi Sync** so its foreground service is listening on port `30821`.
+2. Turn on the Android hotspot and connect your Windows computer to that hotspot. Do not use mobile-data internet; only local Wi-Fi is needed.
+3. In Windows CMD, run `ipconfig`. The **Default Gateway** of the hotspot Wi-Fi interface is often the phone's local IP. Confirm the correct interface; do not assume a hardcoded IP.
+4. From your Git checkout:
+   ```powershell
+   cd "G:\\GITHUB\\PokeWalker virtual"
+   git fetch origin
+   git switch dev/v7.1-arm9-network-analysis
+   git pull --ff-only
+   python tools/v7_1/android_ping_probe.py 192.168.43.1
+   ```
+   Replace `192.168.43.1` with the **actual phone hotspot gateway** shown on your machine.
+5. Expected result: three `PING N: OK` messages and a final `PASS`. The Android app should indicate a DSi/bridge request; the test does not send any Pokémon or save data.
+
+If the test fails: check that the Android **Direct DSi Sync** foreground service is running, both devices are on the same local network, port 30821 is reachable, and your phone's hotspot allows clients to communicate with the phone. A timeout is a networking failure, not evidence of an incorrect game ROM.
+
+**Safety:** This probe sends only three 88-byte `OP_PING` requests; it does not use `OP_PUSH`, `OP_PULL`, `OP_CONFIRM`, `.walker`, saves or game ROMs. The APK is unchanged. Successful PING proves only the Android listener and protocol over local TCP, **not** the in-game Nintendo DSi transport.

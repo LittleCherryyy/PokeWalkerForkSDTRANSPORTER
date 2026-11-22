@@ -32,15 +32,17 @@ extern vu32* volatile sharedAddr;
  * address. No network calls and no changes to the walker or save. */
 #ifndef TWLSDK
 extern u32 walkerControl;
+extern u32 walkerBootStatus;
 #define WALKER_DIAG_REQUEST 0x47445057u /* WPDG */
 #define WALKER_DIAG_REPLY   0x4B445057u /* WPDK */
 static void walkerReadOnlyDiagnostics(void) {
     /* Query result in sharedAddr[0..3]: presence/state/ready, missing mask,
-     * write sequence, flushed sequence. This menu protocol is temporary:
+     * write sequence, flushed sequence (or loader boot outcome if absent).
+     * This menu protocol is temporary:
      * only used while the in-game menu is active on both processors. */
     sharedAddr[0] = 0u;
     sharedAddr[1] = 0x1FFFu; /* 13 missing network functions by default. */
-    sharedAddr[3] = 0u;
+    sharedAddr[3] = walkerBootStatus; /* Read-only boot status until header valid. */
     const u32 address=walkerControl;
     sharedAddr[2] = address; /* Show raw pointer if header is not inspected. */
     /* Status bits: bit0 valid header, bit1 hook address was published,

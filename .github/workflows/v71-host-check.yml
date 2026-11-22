@@ -151,7 +151,7 @@ jobs:
       - name: Upload experimental DSi menu diagnostic artifact (not a release)
         uses: actions/upload-artifact@v4
         with:
-          name: v72-7-hgss-irq-boot-vs-live-readonly-test-only
+          name: v72-8-arm7-heartbeat-readonly-test-only
           path: |
             core/bootstrap/retail/bin/nds-bootstrap.nds
             core/bootstrap/retail/bin/nds-bootstrap.nds.sha256

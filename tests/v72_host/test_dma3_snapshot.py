@@ -59,7 +59,7 @@ class Dma3SnapshotTests(unittest.TestCase):
         self.assertNotIn("Wifi_Init",block)
         self.assertNotIn("TIMER_CR(3) =",block)
         self.assertIn("Y: DMA3 + ARM9 snapshot",s)
-        self.assertIn("VIRTUAL POKEWALKER V7.2.2",s)
+        self.assertIn("VIRTUAL POKEWALKER V7.2.5",s)
 
 if __name__=="__main__":
     unittest.main()

@@ -22,6 +22,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      # The fork does not track gradle-wrapper.jar. Install the pinned
+      # Gradle distribution explicitly rather than invoking a missing jar.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
       # GitHub ubuntu-latest has Android command-line tools preinstalled.
       # Avoid setup-android@v3's retired "tools" package installation,
       # which fails before Gradle starts on current SDK repositories.
@@ -45,7 +50,6 @@ jobs:
         run: |
           set -euo pipefail
           cd core/android
-          chmod +x ./gradlew
-          ./gradlew --no-daemon --console=plain :app:assembleDebug
+          gradle --no-daemon --console=plain :app:assembleDebug
           test -s app/build/outputs/apk/debug/app-debug.apk
           echo "Android receiver debug APK compiled; not published or installed."

@@ -41,7 +41,8 @@ em um DSi real.
   - `Bridge state`
   - `Write seq` e `Flushed seq`
   - `Wi-Fi: NOT ENABLED` (obrigatório mesmo que o painel tenha respondido)
-- Se aparecer `Walker: hook not published`, `Walker: RAM addr rejected`,\n  `Walker: invalid header` ou `ARM7: no diagnostic reply`,
+- Se aparecer `Walker: hook not published`, `Walker: RAM addr rejected`,
+  `Walker: invalid header` ou `ARM7: no diagnostic reply`,
   registre exatamente a mensagem; não tente transferir Pokémon.
 - Aperte **B**, confirme que retorna ao menu e depois ao jogo sem travar.
 

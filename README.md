@@ -1,7 +1,7 @@
 # Pokéwalker Virtual — SD Transporter fork
 
 > **Unofficial derivative of [Shinygati/SD-Transporter](https://github.com/Shinygati/SD-Transporter).**
-> **Original author/project: Shinygati — SD Transporter.** All credit for the upstream work remains with Shinygati and the contributors acknowledged in the original project.
+> **Original project: SD Transporter, by Shinygati and its contributors.** This repository is a personal modification of existing software, not a claim of original authorship. Credit for all pre-existing code, designs, research, assets and infrastructure belongs to their respective original creators and contributors. See [full attribution](ATTRIBUTION.md).
 
 This repository documents and develops experimental **Nintendo DSi ↔ Android local Wi-Fi synchronization** for the virtual Pokéwalker in Pokémon HeartGold and SoulSilver. The goal is to reuse SD Transporter's existing emulation and companion application, while exploring a connection during the original in-game transfer sequence without manual transfer of `.walker` files.
 
@@ -12,6 +12,7 @@ This repository documents and develops experimental **Nintendo DSi ↔ Android l
 - **Original project:** [SD Transporter — Shinygati](https://github.com/Shinygati/SD-Transporter)
 - **Original license:** [GNU GPL v3](LICENSE); this fork retains it for SD Transporter-derived code.
 - **Original credits:** [CREDITS-UPSTREAM.md](CREDITS-UPSTREAM.md) (preserved from the upstream repository).
+- **Attribution statement:** [ATTRIBUTION.md](ATTRIBUTION.md) names upstream creators and research sources and explains the scope of this fork.
 - Additional upstream projects (including nds-bootstrap and TWiLight Menu++) and third-party components retain their **own** notices/licenses. Do not delete or replace original source headers.
 - This is a derivative project **not affiliated with or endorsed by Shinygati, Nintendo or The Pokémon Company**.
 - When code is imported, preserve original notices and clearly label this fork's modifications.

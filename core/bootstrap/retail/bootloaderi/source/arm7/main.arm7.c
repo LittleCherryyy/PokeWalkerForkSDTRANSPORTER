@@ -53,6 +53,18 @@ extern unsigned int gen5RomCluster;
 #include <nds/arm7/i2c.h>
 #include <nds/ipc.h>
 
+/* V7.1 toolchain compatibility: current libnds no longer exports the
+ * historical PM_READ_REGISTER name.  The original command byte is 0x80
+ * (also recorded next to the legacy writePowerManagement call below).
+ * Do not alter the power-management transaction itself. */
+#ifndef PM_READ_REGISTER
+#define PM_READ_REGISTER 0x80
+#endif
+
+/* Implemented by the preserved source/arm7/libnds/firmware.c.
+ * The old public declaration is absent from the newer libnds headers. */
+void readFirmware(u32 address, void *destination, u32 size);
+
 #define BASE_DELAY (100)
 
 #define REG_GPIO_WIFI *(vu16*)0x4004C04

@@ -42,7 +42,7 @@ Nothing here has been compiled or tested on physical DSi hardware as part of thi
 
 The shared `WalkerControl` declaration was missing the `direct` and `hgssNet` members already referenced elsewhere. V7.1 appends those members *after* `linkMode` to preserve legacy offsets; it also adds a hard `sizeof(WalkerControl) <= 0x800` compile-time bound shared by the DS-mode and Slot-1 layouts.
 
-The DSi NTR loader (`retail/bootloaderi/source/arm7/walker_boot.c`) now initializes the direct state and invokes the fail-closed network resolver *only after the IR hook is successfully installed*. Neither call opens Wi-Fi or touches a save.
+The DSi NTR loader (`retail/bootloaderi/source/arm7/walker_boot.c`) now initializes the direct state and invokes the fail-closed network resolver **before modifying the IR hooks in memory**, then publishes the control pointer after hook installation. Neither call opens Wi-Fi or touches a save.
 
 The resolver no longer allocates an ARM stack array to perform unused heuristic BL-frequency analysis. It clears the output before validating arguments, restricts its existing US gateway *candidate* to IPKE/IPGE, and **does not resolve any callable networking function**.
 
@@ -96,3 +96,28 @@ Do **not** install this branch as an SD build, and do not interpret
 `WALKER_DIRECT_PUSH_READY` as a real transfer. `PUSH_READY` only means a
 stable on-SD image has been offered to an unavailable backend.
 
+
+## V7.1 read-only in-game diagnostics (source stage)
+
+A paired ARM7/ARM9 request/response was added to the existing in-game menu,
+without modifying the ROM file, save file, Android application, or the
+`IgmText` binary layout.
+
+- ARM9 menu sends `WPDG` (0x47445057) through `sharedAddr[4]`.
+- ARM7 checks the pointer to `WalkerControl` is aligned and in DS main RAM,
+  validates the magic/version, and returns a snapshot in `sharedAddr[0..3]`:
+  presence, bridge state, resolver flag, missing-function mask (13 bits),
+  `writeSeq` and `flushedSeq`.
+- ARM7 responds with `WPDK` (0x4B445057) and **keeps it stable** until ARM9
+  acknowledges by restoring the normal `MENU` command.
+- ARM9 waits at most 90 VBlanks for the response. On timeout or absent
+  walker it reports that no diagnostic data were received.
+- The UI **always** reports `Wi-Fi: NOT ENABLED`. The resolver flag is not
+  evidence of actual Wi-Fi functionality.
+- Tests: `tests/v71_host/test_menu_diagnostics.py` checks the command IDs,
+  validation, bounded wait and no writable file/network operation in the
+  handler. These tests are static source checks, not a DS runtime emulator.
+
+This is **not yet a compiled or hardware-tested menu**. Do not distribute
+new `.nds` loader builds from this branch until the legacy SDK build is
+verified and the IGM on a disposable-save DSi has been exercised.

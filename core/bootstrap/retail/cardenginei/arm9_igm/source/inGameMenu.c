@@ -525,8 +525,14 @@ static void virtualPokewalkerMenu(void) {
     if(!answered) {
         print(1, 7, (const unsigned char *)"ARM7: no diagnostic reply", FONT_RED, false);
         print(1, 9, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
-    } else if((diag[0]&0xFFu)!=1u) {
-        print(1, 7, (const unsigned char *)"Walker: not installed", FONT_RED, false);
+    } else if((diag[0]&1u)==0u) {
+        if((diag[0]&2u)==0u) {
+            print(1, 7, (const unsigned char *)"Walker: hook not published", FONT_RED, false);
+        } else if((diag[0]&4u)==0u) {
+            print(1, 7, (const unsigned char *)"Walker: RAM addr rejected", FONT_RED, false);
+        } else {
+            print(1, 7, (const unsigned char *)"Walker: invalid header", FONT_RED, false);
+        }
         print(1, 9, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
     } else {
         print(1, 7, (const unsigned char *)"Missing net APIs: 0x", FONT_WHITE, false);

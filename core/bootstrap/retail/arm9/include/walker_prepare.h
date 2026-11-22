@@ -37,8 +37,17 @@ static void walkerSkip(configuration *conf, const char *reason, const char *path
 	conf->walkerCluster = 0;
 	FILE *log = fopen(WALKER_ERROR_PATH(conf), "w");
 	if (log) {
-		fprintf(log, "Virtual Pokewalker not connected: %s\nWALKER_PATH=%s\nGAME=%s\n",
-			reason, path ? path : "", conf->ndsPath);
+		/* Keep diagnostics self-contained: the INI section is the SHA-1
+		 * of the ROM path, not the visible ROM basename. Avoid requiring
+		 * the user to share saves/ROMs or reverse-engineer the section key. */
+		char key[41] = {0};
+		if (conf->ndsPath) palParkPathKey(conf->ndsPath, key);
+		fprintf(log, "Virtual Pokewalker not connected: %s\nWALKER_PATH=%s\nGAME=%s\n"
+			"INI_PATH=%s\nINI_SECTION=%s\nSAVE=%s\n"
+			"GAME_ON_FLASHCARD=%d\nSAVE_ON_FLASHCARD=%d\nB4DS=%d\n",
+			reason, path ? path : "", conf->ndsPath ? conf->ndsPath : "",
+			WALKER_INI_PATH(conf), key, conf->savPath ? conf->savPath : "",
+			(int)conf->gameOnFlashcard, (int)conf->saveOnFlashcard, (int)conf->b4dsMode);
 		fclose(log);
 	}
 }

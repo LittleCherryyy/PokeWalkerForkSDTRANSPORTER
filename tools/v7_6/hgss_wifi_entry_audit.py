@@ -182,7 +182,7 @@ def compare(hg,ss):
         pairs.append({
             "function_label":name,
             "same_immediate_address":a["immediate_target"]==b["immediate_target"],
-            "same_terminal_candidate":a["terminal_candidate_address"]==b["terminal_candidate_address"],
+            "same_terminal_candidate":a["terminal_candidate_address"] is not None and a["terminal_candidate_address"]==b["terminal_candidate_address"],
             "same_terminal_32byte_fingerprint":af is not None and af==bf,
             "heartgold":a,
             "soulsilver":b,

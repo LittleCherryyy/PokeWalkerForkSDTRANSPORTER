@@ -16,6 +16,7 @@
 #include "my_fat.h"
 #include "tonccpy.h"
 #include "nds_header.h"
+#include "locations.h"
 #include "cardengine_header_arm7.h"
 #include "cardengine_header_arm9.h"
 #include "walker_emu.h"

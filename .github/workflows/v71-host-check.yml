@@ -34,6 +34,7 @@ on:
       - 'tools/v7_4/**'
       - 'tools/v7_5/**'
       - 'tools/v7_6/**'
+      - 'tools/v7_7/**'
   pull_request:
     paths:
       - '.github/workflows/v71-host-check.yml'
@@ -60,6 +61,7 @@ on:
       - 'tools/v7_4/**'
       - 'tools/v7_5/**'
       - 'tools/v7_6/**'
+      - 'tools/v7_7/**'
 
 permissions:
   contents: read
@@ -107,6 +109,18 @@ jobs:
             tools/v7_6/hgss_wifi_entry_audit.py
             tools/v7_6/COMPARAR_ENTRADAS_WIFI.bat
             tools/v7_6/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V7.7 ARM9 offline CRC reference
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V7_7-Offline-ROM-CRC-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_7/hgss_wifi_live_crc_reference.py
+            tools/v7_7/COMPARAR_CRC_ARM9.bat
+            tools/v7_7/README.md
           if-no-files-found: error
           retention-days: 7
       - name: Build portable static LZSS host tool

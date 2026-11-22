@@ -22,6 +22,8 @@
 
 extern u32 walkerBase, walkerCluster;
 extern u32 iUncompressedSize;
+/* V7.1: SDK-neutral resolver. It does not open sockets or touch the save. */
+void walkerResolveNetworkApi(WalkerControl *c, const tNDSHeader *h);
 
 #define ARM_PUSH_READRANGE  0xE92D47F0 /* stmdb sp!, {r4-r10, lr} */
 #define ARM_PUSH_WRITERANGE 0xE92D43F8 /* stmdb sp!, {r3-r9, lr} */
@@ -98,5 +100,9 @@ void walkerBoot(cardengineArm7 *ce7, const tNDSHeader *ndsHeader) {
 	getStatus[0] = 0xE3A000AA;
 	getStatus[1] = 0xE12FFF1E;
 
+	/* Initialize optional Direct Sync state only after the IR hook was
+	 * successfully installed. The unresolved Wi-Fi API stays disabled. */
+	walkerDirectBridgeReset(&c->direct, c->flushedSeq);
+	walkerResolveNetworkApi(c, ndsHeader);
 	ce7->walkerControl = (u32)c;
 }

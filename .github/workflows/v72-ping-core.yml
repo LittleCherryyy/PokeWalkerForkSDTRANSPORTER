@@ -9,12 +9,14 @@ on:
       - 'core/bootstrap/retail/nettransport/**'
       - 'core/bootstrap/retail/common/include/walker_directsync.h'
       - 'tests/v72_host/**'
+      - 'core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java'
   pull_request:
     paths:
       - '.github/workflows/v72-ping-core.yml'
       - 'core/bootstrap/retail/nettransport/**'
       - 'core/bootstrap/retail/common/include/walker_directsync.h'
       - 'tests/v72_host/**'
+      - 'core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java'
 
 permissions:
   contents: read
@@ -26,6 +28,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Compile and test host protocol (NO sockets, saves, or console)
         run: python3 tests/v72_host/run.py
+      - name: Verify real Android Java parser and C PING client interoperably
+        run: python3 tests/v72_host/run_interop.py
 
   arm-cross-check:
     runs-on: ubuntu-latest

@@ -44,5 +44,14 @@ jobs:
         run: python tools/v7_1/resident_audit.py --json --require-fail-closed
       - name: Validate fail-closed HGSS WCM/SOCL research manifest
         run: python tools/v7_1/verify_network_symbols.py
+      - name: Execute DSi ARM9 PING-only runtime fixture (native host)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -Wall -Wextra -Werror \
+            -Icore/bootstrap/retail/common/include \
+            core/bootstrap/retail/cardenginei/arm9/source/walker_ping_diagnostic.c \
+            tools/v7_1/test_ping_runtime.c -o /tmp/v71-interop/ping-runtime-test
+          /tmp/v71-interop/ping-runtime-test
       - name: Unit tests with synthetic binaries only
         run: python -m unittest discover -s tools/v7_1 -p 'test_*.py' -v

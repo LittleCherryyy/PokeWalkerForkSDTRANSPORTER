@@ -22,6 +22,14 @@ typedef struct {
     u32 eligibleReadCalls;
     u32 lastReadCpsrMode;
     u32 lastReadIme;
+    /* V7.9 bounded simulated scheduling: observed only at the END of a
+     * completed normal cardRead callback, not at its start. An in-game
+     * menu exit queues one dry-run; the next eligible completion consumes
+     * it by updating counters. No network or save I/O is performed. */
+    u32 postReadEligibleCalls;
+    u32 dryRunQueued;
+    u32 dryRunDone;
+    u32 dryRunPending;
 } WalkerArm9Snapshot;
 
 #endif

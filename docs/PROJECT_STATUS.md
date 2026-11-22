@@ -310,6 +310,37 @@ not the basic TCP client code. Research sources:
 - https://blocksds.skylyrac.net/dswifi/md_documentation_2internet__mode.html
 - https://github.com/pret/pokeheartgold/blob/master/main.lsf
 
+### CI milestone — actual ARM7/ARM9/IR/linker build passed (2026-11-22)
+
+GitHub Actions [run 45085211191](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45085211191),
+commit `6b581b291eaeb12465c3fc2b3dc35d03e1eefff8`, completed **successfully**.
+The pinned, legacy devkitARM/libnds toolchain rebuilt the freestanding
+virtual-IR walker ARM9 payload, linked `cardenginei_arm7` (including
+durable SD owner-lock writer), linked `cardenginei_arm9` (including
+real 65,536-byte PUSH stream and guarded worker), compiled
+`bootloaderi` and checked the native NTR binary outputs.
+The exact C->Java->C byte-protocol test also passed on this branch.
+
+To fit fixed memory boundaries without enlarging game-reserved WRAM:
+- ARM7 cardengine compiled with `-Os`.
+- ARM9 cardengine compiled with `-Oz`.
+- `WalkerControl.directPushStream` lives in the separately reserved
+  4 KiB virtual Pokéwalker control page rather than scarce cardengine
+  ARM9 static memory; existing size assertions constrain the shared
+  C layout to the original 0x800-byte supported subset.
+- The **NTR** ARM9 C and assembly cardengine headers now both append
+  `walkerControl` at the same offset; the earlier field had
+  accidentally been added only to the TWLSDK header.
+
+**This is a source/link build milestone, NOT a DSi ready-to-play
+release.** The default `walkerDirectRadioBackend()` still resolves
+to unavailable; the opt-in DSWifi TCP adapter is not compiled into
+a runnable radio path without a verified ARM7 Wi-Fi service, NTR
+game-mode FIFO/IRQ cooperation, safe normal-MPU visibility of the
+walker and a reliable non-IRQ worker schedule. It therefore cannot
+perform real in-game Pokémon checkout yet. No game save or phone
+was used to validate this CI run.
+
 **Before any DSi test:** implement and link a verified resident Wi-Fi
 association/TCP backend for physical DSi DS-mode HGSS, identify a safe
 regular non-IRQ ARM9 worker, wire its socket write/read to

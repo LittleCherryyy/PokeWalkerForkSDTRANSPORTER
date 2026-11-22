@@ -46,7 +46,11 @@ jobs:
           command -v python3
           command -v bin2s
           command -v ndstool
-          cc core/bootstrap/lzss.c -O2 -o core/bootstrap/lzss
+          # The pinned devkitARM container has the ARM cross compiler, but
+          # does not ship the native cc needed to build the host-side LZSS tool.
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc make
+          gcc core/bootstrap/lzss.c -O2 -o core/bootstrap/lzss
           make -C core/bootstrap/retail -j2 \
             DEVKITARM="$GITHUB_WORKSPACE/core/bootstrap/portable-ds-rules" \
             LEGACY_DEVKITARM="$COMPILER_DIR" \

@@ -25,6 +25,8 @@
 #include "palpark_retail.h"
 #include "nitrofs.h"
 #include "walker_ds_payload.h"
+#include "walker_direct_lock.h"
+#include <errno.h>
 #include "walker_history.h"
 #include "walker_reconcile.h"
 
@@ -129,6 +131,60 @@ static void walkerPrepare(configuration *conf) {
 		walkerSkip(conf, "walker file is not 64 KiB", path.c_str());
 		return;
 	}
+
+    /* NTR DSi only: preallocate one SD sector before launching the game.
+     * The resident ARM7 cardengine does not support filesystem creation.
+     * If the DSi lost power after attempting to send, a valid PENDING
+     * fence refuses further HGSS launches without manual recovery. */
+    unsigned directLockCluster=0;
+    if(!conf->gameOnFlashcard && dsiFeatures() && !conf->b4dsMode) {
+        const std::string fence=path+".directlock";
+        struct stat lockStat;
+        if(stat(fence.c_str(),&lockStat)!=0) {
+            if(errno!=ENOENT) {
+                walkerSkip(conf,"cannot inspect direct lock on SD",fence.c_str());
+                return;
+            }
+            unsigned char prepared[WALKER_LOCK_SIZE];
+            walkerLockPrepared(prepared);
+            FILE *created=fopen(fence.c_str(),"wb");
+            if(!created) {
+                walkerSkip(conf,"cannot create direct lock on SD",fence.c_str());
+                return;
+            }
+            bool wrote=fwrite(prepared,1,sizeof(prepared),created)==sizeof(prepared);
+            if(fflush(created)!=0)wrote=false;
+            if(fclose(created)!=0)wrote=false;
+            if(!wrote || stat(fence.c_str(),&lockStat)!=0) {
+                walkerSkip(conf,"direct lock allocation failed",fence.c_str());
+                return;
+            }
+        }
+        if(lockStat.st_size!=WALKER_LOCK_SIZE || !lockStat.st_ino) {
+            walkerSkip(conf,"direct lock invalid size or FAT cluster",fence.c_str());
+            return;
+        }
+        unsigned char check[WALKER_LOCK_SIZE];
+        FILE *existing=fopen(fence.c_str(),"rb");
+        const bool loaded=existing &&
+            fread(check,1,sizeof(check),existing)==sizeof(check) &&
+            fgetc(existing)==EOF && !ferror(existing);
+        if(existing)fclose(existing);
+        if(!loaded) {
+            walkerSkip(conf,"direct lock read-back failed",fence.c_str());
+            return;
+        }
+        const int lockStatus=walkerLockDecode(check);
+        if(lockStatus<0) {
+            walkerSkip(conf,"direct lock metadata damaged: recover manually",fence.c_str());
+            return;
+        }
+        if(lockStatus==WALKER_LOCK_PENDING) {
+            walkerSkip(conf,"Pokewalker may be on Android: direct checkout is locked",fence.c_str());
+            return;
+        }
+        directLockCluster=(unsigned)lockStat.st_ino;
+    }
     if (!walkerPrelaunchSnapshot(path)) {
         walkerSkip(conf,"could not preserve the pre-launch recovery snapshot",path.c_str());
         return;
@@ -157,6 +213,11 @@ static void walkerPrepare(configuration *conf) {
         conf->walkerPayloadOffset = payload.start;
         conf->walkerPayloadSize = payload.end - payload.start;
     }
+    /* walkerPayloadOffset is unused for DSi NTR (payloadSize == 0).
+     * Pass the prepared directlock FAT cluster through this existing
+     * loader slot, without altering the DS Lite payload ABI. */
+    if(directLockCluster && !conf->walkerPayloadSize)
+        conf->walkerPayloadOffset=directLockCluster;
 	conf->walkerCluster = st.st_ino;
 	remove(WALKER_ERROR_PATH(conf));
 }

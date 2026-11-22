@@ -55,6 +55,14 @@ class MenuDiagnosticTests(unittest.TestCase):
         end = source.index("static void optionsMenu(", begin)
         view = source[begin:end]
         self.assertIn("frames<90", view)
+        self.assertIn("const u32 response=sharedAddr[4];", view)
+        self.assertIn("if(response==WALKER_DIAG_MENU)", view)
+        self.assertIn("sharedAddr[4]=WALKER_DIAG_REQUEST;", view)
+        self.assertIn("else if(response!=WALKER_DIAG_REQUEST)", view)
+        # The ARM7 must preserve a request posted after dispatch.
+        self.assertIn("const u32 menuCommandSeen=sharedAddr[4];", ARM7.read_text())
+        self.assertIn("switch (menuCommandSeen)", ARM7.read_text())
+        self.assertIn("sharedAddr[4] == menuCommandSeen", ARM7.read_text())
         self.assertIn("WALKER_DIAG_REQUEST", view)
         self.assertIn("WALKER_DIAG_REPLY", view)
         self.assertIn("sharedAddr[4]=WALKER_DIAG_MENU;", view)

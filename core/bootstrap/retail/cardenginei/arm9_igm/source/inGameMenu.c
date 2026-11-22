@@ -953,27 +953,21 @@ static void walkerArm9WifiCodeMenu(void) {
         (const unsigned char*)"SOC_Socket",
         (const unsigned char*)"SOC_Connect"
     };
-    const u32 address[WALKER_WIFI_SIG_COUNT] = {
-        0x020AD850u, 0x020AD9C0u, 0x020AE420u,
-        0x020A2EACu, 0x020A2F04u
-    };
     clearScreen(false);
     print(1,1,(const unsigned char*)"V7.7 ARM9 WIFI CODE",FONT_LIME,false);
     unsigned good=0;
     for (unsigned i=0; i<WALKER_WIFI_SIG_COUNT; i++) {
         const int row = 4 + 2 * i;
         print(1,row,names[i],FONT_WHITE,false);
-        print(14,row,(const unsigned char*)"0x",FONT_LIGHT_GRAY,false);
-        printHex(16,row,address[i],4,FONT_LIGHT_GRAY,false);
         if (mask & (1u<<i)) good++;
-        print(26,row,(const unsigned char*)((mask & (1u<<i)) ?
-              "OK" : "DIFF"),(mask & (1u<<i))?FONT_LIME:FONT_RED,false);
+        print(20,row,(const unsigned char*)((mask & (1u<<i)) ?
+              "MATCH" : "DIFF"),(mask & (1u<<i))?FONT_LIME:FONT_RED,false);
     }
     print(1,15,(const unsigned char*)"Signatures: ",FONT_WHITE,false);
     printDec(13,15,good,1,FONT_LIGHT_BLUE,false);
     print(14,15,(const unsigned char*)"/5",FONT_LIGHT_BLUE,false);
-    print(1,17,(const unsigned char*)"ARM9 memory, menu paused",FONT_LIGHT_GRAY,false);
-    print(1,18,(const unsigned char*)"Not network/ABI proof",FONT_LIGHT_GRAY,false);
+    print(1,17,(const unsigned char*)"Read only - paused",FONT_LIGHT_GRAY,false);
+    print(1,18,(const unsigned char*)"No Wi-Fi/ABI proof",FONT_LIGHT_GRAY,false);
     print(1,20,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);
     print(1,22,(const unsigned char*)"B: Back",FONT_WHITE,false);
     do {

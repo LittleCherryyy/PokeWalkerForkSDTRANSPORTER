@@ -1,3 +1,7 @@
+/* Resident DSi networking is not usable in B4DS. These experimental
+ * components are not linked or invoked on DS Lite/B4DS; keeping them out
+ * of fixed-size ARM9 cardengines preserves the original memory map. */
+#if !defined(B4DS)
 #include <string.h>
 #include "walker_hgss_net.h"
 static int inRange(u32 a,u32 base,u32 bytes){return a>=base&&a<base+bytes&&!(a&3);}
@@ -35,3 +39,5 @@ int walkerResolveHgssNet(const u32 *arm9,u32 base,u32 bytes,WalkerHgssNetApi *ou
         out->soclGatewayPtr;
     return 1;
 }
+
+#endif /* !B4DS */

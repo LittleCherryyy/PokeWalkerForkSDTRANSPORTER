@@ -45,24 +45,40 @@ original .walker save as a rollback/journal rather than an intermediary
 homebrew step. A resident, nonblocking transport must act only outside
 the critical IR handler and preserve the original transfer protocol.
 
-### One acceptance sequence (test only with disposable ROM/save)
+### Single user-facing acceptance test: send a Pokémon, not a diagnostic message
 
-1. With HGSS running on physical DSi, prove that entering its original
-   Pokéwalker connection sequence advances a bootstrapped in-memory event.
-   Event detection alone is not networking.
-2. Prove an actual *in-game* PING/ACK from the persistent bootstrap runtime
-   to Android TCP 30821 while HGSS remains active, with phone 2.4 GHz hotspot
-   and no external application on the DSi.
-3. After the original virtual-Pokéwalker send operation and verified SD
-   commit, PUSH the 65536-byte image to Android and verify ACK + CRC32.
-   If the network fails, keep the recoverable local image unchanged.
-4. For return, PULL the Android image into a safe staging buffer; validate
-   CRC and matching session/trainer, commit it durably, then let the existing
-   HGSS virtual-IR protocol perform return. Only send CONFIRM_RETURN once
-   the console-side state is durable; guard against duplicate transfers.
-5. Confirm bidirectional transfers on disposable saves with airplane-mode
-   interruption/retry and power-cycle recovery. No file moving, no
-   `Pokewalker-NDS.nds`, no PC and no emulated Pokéwalker needed.
+**The next DSi build offered to the user must attempt a REAL outbound
+Pokémon transfer. A PING, fake packet, or 'menu opened' event is NOT a
+successful milestone and is not worth a separate user-facing DSi test.**
+
+With a backup and disposable HGSS save, the user opens the game's original
+Pokéwalker menu, chooses to send a Pokémon and completes the existing SD
+Transporter virtual IR exchange (no external Pokéwalker device). When the
+virtual walker has changed and the EEPROM image has been committed to SD,
+the resident bootstrap network backend must use the Android hotspot to
+transmit a **real 65536-byte EEPROM image** using
+`PWDSI001 / OP_PUSH_TO_PHONE`, including session identity and CRC32.
+The Android `DirectSyncService.push` must validate `Native.walkable`,
+bind the trainer, persist the walker in `WalkerStore`, and display that
+Pokémon in the app. A successful network ACK is necessary but **not
+sufficient**: confirm the Android stored the correct Pokémon before
+declaring the test passed.
+
+Preserve a local recovery copy and fail closed: if Wi-Fi/TCP or Android
+storage validation fails, do not delete the .walker data, alter the
+original .sav, report success, or clear the pending transfer. Avoid a
+homebrew intermediary, desktop PC, separate file transfer, and external
+internet access. Support phone hotspot as the only network.
+
+Only after REAL outbound transfer succeeds, implement and validate
+the return path: `OP_PULL_FROM_PHONE`, CRC/session validation, durable
+console-side storage, original virtual-IR Pokéwalker return, and
+`OP_CONFIRM_RETURN` after recovery-safe completion.
+
+The Android half of the real payload flow is already present in
+`core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncService.java`.
+The DSi Wi-Fi radio/socket backend is **not** implemented/validated; do
+not distribute a build presented as capable of this transfer until it is.
 
 **Immediate blocker:** Identify a safe ARM7/ARM9 Wi-Fi backend that remains
 available while HGSS executes in DS mode. The WCM/SOCL resolver and network

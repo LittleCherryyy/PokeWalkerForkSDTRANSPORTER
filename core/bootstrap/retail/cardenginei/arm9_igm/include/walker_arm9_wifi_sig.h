@@ -20,4 +20,8 @@ int walkerArm9ThreadAvailabilityRaw(uint32_t *out);
  * Alias: 0x021E16A0+8 == 0x021E167C+44 == 0x021E16A8.
  * Return 0 if unsupported, 1 if both bounded words sampled. */
 int walkerArm9ThreadAliasWords(uint32_t out[2]);
+/* V8.7: four raw words at the fixed, suspected original HGSS
+ * OSThreadInfo header (0x021E16A0..0x021E16AC). Requires V8.6 gate;
+ * no indirection, no scheduler calls, no proven field names. */
+int walkerArm9ThreadHeaderWords(uint32_t out[4]);
 #endif

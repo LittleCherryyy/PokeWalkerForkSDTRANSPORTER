@@ -109,6 +109,21 @@ WALKER_ASSERT(dirty, __builtin_offsetof(WalkerControl, dirty) == WALKER_CTL_DIRT
 WALKER_ASSERT(size, sizeof(WalkerControl) <= WALKER_BLOB_OFF - WALKER_CONTROL_OFF);
 /* DS-mode and Slot-1 layouts reserve only the first 0x800 bytes for control. */
 WALKER_ASSERT(ds_and_cart_control_size, sizeof(WalkerControl) <= 0x800u);
+
+/* V7.1 DSi diagnostic: the NTR game code and the DSi ROM cache can
+ * legitimately live in different RAM windows. In particular the DSi
+ * cache hook can allocate the walker at ~0x0CFDC000 (0x0CFE0000 minus
+ * the reserved image/control/blob region). Reject unmapped addresses
+ * and wraparound, but do not reject the DSi extended main-RAM window.
+ * This predicate only checks a range; callers still verify magic/version.
+ */
+static inline int walkerControlAddressReadable(unsigned int addr) {
+    const unsigned int bytes = (unsigned int)sizeof(WalkerControl);
+    if ((addr & 3u) != 0u) return 0;
+    if (addr >= 0x02000000u && addr <= 0x02400000u - bytes) return 1;
+    if (addr >= 0x0C000000u && addr <= 0x0D000000u - bytes) return 1;
+    return 0;
+}
 #endif
 
 #endif

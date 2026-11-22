@@ -43,16 +43,22 @@ static void walkerReadOnlyDiagnostics(void) {
     sharedAddr[2] = 0u;
     sharedAddr[3] = 0u;
     const u32 address=walkerControl;
-    if(address>=0x02000000u &&
-       address<=0x02400000u-(u32)sizeof(WalkerControl) &&
-       (address&3u)==0u) {
+    /* Preserve the reason in the lower status bits:
+     * bit 0: valid WalkerControl header
+     * bit 1: a hook address was published
+     * bit 2: address is in a supported DS/DSi RAM window.
+     * The DSi NTR cache can reside at 0x0CFxxxxx. Do not claim a missing
+     * hook merely because the pointer is outside original 4 MiB DS RAM. */
+    if(address) sharedAddr[0] |= 2u;
+    if(walkerControlAddressReadable(address)) {
+        sharedAddr[0] |= 4u;
         const WalkerControl *c=(const WalkerControl *)address;
         if(c->magic==WALKER_MAGIC && c->version==WALKER_VERSION) {
             const u32 state = c->direct.magic==WALKER_DIRECT_BRIDGE_MAGIC ?
                 (c->direct.state & 0xFFu) : 0u;
             const u32 ready = c->hgssNet.magic==WALKER_HGSS_NET_MAGIC ?
                 (c->hgssNet.ready & 1u) : 0u;
-            sharedAddr[0] = 1u | (state << 8) | (ready << 16);
+            sharedAddr[0] |= 1u | (state << 8) | (ready << 16);
             sharedAddr[1] = walkerHgssNetMissingMask(&c->hgssNet);
             sharedAddr[2] = c->writeSeq;
             sharedAddr[3] = c->flushedSeq;

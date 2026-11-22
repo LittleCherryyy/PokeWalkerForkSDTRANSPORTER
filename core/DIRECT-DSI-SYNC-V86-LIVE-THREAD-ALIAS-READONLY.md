@@ -63,7 +63,7 @@ The V8.6 `walkerArm9ThreadAliasWords(out)` routine:
 Open **Virtual Pokewalker -> L** to display
 `V8.6 ARM9 THREAD RAM` with:
 
-- `OS:0x00000001` when the original flag guard passes
+- `OS flag: 1` when the original guarded readiness probe succeeds
 - `A0+4:0xXXXXXXXX`: raw RAM at `0x021E16A4`
 - `A0+8:0xXXXXXXXX`: raw RAM at `0x021E16A8`
 - `A0+8 = 7C+44` reminds us of the overlapping static accesses

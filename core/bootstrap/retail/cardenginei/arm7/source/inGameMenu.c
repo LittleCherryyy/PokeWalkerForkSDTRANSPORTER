@@ -12,6 +12,8 @@
 #include "cardengine.h"
 #include "fpsAdjust.h"
 #include "nds_header.h"
+#include "walker_emu.h"
+#include "walker_hgss_net.h"
 #include "tonccpy.h"
 
 #define sleepMode BIT(17)
@@ -20,6 +22,40 @@
 
 extern u32 valueBits;
 extern s32 mainScreen;
+
+/* Read-only Virtual Pokewalker diagnostics; the ARM7 owns the live control
+ * address. No network calls and no changes to the walker or save. */
+#ifndef TWLSDK
+extern u32 walkerControl;
+#define WALKER_DIAG_REQUEST 0x47445057u /* WPDG */
+#define WALKER_DIAG_REPLY   0x4B445057u /* WPDK */
+static void walkerReadOnlyDiagnostics(void) {
+    /* Query result in sharedAddr[0..3]: presence/state/ready, missing mask,
+     * write sequence, flushed sequence. This menu protocol is temporary:
+     * only used while the in-game menu is active on both processors. */
+    sharedAddr[0] = 0u;
+    sharedAddr[1] = 0x1FFFu; /* 13 missing network functions by default. */
+    sharedAddr[2] = 0u;
+    sharedAddr[3] = 0u;
+    const u32 address=walkerControl;
+    if(address>=0x02000000u &&
+       address<=0x02400000u-(u32)sizeof(WalkerControl) &&
+       (address&3u)==0u) {
+        const WalkerControl *c=(const WalkerControl *)address;
+        if(c->magic==WALKER_MAGIC && c->version==WALKER_VERSION) {
+            const u32 state = c->direct.magic==WALKER_DIRECT_BRIDGE_MAGIC ?
+                (c->direct.state & 0xFFu) : 0u;
+            const u32 ready = c->hgssNet.magic==WALKER_HGSS_NET_MAGIC ?
+                (c->hgssNet.ready & 1u) : 0u;
+            sharedAddr[0] = 1u | (state << 8) | (ready << 16);
+            sharedAddr[1] = walkerHgssNetMissingMask(&c->hgssNet);
+            sharedAddr[2] = c->writeSeq;
+            sharedAddr[3] = c->flushedSeq;
+        }
+    }
+    sharedAddr[4] = WALKER_DIAG_REPLY;
+}
+#endif
 extern u8 consoleModel;
 
 extern vu32* volatile sharedAddr;
@@ -185,6 +221,12 @@ void inGameMenu(void) {
 				case 0x4E414D52: // RMAN
 					restorePreManual();
 					break;
+
+                #ifndef TWLSDK
+                case WALKER_DIAG_REQUEST: // WPDG: read-only diagnostics
+                    walkerReadOnlyDiagnostics();
+                    break;
+                #endif
 				case 0x524D4152: // RAMR
 					u32* dst = (u32*)((u32)sharedAddr[0]);
 					u32* src = (u32*)((u32)sharedAddr[1]);
@@ -225,7 +267,11 @@ void inGameMenu(void) {
 			if (sharedAddr[4] == 0x54495845) { // EXIT
 				// returnToMenu = (sharedAddr[1]);
 				exitMenu = true;
-			} else if (!exitMenu) {
+			} else if (!exitMenu
+                #ifndef TWLSDK
+                && sharedAddr[4] != WALKER_DIAG_REPLY
+                #endif
+            ) {
 				sharedAddr[4] = 0x554E454D; // MENU
 			}
 		}

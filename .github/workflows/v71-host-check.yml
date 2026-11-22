@@ -106,12 +106,17 @@ jobs:
                       3DS 3DS-en 3DS-fr 3DS-de 3DS-it 3DS-es; do
             test -s "nitrofiles/preLoadSettings${part}.pck"
           done
-          cat > /tmp/v71-preload-override.mk <<'EOF'
-          .PHONY: preLoadSettings
-          preLoadSettings:
-          	@echo "Reusing 13 verified prepacked preload assets (missing source directories)"
+          # Other archive packers also have missing source directories in
+          # this tree. Only reuse existing, non-empty checked-in packages.
+          for part in apfix mobiclipOffsets dsi2dsSavePatches; do
+            test -s "nitrofiles/${part}.pck"
+          done
+          cat > /tmp/v71-pack-override.mk <<'EOF'
+          .PHONY: preLoadSettings apfix mobiclipOffsets dsi2dsSavePatches
+          preLoadSettings apfix mobiclipOffsets dsi2dsSavePatches:
+          	@echo "Reusing checked-in binary pack assets; sources absent or incomplete"
           EOF
-          make -f Makefile -f /tmp/v71-preload-override.mk -j2 \
+          make -f Makefile -f /tmp/v71-pack-override.mk -j2 \
             DEVKITARM="$GITHUB_WORKSPACE/core/bootstrap/portable-ds-rules" \
             LEGACY_DEVKITARM="$COMPILER_DIR" LEGACY_LIBNDS="$SDK_DIR" LIBDIRS="$SDK_DIR" \
             PYTHON=python3 GIT_VER=sdlang2 LZSS="$GITHUB_WORKSPACE/core/bootstrap/lzss" all

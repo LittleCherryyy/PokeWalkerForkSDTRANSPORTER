@@ -24,4 +24,9 @@ int walkerArm9ThreadAliasWords(uint32_t out[2]);
  * OSThreadInfo header (0x021E16A0..0x021E16AC). Requires V8.6 gate;
  * no indirection, no scheduler calls, no proven field names. */
 int walkerArm9ThreadHeaderWords(uint32_t out[4]);
+/* V8.8: six fixed read-only words spanning possible legacy NitroSDK
+ * OSThreadInfo at 0x021E169C. The known four V8.7 words are reused.
+ * Additional reads ONLY 0x021E169C and 0x021E16B0, after the original
+ * V8.3 OS opcode and V8.6 readiness gate. Never follow the values. */
+int walkerArm9LegacyThreadInfoWords(uint32_t out[6]);
 #endif

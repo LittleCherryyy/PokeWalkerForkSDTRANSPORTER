@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 int main(void) {
-    WalkerWifiIrqLayout p={0x03800000u,0x2000u,0x03801f80u,0u};
+    WalkerWifiIrqLayout p={0x03800000u,0x2000u,0x03801fb0u,0u};
     /* First 17 slots fit, but IRQ_WIFI slot 24 would escape the image. */
     assert(walkerWifiIrqInspect(&p)==WALKER_WIFI_IRQ_INLINE_TABLE_OUTSIDE_IMAGE);
     p.irqTableAddress=0x03801000u;

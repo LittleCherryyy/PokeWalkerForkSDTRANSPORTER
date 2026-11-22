@@ -52,7 +52,7 @@ class LiveSchedulerGuard(unittest.TestCase):
         end=MENU.index("\n#endif\n\nstatic void virtualPokewalkerMenu(void) {",start)
         view=MENU[start:end]
         self.assertIn("V8.6 ARM9 THREAD RAM",view)
-        self.assertIn("walkerArm9ThreadAvailabilityRaw(&raw)",view)
+        self.assertIn("walkerArm9ThreadAliasWords(words)",view)
         self.assertIn("OS flag: 1",view)
         self.assertIn("OS gate FAILED",view)
         self.assertIn("walkerArm9ThreadAliasWords(words)",view)

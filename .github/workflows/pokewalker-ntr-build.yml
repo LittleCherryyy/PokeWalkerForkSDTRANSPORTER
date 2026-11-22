@@ -29,8 +29,12 @@ jobs:
             apt-get install -y gcc
           fi
           gcc -O2 core/bootstrap/lzss.c -o /usr/local/bin/lzss
-          command -v arm-none-eabi-gcc
-          arm-none-eabi-gcc --version | head -1
+          export DEVKITARM="${DEVKITARM:-/opt/devkitpro/devkitARM}"
+          export PATH="$DEVKITARM/bin:$PATH"
+          echo "$DEVKITARM/bin" >> "$GITHUB_PATH"
+          echo "DEVKITARM=$DEVKITARM" >> "$GITHUB_ENV"
+          test -x "$DEVKITARM/bin/arm-none-eabi-gcc"
+          "$DEVKITARM/bin/arm-none-eabi-gcc" --version | head -1
       - name: Rebuild injected original-IR ARM9 payload from source
         shell: bash
         run: |

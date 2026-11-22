@@ -190,6 +190,8 @@ slot2RomCluster: .word 0
 gen5RomCluster: .word 0
 gen5SaveCluster: .word 0
 gen5RomSize: .word 0
+.global walkerBootStatus
+walkerBootStatus: .word 0
 .align 4
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

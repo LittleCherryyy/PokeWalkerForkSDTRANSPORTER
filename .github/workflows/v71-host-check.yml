@@ -43,8 +43,20 @@ jobs:
         uses: actions/checkout@v4
       - name: Compile and execute host checks (no ROM/SDK)
         run: python3 tests/v71_host/run.py
+      - name: Build portable static LZSS host tool
+        run: |
+          gcc -static -O2 core/bootstrap/lzss.c -o lzss
+          file lzss
+          ldd lzss || true
+      - name: Share static LZSS with legacy cross-build
+        uses: actions/upload-artifact@v4
+        with:
+          name: v71-lzss-host-linux-x86_64
+          path: lzss
+          retention-days: 1
 
   dsi-cross-compile:
+    needs: host-checks
     name: DSi ARM7 + IGM legacy toolchain compile (no publish)
     runs-on: ubuntu-latest
     container:
@@ -52,6 +64,11 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - name: Download static host LZSS from successful host job
+        uses: actions/download-artifact@v4
+        with:
+          name: v71-lzss-host-linux-x86_64
+          path: core/bootstrap
       - name: Compile DSi NTR components
         shell: bash
         run: |
@@ -62,14 +79,10 @@ jobs:
           export PATH="$COMPILER_DIR/bin:$DEVKITPRO/tools/bin:$PATH"
           arm-none-eabi-gcc --version | head -1
           test -f "$SDK_DIR/include/nds.h"
-          # The pinned devkitARM container has the ARM cross compiler, but
-          # does not ship the native cc needed to build the host-side LZSS tool.
-          # The old container ships cached bullseye indexes whose security
-          # package revisions may have disappeared from the live mirror.
-          rm -rf /var/lib/apt/lists/*
-          apt-get -o Acquire::http::No-Cache=true update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential
-          gcc core/bootstrap/lzss.c -O2 -o core/bootstrap/lzss
+          # Native tool is a static x86_64 binary built on the Ubuntu runner.
+          # The pinned Debian image needs no apt indexes or host C compiler.
+          chmod +x core/bootstrap/lzss
+          test -x core/bootstrap/lzss
           make -C core/bootstrap/retail -j2 \
             DEVKITARM="$GITHUB_WORKSPACE/core/bootstrap/portable-ds-rules" \
             LEGACY_DEVKITARM="$COMPILER_DIR" LEGACY_LIBNDS="$SDK_DIR" LIBDIRS="$SDK_DIR" \

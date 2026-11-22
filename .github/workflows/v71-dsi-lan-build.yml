@@ -8,6 +8,11 @@ on:
       - "diagnostics/dsi_lan_ping_v71/**"
       - "diagnostics/dsi_ping_v6/**"
       - ".github/workflows/v71-dsi-lan-build.yml"
+  pull_request:
+    paths:
+      - "diagnostics/dsi_lan_ping_v71/**"
+      - "diagnostics/dsi_ping_v6/**"
+      - ".github/workflows/v71-dsi-lan-build.yml"
   workflow_dispatch:
 
 permissions:

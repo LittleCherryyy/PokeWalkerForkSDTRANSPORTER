@@ -1,7 +1,6 @@
 /* Compile-only ABI checks for the appended, disabled V7.1 network state.
  * GPL-3.0-or-later. No ROM or game runtime dependency. */
 #include "walker_emu.h"
-#include "walker_hgss_net.h"
 typedef char walker_u32_size[(sizeof(unsigned int) == 4) ? 1 : -1];
 typedef char walker_control_page[(sizeof(WalkerControl) <= 4096) ? 1 : -1];
 typedef char walker_old_dirty_offset[

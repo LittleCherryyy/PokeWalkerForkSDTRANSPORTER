@@ -9,14 +9,20 @@
     {"symbol": "WCM_ConnectAsync", "address": null, "residency": "unverified"},
     {"symbol": "WCM_GetPhase", "address": null, "residency": "unverified"},
     {"symbol": "WCM_PointApList", "address": null, "residency": "unverified"},
-    {"symbol": "SOCL_Startup", "address": null, "residency": "unverified"},
-    {"symbol": "SOCL_Socket", "address": null, "residency": "unverified"},
-    {"symbol": "SOCL_Connect", "address": null, "residency": "unverified"},
-    {"symbol": "SOCL_Send", "address": null, "residency": "unverified"},
-    {"symbol": "SOCL_Recv", "address": null, "residency": "unverified"},
-    {"symbol": "SOCL_Close", "address": null, "residency": "unverified"}
+    {"symbol": "SOC_Startup", "address": null, "residency": "unverified"},
+    {"symbol": "SOC_Socket", "address": null, "residency": "unverified"},
+    {"symbol": "SOC_Connect", "address": null, "residency": "unverified"},
+    {"symbol": "SOC_Send", "address": null, "residency": "unverified"},
+    {"symbol": "SOC_Recv", "address": null, "residency": "unverified"},
+    {"symbol": "SOC_Close", "address": null, "residency": "unverified"},
+    {"symbol": "SOC_Fcntl", "address": null, "residency": "unverified"},
+    {"symbol": "SOCL_GetHostID", "address": null, "residency": "unverified"}
   ],
   "findings": [
+    {
+      "description": "NitroDWC overlay headers list SOC_Startup, SOC_Socket, SOC_Connect, SOC_Send, SOC_Recv, SOC_Close and SOC_Fcntl; SOCL_GetHostID is separate. Exported reference does not prove memory residency or an ABI suitable for nds-bootstrap.",
+      "reference": "https://github.com/pret/pokeheartgold/blob/master/lib/NitroDWC/asm/include/overlay_00_arm.inc"
+    },
     {
       "description": "WCM_Init, WCM_StartupAsync and WCM_SearchAsync are referenced by an overlay include; this does not establish code residency.",
       "reference": "https://github.com/pret/pokeheartgold/blob/master/asm/include/overlay_13_thumb_2.inc"

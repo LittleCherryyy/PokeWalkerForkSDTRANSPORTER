@@ -24,6 +24,20 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Verify C bridge / Java protocol interoperability
+        shell: bash
+        run: |
+          mkdir -p /tmp/v71-interop
+          cc -std=c11 -Wall -Wextra -Werror tools/v7_1/c_bridge_ping.c -o /tmp/v71-interop/c_bridge_ping
+          /tmp/v71-interop/c_bridge_ping /tmp/v71-interop/ping.bin
+          javac -d /tmp/v71-interop \
+            core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java \
+            tools/v7_1/ProtocolInteropTest.java
+          java -cp /tmp/v71-interop io.github.sdtransporter.pokewalker.ProtocolInteropTest /tmp/v71-interop/ping.bin
       - name: Compile offline tools
         run: python -m compileall -q tools/v7_1
       - name: Unit tests with synthetic binaries only

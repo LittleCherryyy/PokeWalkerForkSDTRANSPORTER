@@ -30,14 +30,18 @@ residência, ABI, interoperabilidade com ARM7 ou segurança para HGSS.
 ## Como testar (somente no computador)
 
 1. Extraia o ZIP do GitHub Actions mantendo as pastas v7_3, v7_4 e v7_5 lado a lado.
-2. Arraste seu backup próprio de HeartGold.nds para v7_5/TESTAR_CALLS_WIFI.bat.
-3. O programa vai gerar wifi_calls_HeartGold.json (o nome acompanha seu arquivo).
-4. Repita para SoulSilver.nds e envie os dois arquivos JSON.
-5. Não copie nada para o DSi e não atualize o Android nesta etapa.
+2. Selecione seus dois backups originais HeartGold.nds e SoulSilver.nds no Explorador do Windows.
+3. Arraste **os dois arquivos juntos** para v7_5/COMPARAR_HGSS_WIFI.bat.
+4. Envie o único arquivo wifi_calls_HGSS_comparativo.json gerado.
+5. Se arrastar dois arquivos não funcionar, rode o BAT pelo terminal com os dois caminhos como argumentos.
+6. Não copie nada para o DSi e não atualize o Android nesta etapa.
+
+Também é possível testar individualmente, arrastando cada ROM para
+v7_5/TESTAR_CALLS_WIFI.bat; os resultados são salvos separadamente.
 
 Alternativa:
 
-    python tools/v7_5/hgss_wifi_call_targets.py "caminho/HeartGold.nds" --output hg_calls.json
+    python tools/v7_5/hgss_wifi_call_targets.py "HeartGold.nds" --compare "SoulSilver.nds" --output wifi_calls_HGSS_comparativo.json
 
 O JSON contém apenas endereços e metadados, nunca código da ROM.
 Uma instrução diferente da esperada interrompe o diagnóstico de forma segura.

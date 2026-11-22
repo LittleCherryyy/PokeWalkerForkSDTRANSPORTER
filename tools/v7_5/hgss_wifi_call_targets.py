@@ -198,15 +198,64 @@ def analyze(path):
     }
 
 
+def compare_reports(first, second):
+    """Compare exactly HG+SS without treating matching addresses as an ABI proof."""
+    codes = {first["game_code"], second["game_code"]}
+    if codes != {"IPKE", "IPGE"}:
+        raise CallsiteError("compare mode requires one original US HeartGold and one SoulSilver")
+    if first["arm9_static_bytes"] != second["arm9_static_bytes"]:
+        raise CallsiteError("ARM9 runtime sizes differ; address mapping cannot be assumed")
+    by_game = {first["game_code"]: first, second["game_code"]: second}
+    hg = {x["name"]: x for x in by_game["IPKE"]["callsites"]}
+    ss = {x["name"]: x for x in by_game["IPGE"]["callsites"]}
+    if set(hg) != set(ss) or len(hg) != len(first["callsites"]) or len(ss) != len(second["callsites"]):
+        raise CallsiteError("callsite lists are incomplete or contain duplicates")
+    pairs = []
+    for name in sorted(hg):
+        a = hg[name]
+        b = ss[name]
+        if a["caller_address"] != b["caller_address"]:
+            raise CallsiteError(name + " has inconsistent public callsite location")
+        same = a["decoded_immediate_target"] == b["decoded_immediate_target"]
+        pairs.append({
+            "name": name,
+            "public_callsite": a["caller_address"],
+            "heartgold_immediate_target": a["decoded_immediate_target"],
+            "soulsilver_immediate_target": b["decoded_immediate_target"],
+            "same_immediate_target": same,
+            "target_region_heartgold": a["target_region"],
+            "target_region_soulsilver": b["target_region"],
+            "verified_callable_wifi_api": False,
+        })
+    return {
+        "tool": "hgss-wifi-cross-title-callsite-audit-v7.5",
+        "games": by_game,
+        "comparisons": pairs,
+        "same_targets": sum(1 for x in pairs if x["same_immediate_target"]),
+        "total_sites": len(pairs),
+        "wifi_abi_verified": False,
+        "function_execution_allowed": False,
+        "physical_dsi_to_android_ping_verified": False,
+        "next_gate": "Resolve code veneers and cross-check the final network API ABI before enabling resident wireless.",
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("rom", type=Path, help="Exact, original US HGSS .nds backup")
+    parser.add_argument("--compare", type=Path, help="Second exact US HGSS .nds for cross-title comparison")
     parser.add_argument("--output", type=Path, help="Metadata-only JSON output")
     args = parser.parse_args(argv)
     try:
-        if args.output and args.output.resolve() == args.rom.resolve():
+        if args.output and (args.output.resolve() == args.rom.resolve()
+                            or (args.compare and args.output.resolve() == args.compare.resolve())):
             raise CallsiteError("refusing to overwrite source ROM")
-        data = analyze(args.rom)
+        if args.compare:
+            if args.rom.resolve() == args.compare.resolve():
+                raise CallsiteError("two different HGSS ROMs are required")
+            data = compare_reports(analyze(args.rom), analyze(args.compare))
+        else:
+            data = analyze(args.rom)
         payload = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)

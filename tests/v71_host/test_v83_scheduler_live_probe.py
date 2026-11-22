@@ -55,7 +55,7 @@ class LiveSchedulerGuard(unittest.TestCase):
         self.assertIn("walkerArm9ThreadHeaderWords(words)",view)
         self.assertIn("A0+0:0x",view)
         self.assertIn("OS gate FAILED",view)
-        self.assertIn("walkerArm9ThreadAliasWords(words)",view)
+        self.assertIn("A0+C:0x",view)
         self.assertIn("Wi-Fi: NOT ENABLED",view)
         self.assertIn("V7.9 ARM9 DEFERRED",MENU)
         self.assertNotIn("REG_IE =",view)

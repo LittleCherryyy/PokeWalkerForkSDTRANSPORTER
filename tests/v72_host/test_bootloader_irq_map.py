@@ -77,7 +77,7 @@ class BootIrqReport(unittest.TestCase):
                    a9.index("static void virtualPokewalkerMenu(void)")]
         self.assertIn("WPTQ",section)
         self.assertIn("WPTK",section)
-        self.assertIn("frames<90",section)
+        self.assertIn("frame<90",section)
         self.assertIn("25 slots NOT proven",section)
         self.assertIn("No IRQ handler modified",section)
         self.assertIn("Wi-Fi: NOT ENABLED",section)

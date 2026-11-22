@@ -90,10 +90,7 @@ u8 i2cSelectRegister(u8 reg) {
 }
 
 //---------------------------------------------------------------------------------
-/* V7.1: keep original low-level ARM7 I2C routine by WinterMute.
- * Modern Calico exports inline i2cWriteRegister/i2cReadRegister with
- * different definitions; use private names for the loader's legacy SPI. */
-u8 walkerLegacyI2cWriteRegister(u8 device, u8 reg, u8 data) {
+u8 i2cWriteRegister(u8 device, u8 reg, u8 data) {
 //---------------------------------------------------------------------------------
 	i2cSetDelay(device);
 	int i;
@@ -112,7 +109,7 @@ u8 walkerLegacyI2cWriteRegister(u8 device, u8 reg, u8 data) {
 }
 
 //---------------------------------------------------------------------------------
-u8 walkerLegacyI2cReadRegister(u8 device, u8 reg) {
+u8 i2cReadRegister(u8 device, u8 reg) {
 //---------------------------------------------------------------------------------
 	i2cSetDelay(device);
 	int i;

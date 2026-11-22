@@ -41,8 +41,8 @@ class ResidentCodeFingerprintContracts(unittest.TestCase):
         start=src.index("static void walkerArm9WifiCodeMenu(void)")
         end=src.index("static void virtualPokewalkerMenu(void)",start)
         snippet=src[start:end]
-        self.assertIn("walkerArm9ThreadHeaderWords(words)",snippet)
-        self.assertIn("printHex(9,y,words[i],4",snippet)
+        self.assertIn("walkerArm9LegacyThreadInfoWords(words)",snippet)
+        self.assertIn("printHex(7,y,words[i],4",snippet)
         self.assertIn("Wi-Fi: NOT ENABLED",snippet)
         self.assertNotIn("REG_IE =",snippet)
         self.assertNotIn("walkerWrite(",snippet)

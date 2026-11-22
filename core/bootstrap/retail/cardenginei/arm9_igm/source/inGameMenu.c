@@ -518,17 +518,27 @@ static void virtualPokewalkerMenu(void) {
     u32 lastCommand=0;
     #ifndef B4DS
     sharedAddr[4]=WALKER_DIAG_REQUEST;
-    /* ARM7 processes menu commands once per VBlank. Bound this request to
-     * 90 frames (~1.5s), and never wait indefinitely on a missing handler. */
+    /* ARM7's menu loop can restore MENU after processing the previous
+     * command in the same frame as our first WPDG write. A one-shot
+     * request is therefore lossy. Retry only when that *idle* MENU
+     * state is observed; never overwrite other service commands.
+     * WPDK is held by ARM7 until we acknowledge it with MENU. */
     for(unsigned frames=0;frames<90;frames++) {
         while (REG_VCOUNT != 191) mySwiDelay(100);
         while (REG_VCOUNT == 191) mySwiDelay(100);
-        if(sharedAddr[4]==WALKER_DIAG_REPLY) {
+        const u32 response=sharedAddr[4];
+        if(response==WALKER_DIAG_REPLY) {
             for(unsigned i=0;i<4;i++) diag[i]=sharedAddr[i];
             answered=true;
             break;
         }
-        if(sharedAddr[4]!=WALKER_DIAG_REQUEST) break;
+        if(response==WALKER_DIAG_MENU) {
+            /* The ARM7 menu is idle, so resubmit the read-only query. */
+            sharedAddr[4]=WALKER_DIAG_REQUEST;
+        } else if(response!=WALKER_DIAG_REQUEST) {
+            /* Unrelated command owns the mailbox. Do not clobber it. */
+            break;
+        }
     }
     lastCommand=sharedAddr[4];
     /* Restore the normal in-game-menu command even after timeout, but never
@@ -538,7 +548,7 @@ static void virtualPokewalkerMenu(void) {
     #endif
 
     clearScreen(false);
-    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.1.3", FONT_LIME, false);
+    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.1.4", FONT_LIME, false);
     print(1, 3, (const unsigned char *)"HeartGold / SoulSilver", FONT_WHITE, false);
     print(1, 5, (const unsigned char *)"Android TCP: 30821", FONT_WHITE, false);
     if(!answered) {

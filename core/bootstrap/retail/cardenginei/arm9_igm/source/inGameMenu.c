@@ -937,15 +937,15 @@ static void walkerIrqTableMenu(void) {
     }
 }
 
-/* V7.7 NTR ARM9 live-code audit: the five 32-byte code windows came
- * from the user's exact HGSS USA Rev0 V7.6 report. Neither the scanner
- * nor the menu calls an API, touches Wi-Fi/IRQ registers, or writes save.
- * A matching signature only proves the bytes are present in ARM9 RAM
- * while the in-game menu has paused HGSS; not that WCM/SOC are usable.
+/* V7.7 NTR ARM9 live-code audit of the same fixed five windows
+ * identified by V7.6. On-console CRC32 must be compared to the offline
+ * ROM CRC32 for the same code window. PRO means plausible ARM prologue,
+ * not Wi-Fi/ABI proof. No WCM/SOC calls, IRQ or save writes.
  */
 #ifndef B4DS
 static void walkerArm9WifiCodeMenu(void) {
-    const u32 mask = walkerWifiCheckStaticCode();
+    u32 crc[WALKER_WIFI_SIG_COUNT]={0,0,0,0,0};
+    const u32 mask = walkerWifiCheckStaticCode(crc);
     const unsigned char* names[WALKER_WIFI_SIG_COUNT] = {
         (const unsigned char*)"WCM_Init",
         (const unsigned char*)"WCM_Startup",
@@ -954,19 +954,20 @@ static void walkerArm9WifiCodeMenu(void) {
         (const unsigned char*)"SOC_Connect"
     };
     clearScreen(false);
-    print(1,1,(const unsigned char*)"V7.7 ARM9 WIFI CODE",FONT_LIME,false);
+    print(1,1,(const unsigned char*)"V7.7 ARM9 LIVE CRC",FONT_LIME,false);
     unsigned good=0;
     for (unsigned i=0; i<WALKER_WIFI_SIG_COUNT; i++) {
         const int row = 4 + 2 * i;
         print(1,row,names[i],FONT_WHITE,false);
+        printHex(16,row,crc[i],4,FONT_LIGHT_BLUE,false);
         if (mask & (1u<<i)) good++;
-        print(20,row,(const unsigned char*)((mask & (1u<<i)) ?
-              "MATCH" : "DIFF"),(mask & (1u<<i))?FONT_LIME:FONT_RED,false);
+        print(26,row,(const unsigned char*)((mask & (1u<<i)) ?
+              "PRO" : "?"),(mask & (1u<<i))?FONT_LIME:FONT_RED,false);
     }
-    print(1,15,(const unsigned char*)"Signatures: ",FONT_WHITE,false);
-    printDec(13,15,good,1,FONT_LIGHT_BLUE,false);
-    print(14,15,(const unsigned char*)"/5",FONT_LIGHT_BLUE,false);
-    print(1,17,(const unsigned char*)"Read only - paused",FONT_LIGHT_GRAY,false);
+    print(1,15,(const unsigned char*)"ARM prologues:",FONT_WHITE,false);
+    printDec(17,15,good,1,FONT_LIGHT_BLUE,false);
+    print(18,15,(const unsigned char*)"/5",FONT_LIGHT_BLUE,false);
+    print(1,17,(const unsigned char*)"CRC32: compare with PC",FONT_LIGHT_GRAY,false);
     print(1,18,(const unsigned char*)"No Wi-Fi/ABI proof",FONT_LIGHT_GRAY,false);
     print(1,20,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);
     print(1,22,(const unsigned char*)"B: Back",FONT_WHITE,false);

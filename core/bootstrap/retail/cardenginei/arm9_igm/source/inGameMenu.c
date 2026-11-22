@@ -4,6 +4,7 @@
 #include <nds/ndstypes.h>
 #include <nds/input.h>
 #include <nds/interrupts.h>
+#include <nds/timers.h>
 #include <nds/system.h>
 #include <nds/arm9/background.h>
 #include <nds/arm9/video.h>
@@ -515,6 +516,70 @@ static const unsigned char* walkerBootReason(u32 code) {
 /* V7.2: a read-only pre-menu snapshot of ARM7 IRQ and timer registers.
  * This is NOT a Wi-Fi capability probe. IRQ enable masks cannot establish
  * which function owns the handler, and we never touch radio registers. */
+/* V7.2.1: ARM7 DMA3 values sampled before the game was paused,
+ * whereas ARM9 values are observed in the menu context only.
+ * Neither observation establishes ownership or permits DSWifi startup. */
+static void walkerRadioResourcesMenu(void) {
+    u32 dma[4]={0,0,0,0};
+    bool answered=false;
+    const u16 arm9Timer3AtMenu=TIMER_CR(3);
+    const u32 arm9IeAtMenu=REG_IE;
+    const u32 arm9ImeAtMenu=REG_IME;
+#ifndef B4DS
+    sharedAddr[4]=0x44535057u; /* WPSD */
+    for(unsigned frames=0;frames<90;frames++) {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+        const u32 response=sharedAddr[4];
+        if(response==0x4B535057u) { /* WPSK */
+            for(unsigned i=0;i<4;i++) dma[i]=sharedAddr[i];
+            answered=true;
+            break;
+        }
+        if(response==WALKER_DIAG_MENU) {
+            sharedAddr[4]=0x44535057u;
+        } else if(response!=0x44535057u) {
+            break;
+        }
+    }
+    if(sharedAddr[4]==0x44535057u || sharedAddr[4]==0x4B535057u)
+        sharedAddr[4]=WALKER_DIAG_MENU;
+#endif
+    clearScreen(false);
+    print(1,1,(const unsigned char *)"V7.2.1 DMA3 / ARM9 AUDIT",FONT_LIME,false);
+    if(!answered) {
+        print(1,4,(const unsigned char *)"ARM7 DMA3: no IPC reply",FONT_RED,false);
+    } else {
+        print(1,4,(const unsigned char *)"ARM7 DMA3_CR: 0x",FONT_WHITE,false);
+        printHex(18,4,dma[0],4,FONT_LIGHT_BLUE,false);
+        print(1,6,(const unsigned char *)"ARM7 DMA3_SRC:0x",FONT_WHITE,false);
+        printHex(18,6,dma[1],4,FONT_LIGHT_BLUE,false);
+        print(1,8,(const unsigned char *)"ARM7 DMA3_DST:0x",FONT_WHITE,false);
+        printHex(18,8,dma[2],4,FONT_LIGHT_BLUE,false);
+        print(1,10,(const unsigned char *)((dma[0]&0x80000000u) ?
+            "DMA3 ENABLED at snapshot" : "DMA3 not enabled at snapshot"),
+            FONT_LIGHT_GRAY,false);
+    }
+    print(1,12,(const unsigned char *)"ARM9 TMR3 (menu): 0x",FONT_WHITE,false);
+    printHex(22,12,arm9Timer3AtMenu,2,FONT_LIGHT_BLUE,false);
+    print(1,14,(const unsigned char *)"ARM9 IE (menu): 0x",FONT_WHITE,false);
+    printHex(20,14,arm9IeAtMenu,4,FONT_LIGHT_BLUE,false);
+    print(1,16,(const unsigned char *)"ARM9 IME (menu):0x",FONT_WHITE,false);
+    printHex(20,16,arm9ImeAtMenu,1,FONT_LIGHT_BLUE,false);
+    print(1,18,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,19,(const unsigned char *)"No IRQ/DMA ownership proof",FONT_LIGHT_GRAY,false);
+    print(1,21,(const unsigned char *)"B: Back to main menu",FONT_WHITE,false);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_Y);
+    waitKeys(KEY_B);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_B);
+}
+
 static void walkerRadioSnapshotMenu(void) {
     u32 regs[4]={0,0,0,0};
     bool answered=false;
@@ -557,16 +622,27 @@ static void walkerRadioSnapshotMenu(void) {
     print(1,14,(const unsigned char *)"Captured before menu pause",FONT_WHITE,false);
     print(1,16,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
     print(1,18,(const unsigned char *)"IRQ ownership NOT verified",FONT_LIGHT_GRAY,false);
-    print(1,20,(const unsigned char *)"B: Back to main menu",FONT_WHITE,false);
+    print(1,19,(const unsigned char *)"Y: DMA3 + ARM9 snapshot",FONT_WHITE,false);
+    print(1,21,(const unsigned char *)"B: Back to main menu",FONT_WHITE,false);
     do {
         while(REG_VCOUNT!=191) mySwiDelay(100);
         while(REG_VCOUNT==191) mySwiDelay(100);
     } while(KEYS & KEY_X);
-    waitKeys(KEY_B);
-    do {
+    bool openResources=false;
+    while(1) {
         while(REG_VCOUNT!=191) mySwiDelay(100);
         while(REG_VCOUNT==191) mySwiDelay(100);
-    } while(KEYS & KEY_B);
+        if(KEYS & KEY_B) break;
+        if(KEYS & KEY_Y) { openResources=true; break; }
+    }
+    if(openResources) {
+        walkerRadioResourcesMenu();
+    } else {
+        do {
+            while(REG_VCOUNT!=191) mySwiDelay(100);
+            while(REG_VCOUNT==191) mySwiDelay(100);
+        } while(KEYS & KEY_B);
+    }
 }
 
 static void virtualPokewalkerMenu(void) {
@@ -605,7 +681,7 @@ static void virtualPokewalkerMenu(void) {
     #endif
 
     clearScreen(false);
-    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.2.0", FONT_LIME, false);
+    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.2.1", FONT_LIME, false);
     print(1, 3, (const unsigned char *)"HeartGold / SoulSilver", FONT_WHITE, false);
     print(1, 5, (const unsigned char *)"Android TCP: 30821", FONT_WHITE, false);
     if(!answered) {

@@ -48,3 +48,12 @@ The first devkitARM CI build of the full `bootloaderi` target stopped in legacy 
 - `readFirmware` implicitly declared (line 996)
 
 These are currently **unresolved toolchain/upstream compatibility errors** in the broader build. They do not establish that the appended V7.1 control layout is faulty, but the complete bootloader cannot yet be called build-verified. See the `V7.1 DSi bootstrap integration compile` workflow for exact logs. Do not mask these errors or publish the resulting binary as a testable in-game release.
+
+### Subsequent bootstrap compile finding (toolchain ABI)
+
+After adding the missing `readFirmware` prototype, restoring the historical `PM_READ_REGISTER = 0x80` opcode, and correcting the explicit cast for `arm9destination`, the actual `walker_boot.c` and `walker_net_resolve.c` translation units were reached by the devkitARM build. The next failure was in `bootloaderi/source/arm7/libnds/codec.c`:
+
+- Legacy `cdcReadReg(u8,u8)` conflicts with Calico's `cdcReadReg(CdcPage,unsigned)` declaration.
+- Legacy `cdcWriteReg(u8,u8,u8)` returning `void` conflicts with Calico's `bool cdcWriteReg(CdcPage,unsigned,u8)`.
+
+This **must not** be addressed by arbitrary casts or silencing warnings: the newer codec API has different semantics and ABI. Audit the legacy codec implementation and complete bootloader toolchain compatibility before shipping a modified nds-bootstrap binary to a console.

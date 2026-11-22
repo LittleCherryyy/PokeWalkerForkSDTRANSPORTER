@@ -78,6 +78,15 @@ static int committed(const WalkerControl *c) {
  * validation is still required to find a safe, sufficiently frequent site. */
 void walkerDirectArm9Tick(void) {
     if(workerBusy) return; /* prevent reentry during radio callbacks */
+    /* The virtual EEPROM lives in a game-reserved memory region and its
+     * normal-MPU accessibility is NOT yet verified. With no verified
+     * radio/memory backend, do not even dereference walkerControl from the
+     * normal ARM9 card-read path. A future backend must prove the memory
+     * mapping and coordinate cache maintenance before being linked. */
+    if(workerStage==WORKER_IDLE) {
+        const WalkerDirectRadioOps *probe=walkerDirectRadioBackend();
+        if(!probe || !probe->available || probe->available()<=0) return;
+    }
     workerBusy=1;
     cardengineArm9 *local=ce9;
     WalkerControl *c=local && local->walkerControl ?

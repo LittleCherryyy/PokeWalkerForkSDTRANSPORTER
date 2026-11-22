@@ -50,6 +50,18 @@ int main(void) {
     if (walkerArm9ThreadHeaderWords(NULL)!=0) {
         fprintf(stderr,"NULL header pointer must fail closed\\n");return 11;
     }
-    puts("PASS: V7.7 CRC32, V8.3 flag, V8.6 alias and V8.7 disabled B4DS header");
+    uint32_t legacy[6]={1u,2u,3u,4u,5u,6u};
+    if (walkerArm9LegacyThreadInfoWords(legacy)!=0) {
+        fprintf(stderr,"B4DS must refuse legacy OS thread layout\\n");return 12;
+    }
+    for (unsigned i=0;i<6;i++) {
+        if (legacy[i]!=0u) {
+            fprintf(stderr,"B4DS must zero all legacy OS layout output\\n");return 13;
+        }
+    }
+    if (walkerArm9LegacyThreadInfoWords(NULL)!=0) {
+        fprintf(stderr,"NULL legacy output must fail closed\\n");return 14;
+    }
+    puts("PASS: V7.7 CRC32 and guarded disabled B4DS OS probes through V8.8");
     return 0;
 }

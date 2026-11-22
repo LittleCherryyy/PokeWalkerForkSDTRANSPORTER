@@ -102,7 +102,7 @@ public final class DirectSyncWireContractTest {
                 ack.crc == 0 && session.equals(ack.session),
                 "ACK frame does not match DSi session");
 
-        if (args.length == 1) {
+        if (args.length == 1 || args.length == 2) {
             /* Verify the actual bytes produced by walker_push_stream.c,
              * with its real 512-byte sender chunks and partial writes. */
             try (InputStream raw = new FileInputStream(args[0])) {
@@ -121,8 +121,19 @@ public final class DirectSyncWireContractTest {
                 check(raw.read() == -1, "C sender appended unexpected bytes");
             }
             System.out.println("PASS: real C sender wire frame decoded byte-for-byte by Android Java");
+            if(args.length == 2) {
+                /* Return the REAL Android-generated OP_OK bytes to the
+                 * native C receiver for cross-language ACK validation. */
+                try(OutputStream response=new FileOutputStream(args[1])) {
+                    DirectSyncProtocol.write(response,DirectSyncProtocol.OP_OK,
+                            "0123456789abcdef0123456789abcdef",
+                            "0123456789abcdef0123456789abcdef0123",
+                            null,-1,null);
+                }
+            }
         } else {
-            check(args.length == 0, "Usage: DirectSyncWireContractTest [c-frame.bin]");
+            check(args.length == 0,
+                    "Usage: DirectSyncWireContractTest [c-frame.bin [android-ack.bin]]");
         }
 
         System.out.println("PASS: 64 KiB PUSH + CRC, fragmented TCP, corruption, length and ACK");

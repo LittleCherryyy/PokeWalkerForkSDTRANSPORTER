@@ -95,6 +95,8 @@ static void walkerDirectSnapshotTick(WalkerControl *c) {
     c->direct.offeredSeq=crcSeq;
     c->direct.error=WALKER_DIRECT_ERR_NONE;
     c->direct.attempts=0;
+    c->direct.lockReady=0;
+    c->direct.lockRequested=0;
     c->direct.state=WALKER_DIRECT_PUSH_READY;
 }
 

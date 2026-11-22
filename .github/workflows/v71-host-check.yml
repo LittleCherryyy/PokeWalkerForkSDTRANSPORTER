@@ -88,3 +88,17 @@ jobs:
             LEGACY_DEVKITARM="$COMPILER_DIR" LEGACY_LIBNDS="$SDK_DIR" LIBDIRS="$SDK_DIR" \
             PYTHON=python3 GIT_VER=sdlang2 LZSS="$GITHUB_WORKSPACE/core/bootstrap/lzss" \
             cardenginei_arm7 cardenginei_arm9_igm
+      - name: Rebuild complete nds-bootstrap (no release)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DEVKITPRO=/opt/devkitpro
+          export COMPILER_DIR=/opt/devkitpro/devkitARM
+          export SDK_DIR=/opt/devkitpro/libnds
+          export PATH="$COMPILER_DIR/bin:$DEVKITPRO/tools/bin:$PATH"
+          make -C core/bootstrap/retail -j2 \
+            DEVKITARM="$GITHUB_WORKSPACE/core/bootstrap/portable-ds-rules" \
+            LEGACY_DEVKITARM="$COMPILER_DIR" LEGACY_LIBNDS="$SDK_DIR" LIBDIRS="$SDK_DIR" \
+            PYTHON=python3 GIT_VER=sdlang2 LZSS="$GITHUB_WORKSPACE/core/bootstrap/lzss" all
+          test -s core/bootstrap/retail/bin/nds-bootstrap.nds
+          echo "Full build succeeded; produced file is not published or authorized for DSi testing."

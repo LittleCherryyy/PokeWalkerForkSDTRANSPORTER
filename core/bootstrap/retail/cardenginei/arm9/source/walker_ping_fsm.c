@@ -6,11 +6,12 @@
 #include "walker_ping_fsm.h"
 #include "walker_ping_only.h"
 
-static unsigned finish(WalkerPingFlow *flow, const WalkerPingIo *io,
-                       void *context, unsigned state) {
-    flow->state = state;
-    io->close_connection(context);
-    return state;
+/* Transition to a separate cleanup step so each call performs at most
+ * one nonblocking network callback, including the final close. */
+static unsigned finish(WalkerPingFlow *flow, unsigned state) {
+    flow->finalState = state;
+    flow->state = WALKER_PING_CLOSING;
+    return flow->state;
 }
 
 void walkerPingStart(WalkerPingFlow *flow, unsigned tickLimit) {
@@ -18,6 +19,7 @@ void walkerPingStart(WalkerPingFlow *flow, unsigned tickLimit) {
     if (!flow) return;
     flow->state = WALKER_PING_CONNECTING;
     flow->ticks = 0;
+    flow->finalState = WALKER_PING_FAILED;
     flow->tickLimit = tickLimit ? tickLimit : WALKER_PING_DEFAULT_TICKS;
     flow->sent = 0;
     flow->received = 0;
@@ -39,14 +41,19 @@ unsigned walkerPingStep(WalkerPingFlow *flow, const WalkerPingIo *io, void *cont
         flow->state = WALKER_PING_FAILED;
         return flow->state; /* No connection is known to exist. */
     }
+    if (flow->state == WALKER_PING_CLOSING) {
+        io->close_connection(context);
+        flow->state = flow->finalState;
+        return flow->state;
+    }
     if (flow->ticks >= flow->tickLimit)
-        return finish(flow, io, context, WALKER_PING_TIMEOUT);
+        return finish(flow, WALKER_PING_TIMEOUT);
     flow->ticks++;
 
     if (flow->state == WALKER_PING_CONNECTING) {
         n = io->connect_gateway(context, WALKER_DIRECT_PORT);
         if (n < 0 || n > 1)
-            return finish(flow, io, context, WALKER_PING_FAILED);
+            return finish(flow, WALKER_PING_FAILED);
         if (n == 1) flow->state = WALKER_PING_SENDING;
         return flow->state;
     }
@@ -55,7 +62,7 @@ unsigned walkerPingStep(WalkerPingFlow *flow, const WalkerPingIo *io, void *cont
         if (left == 0) { flow->state = WALKER_PING_RECEIVING; return flow->state; }
         n = io->send_some(context, flow->request + flow->sent, left);
         if (n < 0 || (unsigned)n > left)
-            return finish(flow, io, context, WALKER_PING_FAILED);
+            return finish(flow, WALKER_PING_FAILED);
         flow->sent += (unsigned)n;
         if (flow->sent == WALKER_DIRECT_HEADER_SIZE)
             flow->state = WALKER_PING_RECEIVING;
@@ -64,19 +71,19 @@ unsigned walkerPingStep(WalkerPingFlow *flow, const WalkerPingIo *io, void *cont
     if (flow->state == WALKER_PING_RECEIVING) {
         left = WALKER_DIRECT_HEADER_SIZE - flow->received;
         if (left == 0)
-            return finish(flow, io, context,
+            return finish(flow,
                           walkerPingAcceptOk((const WalkerDirectHeader *)flow->response)
                           ? WALKER_PING_OK : WALKER_PING_FAILED);
         n = io->recv_some(context, flow->response + flow->received, left);
         if (n < 0 || (unsigned)n > left)
-            return finish(flow, io, context, WALKER_PING_FAILED);
+            return finish(flow, WALKER_PING_FAILED);
         flow->received += (unsigned)n;
         if (flow->received == WALKER_DIRECT_HEADER_SIZE)
-            return finish(flow, io, context,
+            return finish(flow,
                           walkerPingAcceptOk((const WalkerDirectHeader *)flow->response)
                           ? WALKER_PING_OK : WALKER_PING_FAILED);
         return flow->state;
     }
-    return finish(flow, io, context, WALKER_PING_FAILED);
+    return finish(flow, WALKER_PING_FAILED);
 }
 #endif /* primary DSi NTR cardengine only */

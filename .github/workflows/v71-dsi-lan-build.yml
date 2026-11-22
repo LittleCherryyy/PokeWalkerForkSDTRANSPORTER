@@ -1,4 +1,4 @@
-name: Build V7.1 DSi LAN diagnostic
+name: Build V7.1 DSi Android hotspot diagnostic
 
 on:
   push:
@@ -36,11 +36,11 @@ jobs:
           export DEVKITARM=/opt/devkitpro/devkitARM
           make -j2
           test -s PokeWalker_DSi_V6_Direct_PING.nds
-          cp PokeWalker_DSi_V6_Direct_PING.nds "${GITHUB_WORKSPACE}/PokeWalker_V71_LAN_PING.nds"
+          cp PokeWalker_DSi_V6_Direct_PING.nds "${GITHUB_WORKSPACE}/PokeWalker_V71_HOTSPOT_PING.nds"
       - name: Upload test .nds artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PokeWalker-V71-LAN-PING
-          path: PokeWalker_V71_LAN_PING.nds
+          name: PokeWalker-V71-HOTSPOT-PING
+          path: PokeWalker_V71_HOTSPOT_PING.nds
           if-no-files-found: error
           retention-days: 30

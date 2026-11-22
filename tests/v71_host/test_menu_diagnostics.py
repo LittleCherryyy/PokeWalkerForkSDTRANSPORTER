@@ -31,7 +31,12 @@ class MenuDiagnosticTests(unittest.TestCase):
         begin = source.index("static void walkerReadOnlyDiagnostics(void)")
         end = source.index("#endif", begin)
         function = source[begin:end]
+        self.assertIn("walkerControlAddressIsDsiMirror(address)", function)
         self.assertIn("walkerControlAddressReadable(address)", function)
+        self.assertLess(function.index("walkerControlAddressIsDsiMirror(address)"),
+                        function.index("walkerControlAddressReadable(address)"))
+        self.assertIn("sharedAddr[0] |= 8u;", function)
+        self.assertIn("sharedAddr[2] = address;", function)
         self.assertIn("if(address) sharedAddr[0] |= 2u;", function)
         self.assertIn("sharedAddr[0] |= 4u;", function)
         self.assertIn("c->magic==WALKER_MAGIC", function)
@@ -55,6 +60,8 @@ class MenuDiagnosticTests(unittest.TestCase):
         self.assertIn("sharedAddr[4]=WALKER_DIAG_MENU;", view)
         self.assertIn("Wi-Fi: NOT ENABLED", view)
         self.assertIn("Missing net APIs: 0x", view)
+        self.assertIn("Walker: DSi RAM unprobed", view)
+        self.assertIn("Last IPC: 0x", view)
         self.assertIn("Walker: hook not published", view)
         self.assertIn("Walker: RAM addr rejected", view)
         self.assertIn("Walker: invalid header", view)

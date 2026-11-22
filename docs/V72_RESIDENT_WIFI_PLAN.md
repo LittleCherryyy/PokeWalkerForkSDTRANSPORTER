@@ -654,3 +654,66 @@ O sucesso da leitura não basta para autorizar `IRQ_WIFI`. Precisamos
 comprovar layout e capacidade reais da tabela, o proprietário do
 despachante IRQ no jogo, o encadeamento sem interrupção de handlers,
 e resolver o timer3 ARM9 que estava ativo durante a captura pré-wrapper.
+
+## V7.2.6 physical read-out — 22 November 2026: IRQ table contents NOT validated
+
+The user supplied a real DSi photo from
+`Virtual Pokéwalker V7.2.6 → Y → A`. The bounded read succeeded,
+but the three raw 32-bit words were:
+
+| Index | Observed raw value | Runtime candidate address |
+| --- | --- | --- |
+| 0 | `0xCBA77ABC` | from `0x0238ECF4` |
+| 16 | `0x24285A5F` | from `0x0238ED34` |
+| 24 | `0xBA84DFC5` | from `0x0238ED54` |
+
+These words **do not resemble ordinary NTR executable RAM function
+addresses** (typical ARM7 code may be in main RAM, shared WRAM or
+ARM7 WRAM). The raw bytes are NOT proof of a handler table, and there
+is currently NO basis to patch slot 24. A pointer-appearance heuristic
+cannot distinguish an encoded table, an overwritten region, a cached
+offset that no longer matches the loaded image, or a read/display fault.
+
+**Do not claim a stale cache is definitively proven.** Source audit
+shows the bootloader may use `patchOffsetCache.a7IrqHookOffset` to
+skip rediscovery. Current retail cache files are keyed by
+`romTid-headerCRC` in `_nds/nds-bootstrap/patchOffsetCache`,
+and the cache struct has `patchOffsetCacheFileVersion=121`.
+The loader also checks the ARM7 binary size to decide whether to reset
+some cached offsets. These checks do not demonstrate that IRQ
+table words have the expected semantics by the time the in-game menu
+reads the candidate address. The original V7.2.5 "25 slots fit image"
+display was **only a numeric bounds check**.
+
+### V7.2.6 follow-up: offline semantic/audit gate (no console release)
+
+- New pure-Python `tools/v7_2/analyze_irq_words.py` analyzes the
+  exact measured values, flags that none looks like an ordinary ARM7
+  RAM-code pointer and **always** sets `verified_irq_table=false`
+  and `irq_wifi_hook_allowed=false`. A plausible-looking pointer
+  does NOT authorize a hook either.
+- `tests/v72_host/test_irq_words_audit.py` asserts rejection of
+  those real values, rejection even when all words look plausible,
+  and protection against overflow/invalid metadata.
+- `walker_wifi_preflight.{h,c}` now requires two further independent,
+  explicit conditions: `arm7IrqTableProvenanceVerified` and
+  `arm7IrqTableSemanticsVerified`. Both default to false. An
+  unverified cached address or a mere 25-slot memory span can no
+  longer satisfy the gate, even if synthetic timer/DMA/IRQ claims
+  are marked true. This is **policy code only** and is not linked
+  to DSWifi or the running HGSS bootloader.
+- The V7.2.6 device build already used for this measurement remains
+  unchanged; no reason to rebuild APK/nds or repeat this memory peek.
+
+### Engineering next step (not a current DSi test)
+
+Determine whether the IRQ-table candidate address already contains
+unexpected words during the **bootloader's original hook installation**,
+or only after the game is running. Record, without replacing handlers,
+the bootloader's exact chosen address, discovery path and the original
+VBlank/IPC entries before it overwrites them, with a safe read bound,
+and compare against the already photographed runtime raw words.
+Do NOT delete the user's existing `patchOffsetCache` folder or
+patch live IRQ handlers. If fresh discovery is tested later, isolate
+that experiment using a copy of the SD data and a disposable save.
+Radio and timer3 resource conflicts remain unresolved.

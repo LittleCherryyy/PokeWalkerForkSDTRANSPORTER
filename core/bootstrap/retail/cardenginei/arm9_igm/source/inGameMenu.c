@@ -944,24 +944,18 @@ static void walkerIrqTableMenu(void) {
  * and prior test builds remain preserved in source/history.
  * No scheduler/WM call, no IRQ writes, no save/ROM modifications. */
 static void walkerArm9WifiCodeMenu(void) {
-    u32 raw=0u, words[2]={0u,0u};
-    const bool ok=walkerArm9ThreadAvailabilityRaw(&raw)!=0;
-    const bool sampled=walkerArm9ThreadAliasWords(words)!=0;
+    u32 words[2]={0u,0u};
+    const bool ok=walkerArm9ThreadAliasWords(words)!=0;
     clearScreen(false);
     print(1,1,(const unsigned char*)"V8.6 ARM9 THREAD RAM",FONT_LIME,false);
     if (ok) {
-        print(1,4,(const unsigned char*)"OS:0x",FONT_WHITE,false);
-        printHex(6,4,raw,4,FONT_LIGHT_BLUE,false);
-    } else {
-        print(1,4,(const unsigned char*)"OS guard FAILED",FONT_RED,false);
-    }
-    if (sampled) {
+        print(1,4,(const unsigned char*)"OS flag: 1",FONT_WHITE,false);
         print(1,8,(const unsigned char*)"A0+4:0x",FONT_WHITE,false);
         printHex(9,8,words[0],4,FONT_LIGHT_BLUE,false);
         print(1,11,(const unsigned char*)"A0+8:0x",FONT_WHITE,false);
         printHex(9,11,words[1],4,FONT_LIGHT_BLUE,false);
     } else {
-        print(1,9,(const unsigned char*)"No RAM snapshot",FONT_RED,false);
+        print(1,5,(const unsigned char*)"OS gate FAILED",FONT_RED,false);
     }
     print(1,15,(const unsigned char*)"A0+8 = 7C+44",FONT_LIGHT_GRAY,false);
     print(1,19,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);

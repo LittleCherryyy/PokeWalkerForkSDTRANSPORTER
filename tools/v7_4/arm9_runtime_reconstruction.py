@@ -101,7 +101,7 @@ def decompress_backwards(encoded: bytes, compressed_end: int,
     }
 
 
-def reconstruct(path):
+def reconstruct(path, *, include_runtime_image=False):
     path = Path(path)
     report = _v73.audit_rom(path)
     if not report["matching_known_us_reference"]:
@@ -140,6 +140,9 @@ def reconstruct(path):
     report["blz_reconstruction"] = meta
     report["next_gate"] = ("Independently map exact WCM/SOC instructions and ABI in the "
                            "reconstructed runtime image; no network calls yet.")
+    # For local offline analyzers only. The image is never written to JSON.
+    if include_runtime_image:
+        return report, runtime
     return report
 
 

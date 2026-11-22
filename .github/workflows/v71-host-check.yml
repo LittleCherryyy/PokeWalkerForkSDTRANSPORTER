@@ -6,6 +6,7 @@ on:
       - dev/v71-network-readiness-diagnostics
     paths:
       - '.github/workflows/v71-host-check.yml'
+      - '.github/workflows/v71-dsi-cross-compile.yml'
       - 'core/bootstrap/retail/common/include/walker_emu.h'
       - 'core/bootstrap/retail/common/include/walker_hgss_net.h'
       - 'core/bootstrap/retail/common/source/walker_hgss_net.c'
@@ -42,3 +43,28 @@ jobs:
         uses: actions/checkout@v4
       - name: Compile and execute host checks (no ROM/SDK)
         run: python3 tests/v71_host/run.py
+
+  dsi-cross-compile:
+    name: DSi ARM7 + IGM legacy toolchain compile (no publish)
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitarm:20241104
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile DSi NTR components
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DEVKITPRO=/opt/devkitpro
+          export COMPILER_DIR=/opt/devkitpro/devkitARM
+          export SDK_DIR=/opt/devkitpro/libnds
+          export PATH="$COMPILER_DIR/bin:$DEVKITPRO/tools/bin:$PATH"
+          arm-none-eabi-gcc --version | head -1
+          test -f "$SDK_DIR/include/nds.h"
+          cc core/bootstrap/lzss.c -O2 -o core/bootstrap/lzss
+          make -C core/bootstrap/retail -j2 \
+            DEVKITARM="$GITHUB_WORKSPACE/core/bootstrap/portable-ds-rules" \
+            LEGACY_DEVKITARM="$COMPILER_DIR" LEGACY_LIBNDS="$SDK_DIR" LIBDIRS="$SDK_DIR" \
+            PYTHON=python3 GIT_VER=sdlang2 LZSS="$GITHUB_WORKSPACE/core/bootstrap/lzss" \
+            cardenginei_arm7 cardenginei_arm9_igm

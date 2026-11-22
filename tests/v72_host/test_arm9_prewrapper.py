@@ -48,11 +48,12 @@ class Arm9PreWrapperTests(unittest.TestCase):
 
     def test_ui_clear_irq_context_and_fail_closed(self):
         m=self.menu
-        self.assertIn("V7.8 ARM9 ROM TASKS",m)
+        self.assertIn("V7.9 ARM9 DEFERRED",m)
         self.assertIn("the menu enters from IRQ",m)
-        self.assertIn("Read IME: 0x",m)
-        self.assertIn("Not a periodic worker",m)
-        self.assertIn("NonIRQ+IME:0x",m)
+        self.assertIn("Post+IME:0x",m)
+        self.assertIn("Dry run: no network I/O",m)
+        self.assertIn("Queued:   0x",m)
+        self.assertIn("Done:     0x",m)
         self.assertIn("Wi-Fi: NOT ENABLED",m)
         self.assertIn("A: ARM9 pre-wrapper view",m)
         self.assertIn("KEY_A | KEY_B",m)

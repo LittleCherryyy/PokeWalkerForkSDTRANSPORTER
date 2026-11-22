@@ -112,3 +112,31 @@ int walkerArm9ThreadAliasWords(uint32_t out[2]) {
     return 1;
 #endif
 }
+
+/* V8.7 original HGSS USA Rev0 fixed RAM header comparison.
+ * Reuses the previously validated V8.6 2-word snapshot and V8.3
+ * exact 4-word instruction guard. Additional reads are ONLY A0+0
+ * and A0+C, two aligned known NTR main-RAM addresses. The words
+ * at +4 and +8 are reused from the V8.6 snapshot: no duplicate
+ * volatile reads of those potentially scheduler-owned words.
+ * Do not interpret contents as pointers or follow them here.
+ */
+int walkerArm9ThreadHeaderWords(uint32_t out[4]) {
+    if (!out) return 0;
+    out[0]=0u;
+    out[1]=0u;
+    out[2]=0u;
+    out[3]=0u;
+#if defined(B4DS) || defined(TWLSDK)
+    return 0;
+#else
+    uint32_t pair[2]={0u,0u};
+    if (!walkerArm9ThreadAliasWords(pair))
+        return 0;
+    out[0]=*(const volatile uint32_t *)(uintptr_t)0x021E16A0u;
+    out[1]=pair[0];
+    out[2]=pair[1];
+    out[3]=*(const volatile uint32_t *)(uintptr_t)0x021E16ACu;
+    return 1;
+#endif
+}

@@ -47,10 +47,25 @@ extern u32 walkerBootStatus;
 #define WALKER_TABLE_REPLY      0x4B545057u /* WPTK */
 #define WALKER_PEEK_REQUEST     0x514B5057u /* WPKQ */
 #define WALKER_PEEK_REPLY       0x4B4B5057u /* WPKK */
+#define WALKER_BOOT_SNAPSHOT_REQUEST 0x51435057u /* WPCQ */
+#define WALKER_BOOT_SNAPSHOT_REPLY   0x4B435057u /* WPCK */
+extern u32 walkerIrqBootOriginalVblank;
+extern u32 walkerIrqBootOriginalIpc;
+extern u32 walkerIrqBootInstalledVblank;
+extern u32 walkerIrqBootInstalledIpc;
 extern u32 walkerIrqTableAddress;
 extern u32 walkerIrqImageStart;
 extern u32 walkerIrqImageSize;
 extern u32 walkerIrqTableMethod;
+
+/* V7.2.7: boot-captured data only; no IRQ table dereference and no writes. */
+static void walkerBootSnapshotReadOnlyDiagnostics(void) {
+    sharedAddr[0] = walkerIrqBootOriginalVblank;
+    sharedAddr[1] = walkerIrqBootOriginalIpc;
+    sharedAddr[2] = walkerIrqBootInstalledVblank;
+    sharedAddr[3] = walkerIrqBootInstalledIpc;
+    sharedAddr[4] = WALKER_BOOT_SNAPSHOT_REPLY;
+}
 
 static void walkerIrqTableReadOnlyDiagnostics(void) {
     /* These four words are boot-time *metadata* already stored in ce7,
@@ -328,6 +343,9 @@ void inGameMenu(void) {
                     break;
                 case WALKER_PEEK_REQUEST: // WPKQ: guarded raw table words
                     walkerIrqPeekReadOnlyDiagnostics();
+                    break;
+                case WALKER_BOOT_SNAPSHOT_REQUEST: // WPCQ: boot-captured hook words
+                    walkerBootSnapshotReadOnlyDiagnostics();
                     break;
                 #endif
 				case 0x524D4152: // RAMR

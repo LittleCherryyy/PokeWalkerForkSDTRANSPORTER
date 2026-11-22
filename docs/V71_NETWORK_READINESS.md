@@ -37,3 +37,22 @@ The V18 resolver does not currently resolve callable WCM/SOCL/SOC function addre
 5. Test power interruption, connection loss, and SD durability before transfer.
 
 Nothing here has been compiled or tested on physical DSi hardware as part of this change.
+
+## 2026-11-22 continuation: source integration audit
+
+The shared `WalkerControl` declaration was missing the `direct` and `hgssNet` members already referenced elsewhere. V7.1 appends those members *after* `linkMode` to preserve legacy offsets; it also adds a hard `sizeof(WalkerControl) <= 0x800` compile-time bound shared by the DS-mode and Slot-1 layouts.
+
+The DSi NTR loader (`retail/bootloaderi/source/arm7/walker_boot.c`) now initializes the direct state and invokes the fail-closed network resolver *only after the IR hook is successfully installed*. Neither call opens Wi-Fi or touches a save.
+
+The resolver no longer allocates an ARM stack array to perform unused heuristic BL-frequency analysis. It clears the output before validating arguments, restricts its existing US gateway *candidate* to IPKE/IPGE, and **does not resolve any callable networking function**.
+
+### Host-only checks
+
+Run `python3 tests/v71_host/run.py` from any directory with a host C compiler (`gcc`, `clang`, or `CC`). The test checks the 0x800-byte memory bound, legacy dirty offset, missing mask, invalid-input reset, and IPKE/IPGE title filtering. The added GitHub Actions workflow also requests these checks on changed sources. The actual workflow result is not yet confirmed.
+
+### Still missing (do not distribute an SD test build)
+
+- The correct in-game DSi ARM9 transport integration and validated ABI are unresolved. The source `retail/cardengine/arm9/source/walker_direct_transport.c` is located under a Makefile with `-DB4DS`, so its mere existence is not evidence of a DSi in-game transport.
+- `walkerDirectBridgeTick()` and the ARM7 durability coordinator have not yet been demonstrated to be called by the live DSi code path.
+- No real WCM/SOCL/SOC callable addresses, association, socket, PING/ACK or Pokémon transfer have been proven on console.
+- The US gateway constant is research-only; a game-code check is not a build fingerprint. Never call it without validating the exact ARM9 binary/revision.

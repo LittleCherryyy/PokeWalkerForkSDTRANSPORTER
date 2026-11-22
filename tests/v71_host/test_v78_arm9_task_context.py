@@ -20,8 +20,7 @@ class Arm9TaskContextTests(unittest.TestCase):
         self.assertEqual(fields[:4], ["magic", "timer3", "ie", "ime"])
         self.assertEqual(fields[4:], [
             "romReadCalls", "eligibleReadCalls", "lastReadCpsrMode",
-            "lastReadIme", "postReadEligibleCalls", "dryRunQueued",
-            "dryRunDone", "dryRunPending"])
+            "lastReadIme", "postReadEligibleCalls", "dryRunStage"])
         arm9 = ARM9.read_text()
         self.assertIn("walkerArm9RomReadCalls,", arm9)
         self.assertIn("walkerArm9EligibleReadCalls,", arm9)
@@ -62,9 +61,8 @@ class Arm9TaskContextTests(unittest.TestCase):
         ]
         self.assertIn("romReadCalls", menu)
         self.assertIn("postReadEligibleCalls", menu)
-        self.assertIn("dryRunQueued", menu)
-        self.assertIn("dryRunDone", menu)
-        self.assertIn("Dry run: no network I/O", menu)
+        self.assertIn("dryRunStage", menu)
+        self.assertIn("0 idle 1 queued 2 done", menu)
         self.assertIn("Wi-Fi: NOT ENABLED", menu)
         self.assertNotIn("WCM_Init(", menu)
         self.assertNotIn("REG_IE =", menu)

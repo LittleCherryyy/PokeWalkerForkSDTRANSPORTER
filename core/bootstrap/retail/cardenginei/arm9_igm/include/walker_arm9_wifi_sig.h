@@ -9,4 +9,9 @@ uint32_t walkerCrc32Fixed32(const volatile uint8_t *source);
 /* Writes CRC32 into out[5], returns bit mask for ARM entry prologues.
  * Does NOT establish a callable ABI or a working Wi-Fi interface. */
 uint32_t walkerWifiCheckStaticCode(uint32_t out[WALKER_WIFI_SIG_COUNT]);
+/* V8.3: read one HGSS USA Rev0 NitroSDK OS_IsThreadAvailable
+ * global word, but ONLY after exact ARM instruction and literal
+ * validation. Return 1 when sampled and 0 on failed guard.
+ * Even when valid, does NOT establish an available OS thread slot. */
+int walkerArm9ThreadAvailabilityRaw(uint32_t *out);
 #endif

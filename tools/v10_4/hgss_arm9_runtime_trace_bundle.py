@@ -70,7 +70,7 @@ def validate(report):
     return True
 
 
-def build_gdb(port, max_hits):
+def build_gdb(port, max_hits, already_connected=False):
     if not 1 <= port <= 65535 or not 1 <= max_hits <= MAX_HITS_ALLOWED:
         raise ValueError('port or hit limit out of range')
     lines = [
@@ -84,9 +84,12 @@ def build_gdb(port, max_hits):
         f'set logging file {BASENAME}.log',
         'set logging enabled on',
         'set $pw_v104_hits = 0',
-        f'target remote localhost:{port}',
-        f'printf "PW_V104_CONNECTED remote_ARM9_port={port}\\n"',
     ]
+    if already_connected:
+        lines.append('printf "PW_V104_EXISTING_CONNECTION remote_ARM9_port='+str(port)+'\\n"')
+    else:
+        lines.extend([f'target remote localhost:{port}',
+                      f'printf "PW_V104_CONNECTED remote_ARM9_port={port}\\n"'])
     for name,pc in PROBES:
         lines.extend([
             f'break *0x{pc:08X}',
@@ -130,10 +133,17 @@ REQUIREMENTS
 
 RUN (from the folder containing the generated files)
 - Start melonDS with the original ROM and the ARM9 GDB stub enabled.
-- In a terminal start ARM-capable GDB, then inside GDB enter:
+- Start ARM-capable GDB in the trace folder. For a FIRST connection:
     source {BASENAME}.gdb
-- The script connects to localhost:{port}, sets 11 breakpoints,
-  resumes emulation, and logs at most {max_hits} instruction stops.
+- If you already used 'target remote localhost:{port}' manually and
+  'info registers' works, DO NOT DISCONNECT. Use the other generated file:
+    source {BASENAME}_attached.gdb
+- The attached variant does not send target remote again; it installs
+  the same breakpoints in the current ARM9 GDB session.
+- Either script sets 11 breakpoints, resumes emulation, and logs at
+  most {max_hits} instruction stops.
+- IMPORTANT: after a failed connect, quit GDB and restart melonDS
+  fully to clear potentially stale GDB stub negotiation state.
 - Navigate the game's menus normally. Breakpoints may noticeably slow
   the emulator; do not treat timing/networking as representative of DSi.
 - Press Ctrl+C in GDB to interrupt. Use 'disconnect' or 'quit' to finish.
@@ -174,6 +184,10 @@ def main(argv=None):
             assert 'disable breakpoints' in g
             assert g.endswith('continue\n')
             assert 'PW_V104_HIT tag=C_STORE' in g
+            attached=build_gdb(3333,8,already_connected=True)
+            assert 'target remote' not in attached
+            assert 'PW_V104_EXISTING_CONNECTION' in attached
+            assert attached.count('\nbreak *')==len(PROBES)
             print('V10.4 synthetic manifest-generation test: PASS')
             return 0
         if not args.report or not args.output_dir:
@@ -184,6 +198,9 @@ def main(argv=None):
         out.mkdir(parents=True,exist_ok=True)
         (out/(BASENAME+'.gdb')).write_text(build_gdb(args.arm9_port,args.max_hits),
                                              encoding='utf-8',newline='\n')
+        (out/(BASENAME+'_attached.gdb')).write_text(
+            build_gdb(args.arm9_port,args.max_hits,already_connected=True),
+            encoding='utf-8',newline='\n')
         (out/'README_v104_runtime_trace.txt').write_text(readme(args.arm9_port,args.max_hits),
                                                          encoding='utf-8')
         (out/'probe_manifest.json').write_text(json.dumps({
@@ -191,6 +208,7 @@ def main(argv=None):
             'game_codes':['IPKE','IPGE'],'arm9_port':args.arm9_port,
             'trace_max_hits':args.max_hits,
             'breakpoints':[{'tag':name,'address':f'0x{addr:08X}'} for name,addr in PROBES],
+            'manual_connection_script':BASENAME+'_attached.gdb',
             'emulator_execution_proven':False,
             'real_DSi_execution_proven':False,
             'resident_wifi_verified':False,

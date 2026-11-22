@@ -68,8 +68,37 @@ class ResidentAuditTests(unittest.TestCase):
                     "SOURCES := source ../../common/source ",
             })
             report = inspect(root)
-        self.assertTrue(all(report["requirements"].values()))
-        self.assertEqual(report["status"], "STATIC_GATES_CANDIDATE_ONLY")
+        self.assertTrue(report["requirements"]["shared_layout_ready"])
+        self.assertTrue(report["requirements"]["resident_transport_ready"])
+        # Textual assignments are never sufficient to prove a safe HGSS API.
+        self.assertFalse(report["requirements"]["resolver_ready"])
+        self.assertEqual(report["status"], "RESIDENT_NETWORK_BLOCKED")
+
+    def test_verified_fail_closed_resolver_is_reported_safe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sources(root, **{
+                "common/include/walker_emu.h":
+                    "WalkerDirectBridge direct; WalkerHgssNetApi hgssNet; "
+                    "unsigned wcmSearchAsync;",
+                "common/source/walker_hgss_net.c":
+                    "int walkerResolveHgssNet(void) { out->ready = 0; return 1; }",
+            })
+            report = inspect(root)
+        self.assertTrue(report["safety"]["network_fail_closed"])
+        self.assertTrue(report["safety"]["gateway_not_guessed"])
+        self.assertTrue(report["checks"]["resolver_uses_wcm_search_name"])
+        self.assertFalse(report["requirements"]["resolver_ready"])
+
+    def test_guessed_gateway_not_considered_safe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sources(root, **{
+                "common/source/walker_hgss_net.c":
+                    "out->soclGatewayPtr = 0x021D464C; out->ready = 0;",
+            })
+            report = inspect(root)
+        self.assertFalse(report["safety"]["gateway_not_guessed"])
 
 
 if __name__ == "__main__":

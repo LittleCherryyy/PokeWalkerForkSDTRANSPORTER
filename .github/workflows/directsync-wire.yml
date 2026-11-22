@@ -46,4 +46,10 @@ jobs:
             core/bootstrap/retail/transport/walker_push_stream.c \
             core/tools/test_walker_push_stream.c \
             -o "$RUNNER_TEMP/pw-push-stream-test"
-          "$RUNNER_TEMP/pw-push-stream-test"
+          "$RUNNER_TEMP/pw-push-stream-test" "$RUNNER_TEMP/pw-c-outbound.bin"
+      - name: Interoperate real C sender framing with Java Android decoder
+        shell: bash
+        run: |
+          java -cp "$RUNNER_TEMP/pw-wire" \
+            io.github.sdtransporter.pokewalker.DirectSyncWireContractTest \
+            "$RUNNER_TEMP/pw-c-outbound.bin"

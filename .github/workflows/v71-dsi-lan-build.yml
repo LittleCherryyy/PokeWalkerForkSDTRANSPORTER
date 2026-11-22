@@ -39,6 +39,15 @@ jobs:
             -Icore/bootstrap/retail/common/include \
             -I/opt/devkitpro/libnds/include \
             tools/v7_1/check_shared_layout.c
+      - name: Compile virtual walker payload with new shared ABI (syntax only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          /opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc \
+            -std=gnu11 -mcpu=arm946e-s -marm -Os \
+            -ffreestanding -fno-builtin -Wall -Wextra -Werror -fsyntax-only \
+            -Icore/bootstrap/retail/common/include \
+            core/bootstrap/retail/pokewalker/walker.c
       - name: Build safe DSi diagnostic
         shell: bash
         run: |

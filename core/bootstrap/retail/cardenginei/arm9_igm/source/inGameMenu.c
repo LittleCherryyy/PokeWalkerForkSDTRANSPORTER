@@ -495,6 +495,23 @@ static void drawMainMenu(MenuItem *menuItems, int menuItemCount) {
 #define WALKER_DIAG_REPLY   0x4B445057u /* WPDK */
 #define WALKER_DIAG_MENU    0x554E454Du /* MENU */
 #endif
+/* V7.1.3: codes are shared with WALKER_BOOT_* in walker_emu.h. */
+static const unsigned char* walkerBootReason(u32 code) {
+    switch(code) {
+        case 0u:   return (const unsigned char*)"Boot was not attempted";
+        case 1u:   return (const unsigned char*)"No .walker file selected";
+        case 2u:   return (const unsigned char*)"No Walker RAM reserved";
+        case 3u:   return (const unsigned char*)"No file + no RAM area";
+        case 0x10u:return (const unsigned char*)"IR receive pattern missing";
+        case 0x11u:return (const unsigned char*)"IR write pattern missing";
+        case 0x12u:return (const unsigned char*)"IR chip pattern missing";
+        case 0x13u:return (const unsigned char*)"IR init pattern missing";
+        case 0x14u:return (const unsigned char*)"EEPROM read failed";
+        case 0xFFu:return (const unsigned char*)"Hook installed; ptr lost";
+        default:   return (const unsigned char*)"Unknown boot status";
+    }
+}
+
 static void virtualPokewalkerMenu(void) {
     u32 diag[4]={0,0,0,0};
     bool answered=false;
@@ -521,7 +538,7 @@ static void virtualPokewalkerMenu(void) {
     #endif
 
     clearScreen(false);
-    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.1.2", FONT_LIME, false);
+    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.1.3", FONT_LIME, false);
     print(1, 3, (const unsigned char *)"HeartGold / SoulSilver", FONT_WHITE, false);
     print(1, 5, (const unsigned char *)"Android TCP: 30821", FONT_WHITE, false);
     if(!answered) {
@@ -544,7 +561,10 @@ static void virtualPokewalkerMenu(void) {
         } else {
             print(1, 7, (const unsigned char *)"Walker: invalid header", FONT_RED, false);
         }
-        print(1, 9, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
+        print(1, 9, (const unsigned char *)"Boot stage: 0x", FONT_WHITE, false);
+        printHex(15,9,diag[3]&0xFFu,1,FONT_LIGHT_BLUE,false);
+        print(1, 11, walkerBootReason(diag[3]), FONT_LIGHT_BLUE, false);
+        print(1, 13, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
     } else {
         print(1, 7, (const unsigned char *)"Missing net APIs: 0x", FONT_WHITE, false);
         printHex(21,7,diag[1]&0x1FFFu,2,FONT_RED,false);

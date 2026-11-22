@@ -614,6 +614,15 @@ __attribute__((section(".text.entry")))
 u32 walkerEntry(WalkerControl *c, u32 op, u32 a, u32 b) {
 	if (c->magic != WALKER_MAGIC) return 0;
 	c->calls++;
+	/* The Android has durably accepted this checkout. Never let HGSS
+	 * connect to the still-present SD recovery EEPROM as a second
+	 * independent Pokéwalker: that would allow the same Pokémon to be
+	 * returned twice. The Android return protocol must restore the
+	 * EEPROM and relinquish PHONE_OWNS before another IR session. */
+	if (c->direct.magic == WALKER_DIRECT_BRIDGE_MAGIC &&
+	    c->direct.state == WALKER_DIRECT_PHONE_OWNS &&
+	    (op == WALKER_OP_READ || op == WALKER_OP_WRITE))
+		return 0;
 	if (op == WALKER_OP_READ) {
 		u8 *out = (u8 *)a;
 		c->reads++;

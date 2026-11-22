@@ -8,6 +8,8 @@ on:
       - 'core/bootstrap/retail/transport/**'
       - 'core/bootstrap/retail/common/include/walker_directsync.h'
       - 'core/tools/test_walker_push_stream.c'
+      - 'core/tools/test_walker_direct_lock.c'
+      - 'core/bootstrap/retail/common/include/walker_direct_lock.h'
       - '.github/workflows/directsync-wire.yml'
   pull_request:
     paths:
@@ -16,6 +18,8 @@ on:
       - 'core/bootstrap/retail/transport/**'
       - 'core/bootstrap/retail/common/include/walker_directsync.h'
       - 'core/tools/test_walker_push_stream.c'
+      - 'core/tools/test_walker_direct_lock.c'
+      - 'core/bootstrap/retail/common/include/walker_direct_lock.h'
       - '.github/workflows/directsync-wire.yml'
   workflow_dispatch:
 
@@ -59,3 +63,11 @@ jobs:
         run: |
           "$RUNNER_TEMP/pw-push-stream-test" --android-ack \
             "$RUNNER_TEMP/pw-android-ack.bin"
+      - name: Validate durable pre-send DSi ownership fence
+        shell: bash
+        run: |
+          gcc -std=c99 -O2 -Wall -Wextra -Werror -Wno-unused-function \
+            -I core/bootstrap/retail/common/include \
+            core/tools/test_walker_direct_lock.c \
+            -o "$RUNNER_TEMP/pw-direct-lock-test"
+          "$RUNNER_TEMP/pw-direct-lock-test"

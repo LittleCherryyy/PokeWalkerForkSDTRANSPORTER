@@ -45,6 +45,9 @@ typedef struct WalkerDirectBridge {
     volatile unsigned int lastProgress;
     char session[WALKER_DIRECT_SESSION_SIZE + 1];
     char trainer[WALKER_DIRECT_TRAINER_SIZE + 1];
+    /* ARM7 sets this only after checked read-back of the durable
+     * .directlock PENDING record. ARM9 MUST NOT send before it is 1. */
+    volatile unsigned int lockReady;
 } WalkerDirectBridge;
 
 static void walkerDirectBridgeReset(WalkerDirectBridge *d,unsigned durableSeq) {
@@ -55,7 +58,7 @@ static void walkerDirectBridgeReset(WalkerDirectBridge *d,unsigned durableSeq) {
     d->durableSeq=durableSeq;
     d->offeredSeq=durableSeq;
     d->crc32=0;d->attempts=0;d->lastProgress=0;
-    d->session[0]=0;d->trainer[0]=0;
+    d->session[0]=0;d->trainer[0]=0;d->lockReady=0;
 }
 #endif
 

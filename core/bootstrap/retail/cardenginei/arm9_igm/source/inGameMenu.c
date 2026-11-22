@@ -690,6 +690,60 @@ static void walkerRadioSnapshotMenu(void) {
 /* V7.2.5: obtain the REAL bootloaderi IRQ-table location selected at
  * HGSS startup. Never dereference a table entry here, especially slot 24.
  * Only four boot metadata words cross the already-tested bounded IPC. */
+/* V7.2.6: show raw, bounded ARM7 words. Slot24 might be ordinary data!
+ * Do not interpret raw words as an IRQ_WIFI handler or authorize a write. */
+static void walkerIrqWordsMenu(void) {
+    u32 reply[4]={0,0,0,0};
+    bool answered=false;
+#ifndef B4DS
+    sharedAddr[4]=0x514B5057u; /* WPKQ */
+    for(unsigned frame=0;frame<90;frame++) {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+        const u32 command=sharedAddr[4];
+        if(command==0x4B4B5057u) { /* WPKK */
+            for(unsigned i=0;i<4;i++)reply[i]=sharedAddr[i];
+            answered=true;
+            break;
+        }
+        if(command==WALKER_DIAG_MENU)
+            sharedAddr[4]=0x514B5057u;
+        else if(command!=0x514B5057u)
+            break;
+    }
+    if(sharedAddr[4]==0x514B5057u || sharedAddr[4]==0x4B4B5057u)
+        sharedAddr[4]=WALKER_DIAG_MENU;
+#endif
+    clearScreen(false);
+    print(1,1,(const unsigned char *)"V7.2.6 ARM7 IRQ WORDS",FONT_LIME,false);
+    if(!answered) {
+        print(1,5,(const unsigned char *)"ARM7: no word reply",FONT_RED,false);
+    } else if(!(reply[0] & 1u)) {
+        print(1,5,(const unsigned char *)"READ BLOCKED: no safe span",FONT_RED,false);
+    } else {
+        print(1,4,(const unsigned char *)"Slot 0 raw: 0x",FONT_WHITE,false);
+        printHex(17,4,reply[1],4,FONT_LIGHT_BLUE,false);
+        print(1,6,(const unsigned char *)"Slot16 raw: 0x",FONT_WHITE,false);
+        printHex(17,6,reply[2],4,FONT_LIGHT_BLUE,false);
+        print(1,8,(const unsigned char *)"Slot24 raw: 0x",FONT_WHITE,false);
+        printHex(17,8,reply[3],4,FONT_LIGHT_BLUE,false);
+        print(1,11,(const unsigned char *)"Slot24 may NOT be IRQ_WIFI",FONT_LIGHT_GRAY,false);
+    }
+    print(1,14,(const unsigned char *)"Raw RAM, NOT handler proof",FONT_LIGHT_GRAY,false);
+    print(1,16,(const unsigned char *)"No IRQ values changed",FONT_WHITE,false);
+    print(1,19,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,21,(const unsigned char *)"B: Back to menu",FONT_WHITE,false);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_A);
+    waitKeys(KEY_B);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_B);
+}
+
 static void walkerIrqTableMenu(void) {
     u32 record[4]={0,0,0,0};
     bool answered=false;
@@ -713,7 +767,7 @@ static void walkerIrqTableMenu(void) {
         sharedAddr[4]=WALKER_DIAG_MENU;
 #endif
     clearScreen(false);
-    print(1,1,(const unsigned char *)"V7.2.5 ARM7 BOOT IRQ MAP",FONT_LIME,false);
+    print(1,1,(const unsigned char *)"V7.2.6 ARM7 BOOT IRQ MAP",FONT_LIME,false);
     if(!answered) {
         print(1,4,(const unsigned char *)"ARM7: no table report",FONT_RED,false);
     } else {
@@ -741,18 +795,22 @@ static void walkerIrqTableMenu(void) {
         print(1,15,(const unsigned char *)(inImage ?
             "25 slots fit image" : "25 slots NOT proven"),FONT_LIGHT_GRAY,false);
     }
-    print(1,17,(const unsigned char *)"No IRQ handler modified",FONT_WHITE,false);
+    print(1,17,(const unsigned char *)"A: Read bounded IRQ words",FONT_WHITE,false);
     print(1,19,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
     print(1,21,(const unsigned char *)"B: Back to menu",FONT_WHITE,false);
     do {
         while(REG_VCOUNT!=191) mySwiDelay(100);
         while(REG_VCOUNT==191) mySwiDelay(100);
     } while(KEYS & KEY_Y);
-    waitKeys(KEY_B);
-    do {
-        while(REG_VCOUNT!=191) mySwiDelay(100);
-        while(REG_VCOUNT==191) mySwiDelay(100);
-    } while(KEYS & KEY_B);
+    waitKeys(KEY_A | KEY_B);
+    if(KEYS & KEY_A) {
+        walkerIrqWordsMenu();
+    } else {
+        do {
+            while(REG_VCOUNT!=191) mySwiDelay(100);
+            while(REG_VCOUNT==191) mySwiDelay(100);
+        } while(KEYS & KEY_B);
+    }
 }
 
 static void virtualPokewalkerMenu(void) {
@@ -791,7 +849,7 @@ static void virtualPokewalkerMenu(void) {
     #endif
 
     clearScreen(false);
-    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.2.5", FONT_LIME, false);
+    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.2.6", FONT_LIME, false);
     print(1, 3, (const unsigned char *)"HeartGold / SoulSilver", FONT_WHITE, false);
     print(1, 5, (const unsigned char *)"Android TCP: 30821", FONT_WHITE, false);
     if(!answered) {

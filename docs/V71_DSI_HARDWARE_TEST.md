@@ -1,4 +1,4 @@
-# V7.1 — teste limitado do painel de diagnóstico no Nintendo DSi
+# V7.1.1 — teste limitado do painel de diagnóstico no Nintendo DSi
 
 **Este pacote NÃO transfere Pokémon por Wi-Fi.** O servidor Android, a ROM e
 os arquivos de Pokémon não devem ser alterados para este teste. As funções
@@ -15,7 +15,7 @@ em um DSi real.
 2. No SD do DSi, copie o arquivo antigo
    `/_nds/nds-bootstrap-nightly.nds` para o computador como backup.
    Não altere o `nds-bootstrap-release.nds` nem sua ROM.
-3. Baixe o artefato **v71-dsi-menu-diagnostic-test-only** na execução
+3. Baixe o artefato **v71-1-dsi-extended-ram-diagnostic-test-only** na execução
    **Actions** do PR #4, extraia o `nds-bootstrap.nds` e confira o SHA-256
    com `nds-bootstrap.nds.sha256`. Este pacote é um artefato de teste,
    não uma release estável.
@@ -36,12 +36,12 @@ em um DSi real.
   na sua instalação.
 - Selecione **Virtual Pokewalker**.
 - Tire uma foto da tela com os seguintes indicadores:
-  - `Missing net APIs: 0x....` (máscara de 13 bits)
+  - `Missing net APIs: 0x....` (máscara de 13 bits, se o hook estiver válido)
   - `Resolver: NOT READY`
   - `Bridge state`
   - `Write seq` e `Flushed seq`
   - `Wi-Fi: NOT ENABLED` (obrigatório mesmo que o painel tenha respondido)
-- Se aparecer `Walker: not installed` ou `ARM7: no diagnostic reply`,
+- Se aparecer `Walker: hook not published`, `Walker: RAM addr rejected`,\n  `Walker: invalid header` ou `ARM7: no diagnostic reply`,
   registre exatamente a mensagem; não tente transferir Pokémon.
 - Aperte **B**, confirme que retorna ao menu e depois ao jogo sem travar.
 
@@ -69,3 +69,21 @@ seu save principal antes de uma validação em hardware.
 queda de energia ou compatibilidade com todas as regiões.** A próxima etapa
 continua sendo identificar as APIs reais do HGSS e validar um PING/ACK
 durante o jogo.
+
+## Correção V7.1.1 — falso negativo de RAM estendida
+
+A primeira execução física da V7.1 mostrou `Walker: not installed`
+mesmo com a opção Virtual Pokéwalker ativada. A validação anterior do
+painel aceitava apenas `0x02000000–0x023FFFFF`, embora o carregador NTR do
+DSi possa reservar o controle do Walker na RAM estendida,
+por exemplo `0x0CFDC000`. Na V7.1.1 o diagnóstico também aceita a janela
+`0x0C000000–0x0CFFFFFF`, com alinhamento e limite de tamanho.
+
+O novo painel diferencia três situações se o Walker ainda não for validado:
+`hook not published` (nenhum ponteiro publicado pelo carregador),
+`RAM addr rejected` (ponteiro fora das janelas suportadas) ou
+`invalid header` (memória endereçável com assinatura/versão inesperada).
+Isso não comprova que a sincronização esteja disponível; o transporte Wi-Fi
+continua desativado. Se o hook não for publicado, inspecione no SD
+`/_nds/nds-bootstrap/pokewalker-error.txt` e confirme a presença do
+arquivo `.walker` correspondente ao save de teste.

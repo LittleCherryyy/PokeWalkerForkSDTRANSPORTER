@@ -538,14 +538,12 @@ static void walkerArm9PreWrapperMenu(void) {
         printHex(13,4,walkerArm9PreWrapper.romReadCalls,4,FONT_LIGHT_BLUE,false);
         print(1,7,(const unsigned char*)"Post+IME:0x",FONT_WHITE,false);
         printHex(13,7,walkerArm9PreWrapper.postReadEligibleCalls,4,FONT_LIGHT_BLUE,false);
-        print(1,10,(const unsigned char*)"Queued:   0x",FONT_WHITE,false);
-        printHex(13,10,walkerArm9PreWrapper.dryRunQueued,4,FONT_LIGHT_BLUE,false);
-        print(1,13,(const unsigned char*)"Done:     0x",FONT_WHITE,false);
-        printHex(13,13,walkerArm9PreWrapper.dryRunDone,4,FONT_LIGHT_BLUE,false);
+        print(1,10,(const unsigned char*)"Task stage:0x",FONT_WHITE,false);
+        printHex(15,10,walkerArm9PreWrapper.dryRunStage,1,FONT_LIGHT_BLUE,false);
     } else {
         print(1,6,(const unsigned char*)"ARM9 snapshot unavailable",FONT_RED,false);
     }
-    print(1,17,(const unsigned char*)"Dry run: no network I/O",FONT_LIGHT_GRAY,false);
+    print(1,17,(const unsigned char*)"0 idle 1 queued 2 done",FONT_LIGHT_GRAY,false);
     print(1,19,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);
     print(1,21,(const unsigned char*)"B: Back",FONT_WHITE,false);
     waitKeys(KEY_B);

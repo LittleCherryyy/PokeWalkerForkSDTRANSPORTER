@@ -534,29 +534,20 @@ static void walkerArm9PreWrapperMenu(void) {
     clearScreen(false);
     print(1,1,(const unsigned char*)"V7.8 ARM9 ROM TASKS",FONT_LIME,false);
     if(walkerArm9PreWrapper.magic == WALKER_ARM9_SNAPSHOT_MAGIC) {
-        print(1,4,(const unsigned char*)"Pre-menu IE:0x",FONT_WHITE,false);
-        printHex(16,4,walkerArm9PreWrapper.ie,4,FONT_LIGHT_BLUE,false);
-        print(1,6,(const unsigned char*)"Pre-menu IME:0x",FONT_WHITE,false);
-        printHex(18,6,walkerArm9PreWrapper.ime,1,FONT_LIGHT_BLUE,false);
-        print(1,8,(const unsigned char*)"ROM read calls:0x",FONT_WHITE,false);
-        printHex(18,8,walkerArm9PreWrapper.romReadCalls,4,FONT_LIGHT_BLUE,false);
-        print(1,10,(const unsigned char*)"Non-IRQ+IME: 0x",FONT_WHITE,false);
-        printHex(18,10,walkerArm9PreWrapper.eligibleReadCalls,4,FONT_LIGHT_BLUE,false);
-        print(1,12,(const unsigned char*)"Last CPSR mode:0x",FONT_WHITE,false);
-        printHex(20,12,walkerArm9PreWrapper.lastReadCpsrMode,1,FONT_LIGHT_BLUE,false);
-        print(1,14,(const unsigned char*)"Last read IME:0x",FONT_WHITE,false);
-        printHex(20,14,walkerArm9PreWrapper.lastReadIme,1,FONT_LIGHT_BLUE,false);
-        print(1,16,(const unsigned char*)"Not a periodic worker",FONT_LIGHT_GRAY,false);
+        print(1,4,(const unsigned char*)"ROM reads: 0x",FONT_WHITE,false);
+        printHex(14,4,walkerArm9PreWrapper.romReadCalls,4,FONT_LIGHT_BLUE,false);
+        print(1,7,(const unsigned char*)"NonIRQ+IME:0x",FONT_WHITE,false);
+        printHex(14,7,walkerArm9PreWrapper.eligibleReadCalls,4,FONT_LIGHT_BLUE,false);
+        print(1,10,(const unsigned char*)"Last CPSR: 0x",FONT_WHITE,false);
+        printHex(15,10,walkerArm9PreWrapper.lastReadCpsrMode,1,FONT_LIGHT_BLUE,false);
+        print(1,13,(const unsigned char*)"Read IME: 0x",FONT_WHITE,false);
+        printHex(15,13,walkerArm9PreWrapper.lastReadIme,1,FONT_LIGHT_BLUE,false);
     } else {
         print(1,6,(const unsigned char*)"ARM9 snapshot unavailable",FONT_RED,false);
     }
-    print(1,18,(const unsigned char*)"No Wi-Fi/ABI ownership",FONT_LIGHT_GRAY,false);
+    print(1,17,(const unsigned char*)"Not a periodic worker",FONT_LIGHT_GRAY,false);
     print(1,19,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);
     print(1,21,(const unsigned char*)"B: Back",FONT_WHITE,false);
-    do {
-        while(REG_VCOUNT!=191) mySwiDelay(100);
-        while(REG_VCOUNT==191) mySwiDelay(100);
-    } while(KEYS & KEY_A);
     waitKeys(KEY_B);
     do {
         while(REG_VCOUNT!=191) mySwiDelay(100);

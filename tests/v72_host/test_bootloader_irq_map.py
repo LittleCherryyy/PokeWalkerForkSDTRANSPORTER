@@ -79,11 +79,11 @@ class BootIrqReport(unittest.TestCase):
         self.assertIn("WPTK",section)
         self.assertIn("frame<90",section)
         self.assertIn("25 slots NOT proven",section)
-        self.assertIn("No IRQ handler modified",section)
+        self.assertIn("A: Read bounded IRQ words",section)
         self.assertIn("Wi-Fi: NOT ENABLED",section)
         self.assertNotIn("*(u32*)",section)
         self.assertIn("Y: ARM7 boot IRQ table",a9)
-        self.assertIn("VIRTUAL POKEWALKER V7.2.5",a9)
+        self.assertIn("VIRTUAL POKEWALKER V7.2.6",a9)
 
 if __name__=="__main__":
     unittest.main()

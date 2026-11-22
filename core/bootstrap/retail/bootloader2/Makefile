@@ -67,6 +67,10 @@ export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir))
  
 CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
+# V7.1: exclude DSi-only dormant networking objects from this legacy
+# variant; no callers in this variant invoke these APIs. This avoids
+# linker references and conserves fixed WRAM without moving its bounds.
+CFILES := $(filter-out walker_net_resolve.c walker_hgss_net.c,$(CFILES))
 CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
 SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
 #BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.bin)))

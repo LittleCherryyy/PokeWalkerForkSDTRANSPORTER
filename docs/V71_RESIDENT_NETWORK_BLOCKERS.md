@@ -1,0 +1,119 @@
+# V7.1 — Resident HGSS transport: integration blockers
+
+## What has been proven
+
+The user successfully ran the standalone `PokeWalker_V71_HOTSPOT_PING.nds` on a Nintendo DSi with only the Android hotspot:
+- DSi IPv4: `192.168.6.140`
+- Android hotspot DHCP gateway: `192.168.6.192`
+- PING success: 6; synthetic echo: 8192 bytes; attempts: 10; failures: 0
+- Android service: TCP port `30821`; protocol `PWDSI001`
+
+**This is not an in-game result.** That homebrew can initialize DSWiFi because it owns the running program. HeartGold/SoulSilver and nds-bootstrap have a different lifetime/interrupt/ARM7 arrangement.
+
+## Source findings (checked against the current fork)
+
+1. **Partially addressed in V7.1 branch:** `common/include/walker_emu.h` originally lacked `direct` / `hgssNet`, while the experimental transport code referenced both. Both structures are now appended after legacy fields, with compile-time assertions for old offsets and the 4 KiB control-page bound. Full multi-component link/runtime compatibility remains unproven.
+2. **Partially addressed in V7.1 branch:** `bootloaderi/source/arm7/walker_boot.c` now initializes the dormant bridge and calls `walkerResolveNetworkApi` after installing the control block. `walker_hgss_net.c` still leaves WCM/SOCL entry points unset. The gateway BSS address alone cannot make the network API usable.
+3. The DSi `cardenginei/arm9/Makefile` uses `source source_ext ../../common/source_general`, whereas the experimental `walker_direct_transport.c` is under the **other** `cardengine/arm9/source/` tree. Compiling an unrelated ARM9 variant does not install the DSi resident network transport.
+4. The ARM7 bridge has weak placeholders returning unavailable; no functional native DSi transport backend is linked in its place.
+5. `cardenginei/arm9_igm/source/inGameMenu.c` explicitly reports `Wi-Fi in game: NOT READY`. This UI state is accurate until resident transport is actually verified.
+
+These are **static code findings**, not runtime claims; `tools/v7_1/resident_audit.py` reports key conditions for every GitHub Actions build.
+
+## Next implementation order
+
+- [x] Append and cross-compile the shared fields with old offsets and 4 KiB assertions (devkitARM); other build targets and console ABI behavior remain to be verified.
+- [x] Invoke the dormant resolver during DSi bootstrap initialization (no radio calls).
+- [ ] Link and call a **real** DSi ARM9/ARM7 transport backend through the actual game runtime; remove weak placeholders only after correct implementation.
+- [ ] Verify the WCM/SOCL/SOC API on the exact HGSS executable revision without guessing call targets; account for overlays/ARM/Thumb and ARM7 Wi-Fi ownership, callbacks and memory lifetime.
+- [ ] Implement cancellable nonblocking socket PING/OP_OK only, reading Android hotspot IP automatically from DHCP/gateway, with timeout and cleanup that do not block VBlank or disrupt game networking.
+- [ ] Build the complete nds-bootstrap + IR virtual walker tree and confirm no memory/ABI issues on a disposable HGSS save.
+- [ ] Ask for DSi testing only once the in-game build truly contains the PING path, *not* merely a standalone homebrew test.
+- [ ] Do not enable PUSH/PULL/CONFIRM until repeated PING and error recovery succeed and durable-save semantics are independently audited.
+
+## Attribution
+
+Derived from [Shinygati/SD-Transporter](https://github.com/Shinygati/SD-Transporter). Credit all original contributors and dependency authors. Preserve source headers, upstream licensing and existing widget functionality; see `ATTRIBUTION.md` and `CREDITS-UPSTREAM.md`.
+
+## Compilation and scope of this milestone
+
+- `tools/v7_1/check_shared_layout.c` is compiled in CI with devkitARM; its tests ensure legacy offsets remain unchanged, the appended blocks are contiguous, and the control structure fits within 4 KiB.
+- `.github/workflows/v71-bootstrap-build.yml` attempts compilation of the actual DSi bootloader source, to expose linker/build errors before any hardware test.
+- No new `nds-bootstrap` production binary is promoted in this milestone. A successfully built **standalone** hotspot PING remains a separate executable.
+
+### Full DSi bootloader build compatibility
+
+The first devkitARM CI build of the full `bootloaderi` target stopped in legacy `source/arm7/main.arm7.c`, before it could validate the entire integration, with:
+- `PM_READ_REGISTER` undeclared (line 564)
+- `readFirmware` implicitly declared (line 996)
+
+These are currently **unresolved toolchain/upstream compatibility errors** in the broader build. They do not establish that the appended V7.1 control layout is faulty, but the complete bootloader cannot yet be called build-verified. See the `V7.1 DSi bootstrap integration compile` workflow for exact logs. Do not mask these errors or publish the resulting binary as a testable in-game release.
+
+### Subsequent bootstrap compile finding (toolchain ABI)
+
+After adding the missing `readFirmware` prototype, restoring the historical `PM_READ_REGISTER = 0x80` opcode, and correcting the explicit cast for `arm9destination`, the actual `walker_boot.c` and `walker_net_resolve.c` translation units were reached by the devkitARM build. The next failure was in `bootloaderi/source/arm7/libnds/codec.c`:
+
+- Legacy `cdcReadReg(u8,u8)` conflicts with Calico's `cdcReadReg(CdcPage,unsigned)` declaration.
+- Legacy `cdcWriteReg(u8,u8,u8)` returning `void` conflicts with Calico's `bool cdcWriteReg(CdcPage,unsigned,u8)`.
+
+This **must not** be addressed by arbitrary casts or silencing warnings: the newer codec API has different semantics and ABI. Audit the legacy codec implementation and complete bootloader toolchain compatibility before shipping a modified nds-bootstrap binary to a console.
+
+### Bootloader compatibility work following codec ABI mismatch
+
+The experimental branch now preserves the old ARM7 peripheral access logic while avoiding incompatible declarations from modern Calico:
+- Renamed only the local `bootloaderi` SPI codec implementation and its callers to `walkerLegacyCdcReadReg` / `walkerLegacyCdcWriteReg`.
+- Renamed the local I²C implementation and callers to `walkerLegacyI2cReadRegister` / `walkerLegacyI2cWriteRegister`.
+- Renamed the historical power-management SPI function/callers to `walkerLegacyWritePowerManagement`.
+- Restored the documented ARM9 DSi `SCFG_RST` 16-bit register alias at `0x04004006` when the toolchain does not declare it.
+
+All changes are confined to the non-main experimental branch and retain upstream authors' headers. They aim to preserve old behavior instead of silently adapting parameters to a different Calico ABI. **Compile success, console boot stability, and runtime correctness require separate verification; never infer HGSS Wi-Fi functionality from these fixes.**
+
+### FAT API compatibility remains unresolved
+
+The expanded devkitARM build now gets beyond the former legacy codec, I²C, SPI and `REG_SCFG_RST` errors. It next fails in `common/include_fat/my_disc_io.h` because modern installed SDK headers no longer provide the legacy `sec_t` type and therefore its `FN_MEDIUM_*SECTOR*` callback typedefs cannot be formed. This causes secondary "called object is not a function" errors from `common/include_fat/card.h`.
+
+This is a storage-interface compatibility issue, **not** evidence of a broken Pokéwalker save. The correct solution requires examining the historical libnds/libfat API and selecting a matching, reproducible toolchain or carefully defining a compatible adapter with correct sector widths and callback ABIs. Do not invent disk function signatures, substitute new callbacks silently, or deploy an unverified bootstrap to real saves.
+
+### Toolchain correction — historical SDK instead of modern Calico
+
+The original `core/bootstrap/BUILD.md` **explicitly pins devkitARM r65 (GCC 14.2.0), libnds 1.8.3 and compatible libfat 1.1.5**. Modern Calico/devkitARM images caused misleading conflicts in unrelated legacy source. The V7.1 bootstrap CI has been switched to the published historical `devkitpro/devkitarm:20240918` image (r65-era); verify its actual installed package versions in build logs. All V7.1 experiment-only renames to ARM7 codec, I²C, power SPI, firmware and ARM9 reset were subsequently reverted to the upstream `main` source, preserving the intended old API and attribution. Preserve the rest of the V7.1 bridge layout changes.
+
+Reproducing an actual full bootstrap/ndstool build must use the original portable rules and legacy libraries described in `core/bootstrap/BUILD.md`; a successful **isolated bootloaderi** build remains a necessary but not sufficient precondition for gameplay tests. The separate standalone hotspot diagnostic uses a different, modern SDK and remains independently tested.
+
+## Verified historical bootloader build
+
+With the historical `devkitpro/devkitarm:20240918` image and a statically linked host `lzss` tool built on Ubuntu, CI successfully compiled and linked `bootloaderi/loadi0.elf`, generated `loadi0.bin` and compressed `retail/nitrofiles/loadi0.lz77`. This proves the **isolated DSi loader** builds against the intended older SDK, not that Wi-Fi works during HGSS. The experiment-specific Calico-compatibility edits to unrelated peripheral sources were reverted.
+
+The first attempt at the full `retail/bin/nds-bootstrap.nds` build failed when linking `cardengine/arm9` and `cardengine/arm9_32`: their output `.bss` sections exceed the fixed `vram` memory regions (linker reports addresses near `0x023DE0FC` / `0x023D80FC`). **Do not enlarge these hardware-reserved regions blindly.** A separate CI failure step collects object sizes/linker maps to identify the exact contributors and determine whether the overflow already exists in `main`. No full bootstrap artifact is currently verified or suitable for installation.
+
+## 2026-11-22: full-build milestone / missing packaging assets
+
+The historical-r65 pipeline now compiles and links the DSi `bootloaderi` and gets further through the full nds-bootstrap make graph. Disabling unreferenced experimental network code on fixed-size B4DS ARM9 variants (by the `B4DS` preprocessor guard), and excluding unused network-only objects from `bootloader2`, `arm7_twlsdk` and `arm7_twlsdk3` avoids linker errors and prevents their fixed WRAM regions from being enlarged. These cuts are restricted to variants that do **not** implement the desired DSi Wi-Fi runtime.
+
+**Current full-package failure**: `retail/preLoadSettings/Makefile` requires input directories `files-mep`, `files-dsi`, `files-dsi-en`, and corresponding regional `files-3ds*` directories for `preLoadSettings*.pck`. These directories are not present in the tracked imported repository; the build stops at `No rule to make target 'files-mep'`. The derived packages are game compatibility data, so do **not** replace them with empty packs or count this as a successful release. Recover the complete legitimate upstream inputs and verify licensing and file integrity before production packaging.
+
+**Remaining architecture blocker**: the successful *standalone* DSi hotspot probe has **not** been ported into HeartGold/SoulSilver. The resident network API resolver leaves WCM/SOCL pointers unresolved, and the actual transport still does not issue sockets/PING. No HGSS test build is released and no Pokémon transfer is enabled. Preserve Android widget and all upstream attribution.
+
+## CI: independently validated DSi core modules
+
+The GitHub Actions workflow now compiles three key DSi cardengines independently: `cardenginei_arm7`, `cardenginei_arm9`, and `cardenginei_arm9_igm`, without requiring the missing `preLoadSettings/files-*` packaging inputs. This step **passed** with the historical toolchain in run 44979758489. It proves these modules compile and link, not that resident WCM/SOCL functions can run inside HeartGold/SoulSilver. The full packaging attempt remains separate and may fail due missing compatibility assets; neither result constitutes a released/console-testable HGSS integration.
+
+## 2026-11-22 — HGSS WCM API provenance review
+
+A cross-check against the public `pret/pokeheartgold` decompilation shows that symbols `WCM_Init`, `WCM_StartupAsync`, `WCM_SearchAsync`, `WCM_ConnectAsync`, and `WCM_GetPhase` are referenced in overlay assembly/include files (notably `asm/include/overlay_13_thumb_2.inc`, `asm/include/overlay_70.inc`, `asm/include/overlay_72.inc`, and `lib/NitroDWC/asm/include/overlay_00_arm.inc`). **References do not establish where the function body is located, nor guarantee its memory lifetime.** An overlay can reference a function linked into resident ARM9, or provide code that is later unloaded. A revision-specific symbol map and runtime residency proof are required.
+
+The earlier experimental field `wcmBeginSearchAsync` was aligned to the exported symbol spelling `WCM_SearchAsync` (`wcmSearchAsync`) in the shared API contract. This renames a **dormant** field only; no unverified callable address has been enabled.
+
+**Safety hardening**: `common/source/walker_hgss_net.c` now refuses to fill any WCM/SOCL/gateway addresses based only on BL frequency or `IPKE`/`IPGE` game code. Its resolver always keeps `ready=0`. `tools/v7_1/resident_audit.py --require-fail-closed` checks this guard in CI. This is intentionally conservative until the precise binary revision and verified resident/overlay call lifetimes can be established. The PING diagnostic over the Android hotspot remains unaffected.
+
+Public research reference: https://github.com/pret/pokeheartgold (do not copy commercial ARM9 ROM assets into this repository).
+
+## Socket API naming and hardware boundary
+
+A review of `pret/pokeheartgold`'s public `asm/include/overlay_13_thumb_2.inc` and `lib/NitroDWC/asm/include/overlay_00_arm.inc` confirms that the socket functions referenced by HGSS are primarily `SOC_Startup`, `SOC_Socket`, `SOC_Connect`, `SOC_Send`, `SOC_Recv`, `SOC_Close` and `SOC_Fcntl`. `SOCL_GetHostID` is separately referenced. The former experimental field `soclStartup` has therefore been renamed to `socStartup` to match the observed symbol, without changing the 20-field shared ABI size. The `network_symbols.json` manifest now lists source-supported names and **no callable addresses**.
+
+This does **not** prove that HGSS has these functions available when Pokéwalker IR communication is active, that the relevant overlays are loaded, or that the library startup is safe to invoke from the injected resident cardengine. Any future backend also needs a verified method to obtain **the Android hotspot DHCP gateway**, not merely the console's own IP.
+
+The host-tested nonblocking PING FSM lives behind `WALKER_PING_FSM_EXPERIMENT` because adding it to the tiny resident cardengine without a working backend exceeded fixed VRAM by 592 bytes. No memory limits were increased. One callback per tick, partial I/O and timeouts are verified by `test_ping_fsm.c`, and the module cross-compiles for ARM. Its interface explicitly requires an independently verified network owner and genuine nonblocking I/O operations; this is not a functioning in-game connection.
+
+Finally, the Java V18 `DirectSyncProtocol.write` implementation now emits a real `OP_OK` frame as an offline test fixture. `verify_android_ok.c` validates that frame using the same strict C decoder as the experimental DSi protocol, including a negative test for forbidden transfer opcodes. The existing opposite-direction C→Java test remains in place.

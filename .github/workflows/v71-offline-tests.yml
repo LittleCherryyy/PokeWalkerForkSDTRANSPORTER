@@ -1,0 +1,98 @@
+name: V7.1 offline analysis tests
+
+on:
+  push:
+    branches:
+      - "dev/v7.1-*"
+    paths:
+      - "tools/v7_1/**"
+      - "core/bootstrap/retail/cardenginei/arm9/source/walker_ping_fsm.c"
+      - "core/bootstrap/retail/common/include/walker_ping_fsm.h"
+      - ".github/workflows/v71-offline-tests.yml"
+  pull_request:
+    paths:
+      - "tools/v7_1/**"
+      - ".github/workflows/v71-offline-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Verify C bridge / Java protocol interoperability
+        shell: bash
+        run: |
+          mkdir -p /tmp/v71-interop
+          cc -std=c11 -Wall -Wextra -Werror tools/v7_1/c_bridge_ping.c -o /tmp/v71-interop/c_bridge_ping
+          /tmp/v71-interop/c_bridge_ping /tmp/v71-interop/ping.bin
+          javac -d /tmp/v71-interop \
+            core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java \
+            tools/v7_1/ProtocolInteropTest.java
+          java -cp /tmp/v71-interop io.github.sdtransporter.pokewalker.ProtocolInteropTest /tmp/v71-interop/ping.bin /tmp/v71-interop/android-ok.bin
+          cc -std=c11 -Wall -Wextra -Werror \
+            -Icore/bootstrap/retail/common/include \
+            tools/v7_1/verify_android_ok.c -o /tmp/v71-interop/verify-android-ok
+          /tmp/v71-interop/verify-android-ok /tmp/v71-interop/android-ok.bin
+      - name: Compile offline tools
+        run: python -m compileall -q tools/v7_1
+      - name: Audit resident HGSS networking gates (informational)
+        run: python tools/v7_1/resident_audit.py --json --require-fail-closed
+      - name: Validate fail-closed HGSS WCM/SOCL research manifest
+        run: python tools/v7_1/verify_network_symbols.py
+      - name: Execute DSi ARM9 PING-only runtime fixture (native host)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -Wall -Wextra -Werror \
+            -Icore/bootstrap/retail/common/include \
+            core/bootstrap/retail/cardenginei/arm9/source/walker_ping_diagnostic.c \
+            tools/v7_1/test_ping_runtime.c -o /tmp/v71-interop/ping-runtime-test
+          /tmp/v71-interop/ping-runtime-test
+      - name: Exercise bounded PING FSM with synthetic nonblocking TCP callbacks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -Wall -Wextra -Werror -DWALKER_PING_FSM_EXPERIMENT \
+            -Icore/bootstrap/retail/common/include \
+            core/bootstrap/retail/cardenginei/arm9/source/walker_ping_fsm.c \
+            tools/v7_1/test_ping_fsm.c -o /tmp/v71-interop/test-ping-fsm
+          /tmp/v71-interop/test-ping-fsm
+      - name: Real loopback TCP with actual Java Android protocol and C PING FSM
+        shell: bash
+        run: |
+          set -euo pipefail
+          javac -d /tmp/v71-interop \
+            core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java \
+            tools/v7_1/LocalPingServerTest.java
+          cc -std=c11 -Wall -Wextra -Werror -DWALKER_PING_FSM_EXPERIMENT \
+            -Icore/bootstrap/retail/common/include \
+            core/bootstrap/retail/cardenginei/arm9/source/walker_ping_fsm.c \
+            tools/v7_1/test_ping_tcp_loopback.c -o /tmp/v71-interop/test-ping-tcp
+          portfile=/tmp/v71-interop/tcp-server.port
+          java -cp /tmp/v71-interop \
+            io.github.sdtransporter.pokewalker.LocalPingServerTest "$portfile" \
+            > /tmp/v71-interop/tcp-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 100); do
+            test -s "$portfile" && break
+            sleep 0.05
+          done
+          test -s "$portfile"
+          timeout 15s /tmp/v71-interop/test-ping-tcp "$(cat "$portfile")"
+          wait "$server_pid"
+          cat /tmp/v71-interop/tcp-server.log
+          trap - EXIT
+      - name: Unit tests with synthetic binaries only
+        run: python -m unittest discover -s tools/v7_1 -p 'test_*.py' -v

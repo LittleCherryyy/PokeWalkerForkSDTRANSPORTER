@@ -200,6 +200,15 @@ walkerIrqTableAddress: .word 0
 walkerIrqImageStart: .word 0
 walkerIrqImageSize: .word 0
 walkerIrqTableMethod: .word 0
+@ V7.2.7 read-only boot snapshot; must match the append-only C fields.
+.global walkerIrqBootOriginalVblank
+.global walkerIrqBootOriginalIpc
+.global walkerIrqBootInstalledVblank
+.global walkerIrqBootInstalledIpc
+walkerIrqBootOriginalVblank: .word 0
+walkerIrqBootOriginalIpc: .word 0
+walkerIrqBootInstalledVblank: .word 0
+walkerIrqBootInstalledIpc: .word 0
 .align 4
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

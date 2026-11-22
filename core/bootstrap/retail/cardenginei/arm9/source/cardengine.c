@@ -160,6 +160,12 @@ static volatile u32 walkerArm9RomReadCalls;
 static volatile u32 walkerArm9EligibleReadCalls;
 static volatile u32 walkerArm9LastReadCpsrMode;
 static volatile u32 walkerArm9LastReadIme;
+/* V7.9: entirely local, constant-time, one-shot DRY RUN. Never a
+ * networking worker and never called from a game IRQ. */
+static volatile u32 walkerArm9PostEligibleCalls;
+static volatile u32 walkerArm9DryRunQueued;
+static volatile u32 walkerArm9DryRunDone;
+static volatile u32 walkerArm9DryRunPending;
 /* ARM946E-S does not support MRS CPSR in Thumb-1. The cardengine is built
  * in Thumb mode, so this tiny interworked leaf must be ARM-state code. */
 __attribute__((target("arm"),noinline))
@@ -1011,6 +1017,22 @@ void cardRead(u32* cacheStruct, u8* dst0, u32 src0, u32 len0) {
 		(*code)();
 	}
 	#endif
+#if !defined(TWLSDK) && !defined(B4DS) && !defined(DLDI) && !defined(GSDD)
+    /* Read/write operations above have returned. Only sample context and
+     * consume a one-byte pending DRY RUN. There is no IPC, storage, Wi-Fi,
+     * callback invocation, busy wait, allocation, or loop here. */
+    const u32 postMode=walkerArm9GetCpsrMode();
+    if ((postMode==0x10u || postMode==0x13u || postMode==0x1fu) &&
+        (REG_IME & 1u)) {
+        if (walkerArm9PostEligibleCalls!=0xffffffffu)
+            walkerArm9PostEligibleCalls++;
+        if (walkerArm9DryRunPending) {
+            walkerArm9DryRunPending=0u;
+            if (walkerArm9DryRunDone!=0xffffffffu)
+                walkerArm9DryRunDone++;
+        }
+    }
+#endif
 }
 
 /*void cardPullOut(void) {
@@ -1601,7 +1623,11 @@ void inGameMenu(s32* exRegisters) {
         walkerArm9RomReadCalls,
         walkerArm9EligibleReadCalls,
         walkerArm9LastReadCpsrMode,
-        walkerArm9LastReadIme
+        walkerArm9LastReadIme,
+        walkerArm9PostEligibleCalls,
+        walkerArm9DryRunQueued,
+        walkerArm9DryRunDone,
+        walkerArm9DryRunPending
     };
 #endif
 	int oldIME = enterCriticalSection();
@@ -1672,6 +1698,14 @@ void inGameMenu(s32* exRegisters) {
 	}
 
 	leaveCriticalSection(oldIME);
+#if !defined(TWLSDK) && !defined(B4DS) && !defined(DLDI) && !defined(GSDD)
+    /* Queue once on a normal menu return; the eventual non-IRQ post-read
+     * callback may consume it. This IRQ/menu path NEVER runs the job. */
+    if (!exRegisters && res!=0x52534554u && !walkerArm9DryRunPending) {
+        walkerArm9DryRunPending=1u;
+        if (walkerArm9DryRunQueued!=0xffffffffu) walkerArm9DryRunQueued++;
+    }
+#endif
 }
 
 //---------------------------------------------------------------------------------

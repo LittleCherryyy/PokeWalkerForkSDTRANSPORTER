@@ -53,8 +53,8 @@ class LiveSchedulerGuard(unittest.TestCase):
         view=MENU[start:end]
         self.assertIn("V8.6 ARM9 THREAD RAM",view)
         self.assertIn("walkerArm9ThreadAvailabilityRaw(&raw)",view)
-        self.assertIn("OS:0x",view)
-        self.assertIn("OS guard FAILED",view)
+        self.assertIn("OS flag: 1",view)
+        self.assertIn("OS gate FAILED",view)
         self.assertIn("walkerArm9ThreadAliasWords(words)",view)
         self.assertIn("Wi-Fi: NOT ENABLED",view)
         self.assertIn("V7.9 ARM9 DEFERRED",MENU)

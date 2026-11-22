@@ -2,7 +2,12 @@
  * EEPROM access. No blocking Wi-Fi operations or guessed WCM/SOCL calls.
  * GPL-3.0-or-later, derived from the SD-Transporter fork.
  */
-#if !defined(DLDI) && !defined(GSDD) && !defined(TWLSDK)
+/* The primary HGSS cardengine has no spare VRAM for a full socket FSM yet:
+ * linking this experimental component overflowed its reserved region by
+ * 592 bytes. Compile this unit for host/cross-toolchain tests only until an
+ * audited resident memory plan exists. This deliberately leaves the proven
+ * PING header-only functions linked in the primary DSi cardengine. */
+#if defined(WALKER_PING_FSM_EXPERIMENT) && !defined(DLDI) && !defined(GSDD) && !defined(TWLSDK)
 #include "walker_ping_fsm.h"
 #include "walker_ping_only.h"
 

@@ -78,7 +78,7 @@ jobs:
       - name: Download static host LZSS from successful host job
         uses: actions/download-artifact@v4
         with:
-          name: v71-lzss-host-linux-x86_64
+          name: v72-lzss-host-linux-x86_64
           path: core/bootstrap
       - name: Compile DSi NTR components
         shell: bash

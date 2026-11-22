@@ -91,10 +91,8 @@ void walkerWrite(bool force) {
 	if (c->writeSeq == seq) {
 		c->flushedSeq = seq;
 		walkerDirectBridgeCommitted(c, seq);
-	} else {
-		/* Another update occurred while draining. Keep the sequence pending. */
-		walkerIdleFrames = WALKER_IDLE_FRAMES;
 	}
+	/* A new write leaves flushedSeq unchanged and walkerDue() retries it. */
 	c->flushes++;
 	walkerIdleFrames = 0;
 }

@@ -84,3 +84,13 @@ Hardware-dependent questions remaining:
 - Android hotspot network configuration must be compatible with the DS-mode Wi-Fi radio (as previously tested on the standalone diagnostic).
 
 All original SD-Transporter, nds-bootstrap and dependency copyright/licensing notices remain intact. Android widget development, skins, and Premier Ball corrections remain a separate tracked workstream.
+
+## Real TCP interop and private HGSS overlay metadata inspection (2026-11-22)
+
+**Verified by GitHub Actions [run 44984042504](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/44984042504):** the experimental `walker_ping_fsm.c`, compiled for Linux host with the explicit `WALKER_PING_FSM_EXPERIMENT` gate, connected through **real nonblocking TCP** to a Java loopback server built with the Android `DirectSyncProtocol.java`. The server transmitted deliberately fragmented OP_OK; the C FSM accepted it. A second connection received a forbidden save-transfer opcode; the C FSM rejected it. No real phone or DSi was involved, and no save/ROM/EEPROM access was possible. The host adapter overrides only the destination to a dynamic loopback port; the actual firmware FSM continues to request Android port 30821.
+
+Tests also confirm no more than one socket callback is performed per FSM step. The Java fixture uses empty PING sessions, no trainer identification, no payload and no WalkerStore access.
+
+**Verified by GitHub Actions [run 44984175789](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/44984175789):** new unit tests for `tools/v7_1/nds_overlays.py` all passed. The tool is read-only and reports header/ARM9 overlay table/FAT metadata from a locally owned HGSS game dump. It does not copy or extract ROM code, access saves, or assert that overlay 0 is present at runtime. Research source: [`docs/V71_OVERLAY_RESEARCH.md`](V71_OVERLAY_RESEARCH.md).
+
+This is a diagnostic capability, not an in-game Wi-Fi connection. A successful build continues to include only the compact PING wire encoder/decoder, with the larger experimental FSM gated out to protect the fixed ARM9 VRAM budget.

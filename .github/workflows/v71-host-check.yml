@@ -43,6 +43,7 @@ on:
       - 'tools/v8_5/**'
       - 'tools/v8_9/**'
       - 'tools/v9_0/**'
+      - 'tools/v9_1/**'
   pull_request:
     paths:
       - '.github/workflows/v71-host-check.yml'
@@ -78,6 +79,7 @@ on:
       - 'tools/v8_5/**'
       - 'tools/v8_9/**'
       - 'tools/v9_0/**'
+      - 'tools/v9_1/**'
 
 permissions:
   contents: read
@@ -255,6 +257,27 @@ jobs:
             tools/v9_0/hgss_arm9_thread_trace_windows.py
             tools/v9_0/COMPARAR_JANELAS_ARM9.bat
             tools/v9_0/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V9.1 HGSS ARM9 register value provenance auditor
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V9_1-ARM9-Register-Provenance-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_6/hgss_wifi_entry_audit.py
+            tools/v8_0/hgss_thread_callsite_audit.py
+            tools/v8_1/hgss_thread_abi_context.py
+            tools/v8_2/hgss_thread_scheduler_refs.py
+            tools/v8_4/hgss_thread_flag_xrefs.py
+            tools/v8_5/hgss_thread_info_layout_audit.py
+            tools/v8_9/hgss_scheduler_field_xrefs.py
+            tools/v9_0/hgss_arm9_thread_trace_windows.py
+            tools/v9_1/hgss_register_provenance.py
+            tools/v9_1/COMPARAR_ORIGEM_REGISTRADORES.bat
+            tools/v9_1/README.md
           if-no-files-found: error
           retention-days: 7
       - name: Build portable static LZSS host tool

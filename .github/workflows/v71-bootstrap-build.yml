@@ -36,7 +36,7 @@ jobs:
           if-no-files-found: error
 
   bootstrap-compile:
-    needs: host-lzss:
+    needs: host-lzss
     runs-on: ubuntu-latest
     container:
       # September 2024 predates libnds 2.x / Calico migration.

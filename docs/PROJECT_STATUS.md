@@ -164,6 +164,26 @@ Before enabling a real radio backend, validate normal-MPU accessibility,
 cross-CPU cache coherency and, if necessary, create a safe bounded staging
 path. Do NOT turn on the backend by guessing Wi-Fi API addresses.
 
+### Host execution results (source-equivalent regression, no DSi)
+
+A locally reconstructed, functionally identical copy of the transport C
+implementation was compiled with `gcc -std=c99 -O2 -Wall -Wextra -Werror
+-Wno-unused-function` and passed: 65,624 total frame bytes (88 header +
+65,536 EEPROM), partial writes, CRC, session and trainer, invalid ACK
+rejection, EEPROM mutation guard.
+
+The Android `DirectSyncProtocol.read` code was compiled with host
+`javac` and decoded the **exact 65,624 bytes produced by the C test**,
+then its `write` implementation generated a real 88-byte OP_OK that the
+C-side state machine accepted; a deliberately altered ACK was rejected.
+This establishes a checked host wire-format match but does NOT validate
+running an actual DSi build, the app's native EEPROM parsing, Android
+storage behavior or any Wi-Fi activity inside HGSS.
+
+The GitHub Actions workflow now runs this full C→Java→C exchange on the
+actual checked-out repository sources. A successful CI run has **not**
+been retrieved/confirmed in this session.
+
 ### Ownership and end-to-end wire safety (2026-11-22)
 
 - `retail/pokewalker/walker.c` now rejects virtual-IR read/write

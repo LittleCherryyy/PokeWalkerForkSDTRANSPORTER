@@ -1,6 +1,7 @@
 #include <nds/ndstypes.h>
 #include <nds/ipc.h>
 #include <nds/interrupts.h>
+#include <nds/timers.h>
 #include <nds/input.h>
 #include <nds/arm7/audio.h>
 #include <nds/arm7/clock.h>
@@ -35,6 +36,21 @@ extern u32 walkerControl;
 extern u32 walkerBootStatus;
 #define WALKER_DIAG_REQUEST 0x47445057u /* WPDG */
 #define WALKER_DIAG_REPLY   0x4B445057u /* WPDK */
+/* V7.2 register snapshot only; no Wi-Fi initialization or register writes. */
+#define WALKER_RADIO_REQUEST 0x44525057u /* WPRD */
+#define WALKER_RADIO_REPLY   0x4B525057u /* WPRK */
+static u32 radioIeBeforeMenu, radioImeBeforeMenu;
+static u16 radioTimersBeforeMenu[4];
+
+static void walkerRadioReadOnlyDiagnostics(void) {
+    sharedAddr[0]=radioIeBeforeMenu;
+    sharedAddr[1]=radioImeBeforeMenu;
+    sharedAddr[2]=(u32)radioTimersBeforeMenu[0] |
+                  ((u32)radioTimersBeforeMenu[1]<<16);
+    sharedAddr[3]=(u32)radioTimersBeforeMenu[2] |
+                  ((u32)radioTimersBeforeMenu[3]<<16);
+    sharedAddr[4]=WALKER_RADIO_REPLY;
+}
 static void walkerReadOnlyDiagnostics(void) {
     /* Query result in sharedAddr[0..3]: presence/state/ready, missing mask,
      * write sequence, flushed sequence (or loader boot outcome if absent).
@@ -101,6 +117,13 @@ void biosRead(void* dst, const void* src, u32 len)
 volatile int timeTillStatusRefresh = 7;
 
 void inGameMenu(void) {
+    /* Snapshot BEFORE the menu masks interrupts. This is diagnostic only;
+     * a captured IRQ enable bit never proves who owns the IRQ handler. */
+#ifndef TWLSDK
+    radioIeBeforeMenu=REG_IE;
+    radioImeBeforeMenu=REG_IME;
+    for(unsigned i=0;i<4;i++) radioTimersBeforeMenu[i]=TIMER_CR(i);
+#endif
 	// returnToMenu = false;
 	sharedAddr[4] = 0x554E454D; // 'MENU'
 	const u32 errorBak = sharedAddr[0];
@@ -239,6 +262,9 @@ void inGameMenu(void) {
                 case WALKER_DIAG_REQUEST: // WPDG: read-only diagnostics
                     walkerReadOnlyDiagnostics();
                     break;
+                case WALKER_RADIO_REQUEST: // WPRD: read-only IRQ/timer snapshot
+                    walkerRadioReadOnlyDiagnostics();
+                    break;
                 #endif
 				case 0x524D4152: // RAMR
 					u32* dst = (u32*)((u32)sharedAddr[0]);
@@ -283,6 +309,7 @@ void inGameMenu(void) {
 			} else if (!exitMenu
                 #ifndef TWLSDK
                 && sharedAddr[4] != WALKER_DIAG_REPLY
+                && sharedAddr[4] != WALKER_RADIO_REPLY
                 #endif
                 && sharedAddr[4] == menuCommandSeen
             ) {

@@ -1,4 +1,4 @@
-# V7.1.1 — teste limitado do painel de diagnóstico no Nintendo DSi
+# V7.1.2 — teste limitado do painel de diagnóstico no Nintendo DSi
 
 **Este pacote NÃO transfere Pokémon por Wi-Fi.** O servidor Android, a ROM e
 os arquivos de Pokémon não devem ser alterados para este teste. As funções
@@ -15,7 +15,7 @@ em um DSi real.
 2. No SD do DSi, copie o arquivo antigo
    `/_nds/nds-bootstrap-nightly.nds` para o computador como backup.
    Não altere o `nds-bootstrap-release.nds` nem sua ROM.
-3. Baixe o artefato **v71-1-dsi-extended-ram-diagnostic-test-only** na execução
+3. Baixe o artefato **v71-2-dsi-safe-ipc-diagnostic-test-only** na execução
    **Actions** do PR #4, extraia o `nds-bootstrap.nds` e confira o SHA-256
    com `nds-bootstrap.nds.sha256`. Este pacote é um artefato de teste,
    não uma release estável.
@@ -88,3 +88,28 @@ Isso não comprova que a sincronização esteja disponível; o transporte Wi-Fi
 continua desativado. Se o hook não for publicado, inspecione no SD
 `/_nds/nds-bootstrap/pokewalker-error.txt` e confirme a presença do
 arquivo `.walker` correspondente ao save de teste.
+
+## Resultado real da V7.1.1 e correção V7.1.2
+
+O segundo teste físico mostrou o HeartGold inicializando e o menu
+`VIRTUAL POKEWALKER V7.1.1` exibindo **ARM7: no diagnostic reply**.
+Diferentemente da V7.1, o processador ARM9 não recebeu sequer o ACK;
+não é possível concluir se o hook foi instalado.
+
+Uma hipótese fundamentada na diferença de código é que a V7.1.1 passou
+a desreferenciar `0x0Cxxxxxx` (espelho da RAM estendida DSi) do contexto
+ARM7 sem comprovar o mapeamento naquele modo de execução. Esse acesso
+poderia impedir a resposta do menu. Não é prova definitiva da causa.
+
+A V7.1.2 retorna ao comportamento *fail-closed*: quando o ponteiro está na
+janela estendida, o ARM7 responde apenas o status
+`Walker: DSi RAM unprobed` e o endereço `Walker ptr: 0x........`,
+**sem ler o conteúdo da RAM estendida**. Se o comando não for respondido,
+o painel mostra também `Last IPC: 0x........`, para orientar o próximo
+diagnóstico. Todos os testes continuam somente leitura; nenhuma operação
+de Wi-Fi do HGSS é realizada.
+
+**Teste restrito**: no save descartável, abrir o jogo, mostrar o painel
+V7.1.2, fotografar todas as mensagens e pressionar B para retornar ao
+jogo. Não testar PUSH/PULL nem usar saves principais. Mantenha a cópia
+de `/_nds/nds-bootstrap-nightly.nds` anterior para recuperação.

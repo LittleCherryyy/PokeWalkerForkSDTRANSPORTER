@@ -30,6 +30,7 @@ on:
       - 'tools/v7_1/identify_hgss_nds.py'
       - 'tools/v7_3/**'
       - 'tools/v7_4/**'
+      - 'tools/v7_5/**'
   pull_request:
     paths:
       - '.github/workflows/v71-host-check.yml'
@@ -50,6 +51,9 @@ on:
       - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
       - 'core/bootstrap/retail/cardenginei/arm9/source/cardengine.c'
       - 'tests/v71_host/**'
+      - 'tools/v7_3/**'
+      - 'tools/v7_4/**'
+      - 'tools/v7_5/**'
 
 permissions:
   contents: read
@@ -71,6 +75,18 @@ jobs:
             tools/v7_4/arm9_runtime_reconstruction.py
             tools/v7_4/TESTAR_ARM9_WIFI.bat
             tools/v7_4/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V7.5 WCM-SOC callsite auditor after tests pass
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V7_5-WCM-SOC-offline-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_5/TESTAR_CALLS_WIFI.bat
+            tools/v7_5/README.md
           if-no-files-found: error
           retention-days: 7
       - name: Build portable static LZSS host tool

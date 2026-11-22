@@ -95,6 +95,8 @@ def main() -> int:
     ap.add_argument("--root", type=Path,
                     default=Path(__file__).resolve().parents[2])
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--require-fail-closed", action="store_true",
+                    help="Fail CI if dormant network guards are absent")
     args = ap.parse_args()
     result = inspect(args.root)
     if args.json:
@@ -106,8 +108,10 @@ def main() -> int:
         for name, ok in result["safety"].items():
             print(("PASS" if ok else "UNSAFE") + ": " + name)
         print(result["notice"])
-    # Always 0: an investigation with blocked gates is an expected result,
-    # not a CI failure. Never present it as a passed in-game test.
+    # Incomplete networking is expected. Accidentally enabling unsafe
+    # addresses is not: CI must catch missing fail-closed protections.
+    if args.require_fail_closed and not all(result["safety"].values()):
+        return 1
     return 0
 
 

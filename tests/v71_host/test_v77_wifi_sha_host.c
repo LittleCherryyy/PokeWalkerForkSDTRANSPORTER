@@ -41,6 +41,15 @@ int main(void) {
     if(walkerArm9ThreadAliasWords(NULL)!=0) {
         fprintf(stderr,"NULL alias output must fail closed\\n");return 9;
     }
-    puts("PASS: V7.7 CRC32, V8.3 guarded OS flag and V8.6 disabled B4DS alias words");
+    uint32_t header[4]={1u,2u,3u,4u};
+    if (walkerArm9ThreadHeaderWords(header)!=0 ||
+        header[0]!=0u || header[1]!=0u ||
+        header[2]!=0u || header[3]!=0u) {
+        fprintf(stderr,"B4DS must refuse full HGSS OS thread header\\n");return 10;
+    }
+    if (walkerArm9ThreadHeaderWords(NULL)!=0) {
+        fprintf(stderr,"NULL header pointer must fail closed\\n");return 11;
+    }
+    puts("PASS: V7.7 CRC32, V8.3 flag, V8.6 alias and V8.7 disabled B4DS header");
     return 0;
 }

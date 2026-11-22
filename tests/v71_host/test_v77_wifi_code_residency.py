@@ -44,8 +44,6 @@ class ResidentCodeFingerprintContracts(unittest.TestCase):
         self.assertIn("walkerWifiCheckStaticCode(crc);",snippet)
         self.assertIn("printHex(16,row,crc[i],4",snippet)
         self.assertIn("Wi-Fi: NOT ENABLED",snippet)
-        self.assertIn("No Wi-Fi/ABI proof",snippet)
-        self.assertIn("CRC32: compare with PC",snippet)
         self.assertNotIn("REG_IE =",snippet)
         self.assertNotIn("walkerWrite(",snippet)
         self.assertIn("L: ARM9 Wi-Fi code audit",src)

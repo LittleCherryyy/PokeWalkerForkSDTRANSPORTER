@@ -105,11 +105,19 @@ static void walkerPrepare(configuration *conf) {
 
 	const std::string path = walkerPathForSave(conf->savPath);
 	struct stat st;
-	/* Any outstanding checkout blocks HGSS, including an interrupted return. */
-	if (stat((path + ".lease").c_str(), &st) == 0) {
-		walkerSkip(conf, "walker is checked out to a phone; return or force-unlock it in the companion", path.c_str());
-		return;
-	}
+	/* Any outstanding checkout blocks HGSS, including interrupted returns.
+     * An inaccessible/corrupt SD directory is NOT proof that a phone lease
+     * is absent. Refuse the virtual Walker instead of failing open when
+     * stat() returns an error other than ENOENT. */
+    errno=0;
+    if(stat((path + ".lease").c_str(), &st)==0) {
+        walkerSkip(conf, "walker is checked out to a phone; return or recover it", path.c_str());
+        return;
+    }
+    if(errno!=ENOENT) {
+        walkerSkip(conf, "cannot safely inspect existing phone lease on SD", path.c_str());
+        return;
+    }
 	if (stat(path.c_str(), &st) != 0) {
 		FILE *f = fopen(path.c_str(), "wb");
 		if (!f) {

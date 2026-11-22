@@ -150,6 +150,11 @@ typedef struct cardengineArm7 {
 	u32 walkerIrqImageStart;
 	u32 walkerIrqImageSize;
 	u32 walkerIrqTableMethod;
+	/* V7.2.7: read-only boot snapshots, append-only to preserve existing fields. */
+	u32 walkerIrqBootOriginalVblank;
+	u32 walkerIrqBootOriginalIpc;
+	u32 walkerIrqBootInstalledVblank;
+	u32 walkerIrqBootInstalledIpc;
 } cardengineArm7;
 
 //

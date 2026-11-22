@@ -54,6 +54,10 @@ static u32 *findNext(u32 *from, u32 *end, u32 push, u32 maxWords) {
 }
 
 void walkerBoot(cardengineArm7 *ce7, const tNDSHeader *ndsHeader) {
+	/* Persist the exact refusal reason in the resident ARM7 cardengine.
+	 * Zero would mean walkerBoot() was never reached. */
+	ce7->walkerBootStatus = (!walkerCluster ? WALKER_BOOT_NO_CLUSTER : 0u)
+	                    | (!walkerBase ? WALKER_BOOT_NO_BASE : 0u);
 	if (!walkerBase || !walkerCluster) return;
 	WalkerControl *c = (WalkerControl *)(walkerBase + WALKER_CONTROL_OFF);
 	toncset(c, 0, sizeof(WalkerControl));
@@ -62,11 +66,13 @@ void walkerBoot(cardengineArm7 *ce7, const tNDSHeader *ndsHeader) {
 	const u32 size = iUncompressedSize > ndsHeader->arm9binarySize ? iUncompressedSize : ndsHeader->arm9binarySize;
 	u32 *end = code + size / 4;
 	u32 *readRange = findReadRange(code, size / 4);
-	if (!readRange) return;
+	if (!readRange) { ce7->walkerBootStatus = WALKER_BOOT_READ_SIG; return; }
 	u32 *writeRange = findNext(readRange, end, ARM_PUSH_WRITERANGE, 0x80);
-	if (!writeRange || (u32)((u8 *)writeRange - (u8 *)readRange) < sizeof(walkerStub)) return;
+	if (!writeRange || (u32)((u8 *)writeRange - (u8 *)readRange) < sizeof(walkerStub)) {
+		ce7->walkerBootStatus = WALKER_BOOT_WRITE_SIG; return;
+	}
 	u32 *getStatus = findNext(writeRange, end, ARM_PUSH_GETSTATUS, 0x80);
-	if (!getStatus) return;
+	if (!getStatus) { ce7->walkerBootStatus = WALKER_BOOT_STATUS_SIG; return; }
 	/* CARD_SpiWaitInit, a little before the receive routine:
 	 * stmdb sp!, {r3, lr} / ldr r1, =state / mov r0, #0x32 ... */
 	u32 *init = 0;
@@ -74,11 +80,13 @@ void walkerBoot(cardengineArm7 *ce7, const tNDSHeader *ndsHeader) {
 		u32 *f = readRange - k;
 		if (f[0] == 0xE92D4008 && (f[1] & 0xFFFFF000) == 0xE59F1000 && f[2] == 0xE3A00032) { init = f; break; }
 	}
-	if (!init) return;
+	if (!init) { ce7->walkerBootStatus = WALKER_BOOT_INIT_SIG; return; }
 
 	aFile walker;
 	getFileFromCluster(&walker, walkerCluster, false);
-	if (fileRead((char *)(walkerBase + WALKER_EEPROM_OFF), &walker, 0, WALKER_EEPROM_SIZE) != WALKER_EEPROM_SIZE) return;
+	if (fileRead((char *)(walkerBase + WALKER_EEPROM_OFF), &walker, 0, WALKER_EEPROM_SIZE) != WALKER_EEPROM_SIZE) {
+		ce7->walkerBootStatus = WALKER_BOOT_FILE_READ; return;
+	}
 
 	tonccpy((u8 *)walkerBase + WALKER_BLOB_OFF, walkerBlob, sizeof(walkerBlob));
 	c->version = WALKER_VERSION;
@@ -107,4 +115,5 @@ void walkerBoot(cardengineArm7 *ce7, const tNDSHeader *ndsHeader) {
 
 	/* Expose the control block only when the IR hook has been installed. */
 	ce7->walkerControl = (u32)c;
+	ce7->walkerBootStatus = WALKER_BOOT_INSTALLED;
 }

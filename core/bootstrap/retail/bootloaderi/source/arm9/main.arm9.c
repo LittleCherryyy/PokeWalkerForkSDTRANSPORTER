@@ -43,14 +43,6 @@
 #include "locations.h"
 #include "loading.h"
 
-/* Some devkitPro/Calico header revisions omit the old REG_SCFG_RST
- * alias. DSi SCFG_RST is the ARM9 16-bit register at 0x04004006.
- * Retain the original register write; do not bypass reset sequencing.
- * Reference: GBAtek DSi register map and Calico scfg.h. */
-#ifndef REG_SCFG_RST
-#define REG_SCFG_RST (*(volatile u16 *)0x04004006u)
-#endif
-
 #define REG_MBK_CACHE_START	0x4004044
 
 extern void arm9_clearCache(void);

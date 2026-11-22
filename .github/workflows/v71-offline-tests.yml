@@ -41,6 +41,6 @@ jobs:
       - name: Compile offline tools
         run: python -m compileall -q tools/v7_1
       - name: Audit resident HGSS networking gates (informational)
-        run: python tools/v7_1/resident_audit.py --json
+        run: python tools/v7_1/resident_audit.py --json --require-fail-closed
       - name: Unit tests with synthetic binaries only
         run: python -m unittest discover -s tools/v7_1 -p 'test_*.py' -v

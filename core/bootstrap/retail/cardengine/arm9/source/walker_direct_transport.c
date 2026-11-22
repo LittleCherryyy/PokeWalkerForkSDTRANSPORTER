@@ -1,3 +1,10 @@
+/* V7.1: resident Direct Sync belongs to the DSi NTR cardenginei runtime.
+ * This file is in the B4DS cardengine. Its unresolved Wi-Fi experiment was
+ * never wired or testable in B4DS and must not consume its tight linker
+ * region. Preserve the source for future non-B4DS integration, but keep the
+ * B4DS binary free of any dormant network objects.
+ */
+#ifndef B4DS
 #include <nds.h>
 #include <string.h>
 #include "walker_emu.h"
@@ -30,3 +37,5 @@ void walkerDirectTransportTickArm9(void){
      * a partially resolved API from corrupting HGSS. */
 }
 void walkerDirectBuildPushHeader(void*dst){WalkerControl*c=control();if(c)buildHeader((WalkerDirectHeader*)dst,WALKER_DIRECT_PUSH_TO_PHONE,c,WALKER_DIRECT_WALKER_SIZE,c->direct.crc32);}
+
+#endif /* !B4DS */

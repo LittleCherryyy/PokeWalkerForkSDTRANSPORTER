@@ -27,9 +27,9 @@ only access point; no computer or outside internet required.
 Source facts (not claims of runtime success):
 - `retail/pokewalker/walker_stub.s` intercepts the game's IR read, write,
   and init calls; `walker.c` processes the virtual Pokéwalker protocol.
-- `retail/cardenginei/arm7/source/walker_direct_bridge.c` models a durable
-  64 KiB EEPROM push/pull and CRC flow, but its weak transport callbacks
-  currently default to unavailable/no-op.
+- `retail/cardenginei/arm7/source/walker_direct_bridge.c` prepares the
+  durable 64 KiB EEPROM and CRC when the resident ARM9 requests checkout.
+  Radio I/O is kept out of the ARM7 VBlank handler.
 - `retail/common/source/walker_hgss_net.c` leaves Wi-Fi API function pointers
   unresolved, so `ready` is false; the existing
   `retail/cardengine/arm9/source/walker_direct_transport.c` is gated off
@@ -104,9 +104,9 @@ a deployable direct-to-phone DSi build**:
   **real 65536-byte PUSH_TO_PHONE frame** serializer: sends the 88-byte
   PWDSI001 header, the entire committed EEPROM, and validates Android's
   session-bound OP_OK response. It fails on partial/invalid ACKs and
-  detects EEPROM write-sequence changes. The transport is intentionally
-  **not yet attached** to live sockets or a scheduling site; it is
-  independent portable C ready for that integration.
+  detects EEPROM write-sequence changes. It is connected to the
+  ARM9 post-card-read transaction coordinator; no verified resident
+  DSi Wi-Fi backend or safe high-frequency execution site exists yet.
 - Android `DirectSyncService.java` now refuses an uploaded EEPROM
   without a Pokémon. `WalkerStore.java` persists the original inbound
   checkout CRC so a retry after lost TCP ACK can be recognized without

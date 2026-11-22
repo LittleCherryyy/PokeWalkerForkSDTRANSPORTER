@@ -63,7 +63,7 @@ public final class ProtocolInteropTest {
         rejects(tooLong, "oversized payload must be rejected");
         rejects(Arrays.copyOf(ping, 87), "truncated frame must be rejected");
 
-        if (args.length == 1) {
+        if (args.length >= 1) {
             byte[] cPing = Files.readAllBytes(Paths.get(args[0]));
             check(Arrays.equals(ping, cPing),
                   "C generated PING must exactly match Android encoded PING");

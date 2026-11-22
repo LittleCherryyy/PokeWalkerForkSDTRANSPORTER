@@ -2,6 +2,8 @@ package io.github.sdtransporter.pokewalker;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 
 /** Host-JVM validation of Android direct-sync framing; no ROM, network or save access. */
@@ -61,6 +63,15 @@ public final class ProtocolInteropTest {
         rejects(tooLong, "oversized payload must be rejected");
         rejects(Arrays.copyOf(ping, 87), "truncated frame must be rejected");
 
+        if (args.length == 1) {
+            byte[] cPing = Files.readAllBytes(Paths.get(args[0]));
+            check(Arrays.equals(ping, cPing),
+                  "C generated PING must exactly match Android encoded PING");
+            DirectSyncProtocol.Frame cParsed =
+                DirectSyncProtocol.read(new ByteArrayInputStream(cPing));
+            check(cParsed.op == DirectSyncProtocol.OP_PING && cParsed.length == 0,
+                  "Android must accept C bridge frame");
+        }
         System.out.println("ProtocolInteropTest: PASS (Android 88-byte framing, CRC and rejection checks)");
     }
 }

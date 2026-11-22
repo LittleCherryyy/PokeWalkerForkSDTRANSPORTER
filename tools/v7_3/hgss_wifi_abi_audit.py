@@ -83,6 +83,36 @@ def code_segment(f, header, start, file_size, name):
     }
 
 
+def arm9_module_params(f, section):
+    """Locate NitroSDK marker in raw ARM9 only (NOT proof of loaded code)."""
+    at = int(section["rom_offset"], 16)
+    size = section["file_bytes"]
+    sample = read_exact(f, at, min(0x8000, size), "ARM9 marker window")
+    marker = bytes.fromhex("2106c0dede c00621".replace(" ", ""))
+    hits = []
+    cursor = 0
+    while True:
+        pos = sample.find(marker, cursor)
+        if pos < 0:
+            break
+        if pos >= 0x1c and pos + 8 <= len(sample):
+            start = pos - 0x1c
+            compressed_end, sdk_version = struct.unpack_from("<II", sample, start + 0x14)
+            hits.append({
+                "raw_arm9_file_offset": hex32(start),
+                "sdk_version_candidate": hex32(sdk_version),
+                "compressed_static_end_candidate": hex32(compressed_end),
+                "compressed_static_end_nonzero": compressed_end != 0,
+            })
+        cursor = pos + 1
+    return {
+        "raw_marker_matches": len(hits),
+        "unique_raw_candidate": hits[0] if len(hits) == 1 else None,
+        "runtime_params_validated": False,
+        "warning": "Absent or ambiguous raw marker may require ARM9 BLZ decompression; never treat raw addresses as callable functions.",
+    }
+
+
 def overlays(f, header, table_at, fat, size, name):
     at, length = struct.unpack_from("<2I", header, table_at)
     if not length:
@@ -137,6 +167,7 @@ def audit_rom(path):
         if not game_code.startswith(("IPK", "IPG")):
             raise ValueError("not a HeartGold/SoulSilver game code")
         arm9 = code_segment(f, h, 0x20, size, "ARM9")
+        arm9_params = arm9_module_params(f, arm9)
         arm7 = code_segment(f, h, 0x30, size, "ARM7")
         fat_at, fat_len = struct.unpack_from("<2I", h, 0x48)
         if not fat_len or fat_len % 8 or fat_len > 8 * 65536:
@@ -162,6 +193,7 @@ def audit_rom(path):
             "match": stored_crc == actual_crc,
         },
         "arm9": arm9, "arm7": arm7,
+        "arm9_nitro_module_params": arm9_params,
         "overlay_tables": {"arm9": ov9, "arm7": ov7},
         "network_abi": {
             "wcm_socl_function_addresses_verified": False,

@@ -65,10 +65,14 @@ sufficient**: confirm the Android stored the correct Pokémon before
 declaring the test passed.
 
 Preserve a local recovery copy and fail closed: if Wi-Fi/TCP or Android
-storage validation fails, do not delete the .walker data, alter the
-original .sav, report success, or clear the pending transfer. Avoid a
-homebrew intermediary, desktop PC, separate file transfer, and external
-internet access. Support phone hotspot as the only network.
+storage validation fails, do not delete the .walker recovery copy,
+claim the Pokémon reached Android, or clear the pending transfer. Do not
+modify the game's .sav outside the game's existing save flow. The game
+may already have saved the Pokémon as being on the local virtual
+Pokéwalker before Android checkout succeeds: recovery must preserve
+that .walker rather than falsely claiming the Pokémon remains in party.
+Avoid a homebrew intermediary, desktop PC, separate file transfer, and
+external internet access. Support phone hotspot as the only network.
 
 Only after REAL outbound transfer succeeds, implement and validate
 the return path: `OP_PULL_FROM_PHONE`, CRC/session validation, durable

@@ -77,6 +77,222 @@ jobs:
             LIBDIRS="/opt/devkitpro/libnds" \
             PYTHON=python3 GIT_VER=sdlang2 LZSS=/tmp/lzss \
             cardenginei_arm7 cardenginei_arm9 cardenginei_arm9_igm
+      - name: Verify PING-only entrypoints are linked in DSi ARM9
+        shell: bash
+        run: |
+          set -euo pipefail
+          elf=core/bootstrap/retail/cardenginei/arm9/build/cardenginei_arm9.elf
+          test -s "$elf"
+          /opt/devkitpro/devkitARM/bin/arm-none-eabi-nm -C "$elf" | grep -E ' [Tt] walkerV71MakePing
+        shell: bash
+        env:
+          UPSTREAM_COMMIT: f6728baaa28a6fffbd070badce60d0b470180e1e
+        run: |
+          set -euo pipefail
+          target=core/bootstrap/retail/preLoadSettings
+          tmp=/tmp/nds-bootstrap-preload-upstream
+          git init -q "$tmp"
+          git -C "$tmp" remote add origin https://github.com/DS-Homebrew/nds-bootstrap.git
+          git -C "$tmp" sparse-checkout init --cone
+          git -C "$tmp" sparse-checkout set retail/preLoadSettings retail/apfix retail/mobiclipOffsets retail/dsi2dsSavePatches
+          git -C "$tmp" fetch --depth 1 --filter=blob:none origin "$UPSTREAM_COMMIT"
+          git -C "$tmp" checkout --detach FETCH_HEAD
+          test "$(git -C "$tmp" rev-parse HEAD)" = "$UPSTREAM_COMMIT"
+          for dir in "$tmp"/retail/preLoadSettings/files-*; do
+            test -d "$dir" || continue
+            name="${dir##*/}"
+            if test ! -e "$target/$name"; then
+              cp -a "$dir" "$target/$name"
+            fi
+          done
+          for project in apfix mobiclipOffsets dsi2dsSavePatches; do
+            src="$tmp/retail/$project"
+            dst="core/bootstrap/retail/$project"
+            for name in files files-bugged; do
+              if test -d "$src/$name"; then
+                mkdir -p "$dst/$name"
+                # Keep tracked fork patches intact; restore only missing
+                # upstream files/subdirectories such as apfix/files/cht.
+                cp -a -n "$src/$name/." "$dst/$name/"
+              fi
+            done
+          done
+          # The fork's apfix Makefile needs this locale directory as an
+          # explicit input. Never synthesize it if the official source lacks it.
+          test -d core/bootstrap/retail/apfix/files/cht
+          echo "Compatibility data pinned to upstream commit $UPSTREAM_COMMIT" >> "$GITHUB_STEP_SUMMARY"
+          echo "Upstream authorship: https://github.com/DS-Homebrew/nds-bootstrap" >> "$GITHUB_STEP_SUMMARY"
+      - name: Check availability of upstream compatibility inputs
+        id: compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=core/bootstrap/retail/preLoadSettings
+          missing=0
+          for dir in files-mep files-dsi files-dsi-en files-dsi-fr \
+                     files-dsi-de files-dsi-it files-dsi-es files-3ds \
+                     files-3ds-en files-3ds-fr files-3ds-de \
+                     files-3ds-it files-3ds-es; do
+            if test ! -d "$base/$dir"; then
+              echo "Missing upstream compatibility input: $base/$dir"
+              missing=1
+            fi
+          done
+          if test "$missing" -eq 0; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "### Full packaging intentionally skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "Required preLoadSettings input directories are absent from this Git checkout." >> "$GITHUB_STEP_SUMMARY"
+            echo "Only the DSi bootloader and ARM7/ARM9 core module builds are verified." >> "$GITHUB_STEP_SUMMARY"
+            echo "Do not publish an nds-bootstrap .nds from this run." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Attempt complete modified nds-bootstrap build (not a release)
+        if: steps.compatibility.outputs.available == 'true'
+        shell: bash
+        env:
+          DEVKITPRO: /opt/devkitpro
+        run: |
+          set -euo pipefail
+          export PATH="/tmp:/opt/devkitpro/devkitARM/bin:/opt/devkitpro/tools/bin:$PATH"
+          make -C core/bootstrap/retail -j2 \
+            DEVKITARM="${GITHUB_WORKSPACE}/core/bootstrap/portable-ds-rules" \
+            LEGACY_DEVKITARM="/opt/devkitpro/devkitARM" \
+            LEGACY_LIBNDS="/opt/devkitpro/libnds" \
+            LIBDIRS="/opt/devkitpro/libnds" \
+            PYTHON=python3 GIT_VER=sdlang2 LZSS=/tmp/lzss all
+          test -s core/bootstrap/retail/bin/nds-bootstrap.nds
+      - name: Collect bounded cardengine linker diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          for dir in core/bootstrap/retail/cardengine/arm9/build \
+                     core/bootstrap/retail/cardengine/arm9_32/build; do
+            echo "== $dir =="
+            for map in "$dir"/*.map; do
+              test -f "$map" || continue
+              grep -A 15 -E '^\\.bss |^ \\.bss ' "$map" | tail -n 55 || true
+            done
+            find "$dir" -maxdepth 1 -name '*.o' -exec \
+              /opt/devkitpro/devkitARM/bin/arm-none-eabi-size -A {} + \
+              | grep -E '(^|[[:space:]])\\.bss[[:space:]]' | tail -n 60 || true
+          done
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: v71-cardengine-linker-maps
+          path: |
+            core/bootstrap/retail/cardengine/arm9/build/*.map
+            core/bootstrap/retail/cardengine/arm9_32/build/*.map
+          if-no-files-found: ignore
+          retention-days: 7
+
+          /opt/devkitpro/devkitARM/bin/arm-none-eabi-nm -C "$elf" | grep -E ' [Tt] walkerV71CheckPingOk
+        shell: bash
+        env:
+          UPSTREAM_COMMIT: f6728baaa28a6fffbd070badce60d0b470180e1e
+        run: |
+          set -euo pipefail
+          target=core/bootstrap/retail/preLoadSettings
+          tmp=/tmp/nds-bootstrap-preload-upstream
+          git init -q "$tmp"
+          git -C "$tmp" remote add origin https://github.com/DS-Homebrew/nds-bootstrap.git
+          git -C "$tmp" sparse-checkout init --cone
+          git -C "$tmp" sparse-checkout set retail/preLoadSettings retail/apfix retail/mobiclipOffsets retail/dsi2dsSavePatches
+          git -C "$tmp" fetch --depth 1 --filter=blob:none origin "$UPSTREAM_COMMIT"
+          git -C "$tmp" checkout --detach FETCH_HEAD
+          test "$(git -C "$tmp" rev-parse HEAD)" = "$UPSTREAM_COMMIT"
+          for dir in "$tmp"/retail/preLoadSettings/files-*; do
+            test -d "$dir" || continue
+            name="${dir##*/}"
+            if test ! -e "$target/$name"; then
+              cp -a "$dir" "$target/$name"
+            fi
+          done
+          for project in apfix mobiclipOffsets dsi2dsSavePatches; do
+            src="$tmp/retail/$project"
+            dst="core/bootstrap/retail/$project"
+            for name in files files-bugged; do
+              if test -d "$src/$name"; then
+                mkdir -p "$dst/$name"
+                # Keep tracked fork patches intact; restore only missing
+                # upstream files/subdirectories such as apfix/files/cht.
+                cp -a -n "$src/$name/." "$dst/$name/"
+              fi
+            done
+          done
+          # The fork's apfix Makefile needs this locale directory as an
+          # explicit input. Never synthesize it if the official source lacks it.
+          test -d core/bootstrap/retail/apfix/files/cht
+          echo "Compatibility data pinned to upstream commit $UPSTREAM_COMMIT" >> "$GITHUB_STEP_SUMMARY"
+          echo "Upstream authorship: https://github.com/DS-Homebrew/nds-bootstrap" >> "$GITHUB_STEP_SUMMARY"
+      - name: Check availability of upstream compatibility inputs
+        id: compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=core/bootstrap/retail/preLoadSettings
+          missing=0
+          for dir in files-mep files-dsi files-dsi-en files-dsi-fr \
+                     files-dsi-de files-dsi-it files-dsi-es files-3ds \
+                     files-3ds-en files-3ds-fr files-3ds-de \
+                     files-3ds-it files-3ds-es; do
+            if test ! -d "$base/$dir"; then
+              echo "Missing upstream compatibility input: $base/$dir"
+              missing=1
+            fi
+          done
+          if test "$missing" -eq 0; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "### Full packaging intentionally skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "Required preLoadSettings input directories are absent from this Git checkout." >> "$GITHUB_STEP_SUMMARY"
+            echo "Only the DSi bootloader and ARM7/ARM9 core module builds are verified." >> "$GITHUB_STEP_SUMMARY"
+            echo "Do not publish an nds-bootstrap .nds from this run." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Attempt complete modified nds-bootstrap build (not a release)
+        if: steps.compatibility.outputs.available == 'true'
+        shell: bash
+        env:
+          DEVKITPRO: /opt/devkitpro
+        run: |
+          set -euo pipefail
+          export PATH="/tmp:/opt/devkitpro/devkitARM/bin:/opt/devkitpro/tools/bin:$PATH"
+          make -C core/bootstrap/retail -j2 \
+            DEVKITARM="${GITHUB_WORKSPACE}/core/bootstrap/portable-ds-rules" \
+            LEGACY_DEVKITARM="/opt/devkitpro/devkitARM" \
+            LEGACY_LIBNDS="/opt/devkitpro/libnds" \
+            LIBDIRS="/opt/devkitpro/libnds" \
+            PYTHON=python3 GIT_VER=sdlang2 LZSS=/tmp/lzss all
+          test -s core/bootstrap/retail/bin/nds-bootstrap.nds
+      - name: Collect bounded cardengine linker diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          for dir in core/bootstrap/retail/cardengine/arm9/build \
+                     core/bootstrap/retail/cardengine/arm9_32/build; do
+            echo "== $dir =="
+            for map in "$dir"/*.map; do
+              test -f "$map" || continue
+              grep -A 15 -E '^\\.bss |^ \\.bss ' "$map" | tail -n 55 || true
+            done
+            find "$dir" -maxdepth 1 -name '*.o' -exec \
+              /opt/devkitpro/devkitARM/bin/arm-none-eabi-size -A {} + \
+              | grep -E '(^|[[:space:]])\\.bss[[:space:]]' | tail -n 60 || true
+          done
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: v71-cardengine-linker-maps
+          path: |
+            core/bootstrap/retail/cardengine/arm9/build/*.map
+            core/bootstrap/retail/cardengine/arm9_32/build/*.map
+          if-no-files-found: ignore
+          retention-days: 7
+
+          echo "Both PING-only routines are compiled into the DSi ARM9 cardengine." >> "$GITHUB_STEP_SUMMARY"
+          echo "They are not yet called by a runtime Wi-Fi backend." >> "$GITHUB_STEP_SUMMARY"
       - name: Restore missing official preload configuration data (pinned)
         shell: bash
         env:

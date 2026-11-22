@@ -10,7 +10,7 @@ O patch substitui a definição de `ready` por uma verificação conservadora de
 No PowerShell, a partir da pasta extraída:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\aplicar_v71_preparacao.ps1 -Bootstrap "C:\Users\marcu\OneDrive\Documentos\Projetos\SD-Transporter-main DIRECT-DSI-SYNC\bootstrap"
+powershell -ExecutionPolicy Bypass -File .\aplicar_v71_preparacao.ps1 -Bootstrap "C:\caminho\para\o\projeto\bootstrap"
 ```
 
 O script verifica SHA256 ANTES de modificar e gera backup. Não execute com fontes que não correspondam ao snapshot V18; não retire verificação.

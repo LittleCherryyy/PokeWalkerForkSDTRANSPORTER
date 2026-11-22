@@ -64,6 +64,34 @@
 #define WALKER_CTL_DIRTY    0x20
 
 #ifndef __ASSEMBLER__
+#include "walker_direct_bridge.h"
+
+/* The resident network API description is shared across ARM7 and ARM9.
+ * Keep this wire-neutral (unsigned int = 32-bit on DS); the walker payload
+ * is built freestanding without the libnds include path. */
+typedef struct WalkerHgssNetApi {
+    unsigned int magic;
+    unsigned int ready;
+    unsigned int wcmInit;
+    unsigned int wcmStartupAsync;
+    unsigned int wcmBeginSearchAsync;
+    unsigned int wcmEndSearchAsync;
+    unsigned int wcmConnectAsync;
+    unsigned int wcmDisconnectAsync;
+    unsigned int wcmCleanupAsync;
+    unsigned int wcmGetPhase;
+    unsigned int wcmCountApList;
+    unsigned int wcmPointApList;
+    unsigned int soclStartup;
+    unsigned int socSocket;
+    unsigned int socConnect;
+    unsigned int socRecv;
+    unsigned int socSend;
+    unsigned int socClose;
+    unsigned int socFcntl;
+    unsigned int soclGatewayPtr;
+} WalkerHgssNetApi;
+
 typedef struct WalkerControl {
 	/* Written once by the bootloader. */
 	unsigned int magic;
@@ -96,11 +124,21 @@ typedef struct WalkerControl {
 	unsigned int cooldown;     /* idle reads left before advertising again after a session */
 	unsigned int wipeStart;    /* game VBlank count when the SELECT + LEFT hold began */
 	unsigned int linkMode;     /* identity command the game sent this link (0x60 = receive a gift) */
+    /* V7.1: appended at the end to preserve every legacy field offset.
+     * Bootloader initialization zeroes these blocks. A zeroed resolver
+     * cannot enable Wi-Fi or issue a transfer. */
+    WalkerDirectBridge direct;
+    WalkerHgssNetApi hgssNet;
 } WalkerControl;
 
 #define WALKER_ASSERT(name, cond) typedef char walker_assert_##name[(cond) ? 1 : -1]
 WALKER_ASSERT(dirty, __builtin_offsetof(WalkerControl, dirty) == WALKER_CTL_DIRTY);
 WALKER_ASSERT(size, sizeof(WalkerControl) <= WALKER_BLOB_OFF - WALKER_CONTROL_OFF);
+WALKER_ASSERT(direct_after_legacy, __builtin_offsetof(WalkerControl, direct) ==
+              __builtin_offsetof(WalkerControl, linkMode) + sizeof(unsigned int));
+WALKER_ASSERT(net_after_direct, __builtin_offsetof(WalkerControl, hgssNet) ==
+              __builtin_offsetof(WalkerControl, direct) + sizeof(WalkerDirectBridge));
+WALKER_ASSERT(net_api_32bit_fields, sizeof(WalkerHgssNetApi) == 20u * 4u);
 #endif
 
 #endif

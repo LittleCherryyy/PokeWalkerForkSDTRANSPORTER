@@ -31,7 +31,9 @@ class MenuDiagnosticTests(unittest.TestCase):
         begin = source.index("static void walkerReadOnlyDiagnostics(void)")
         end = source.index("#endif", begin)
         function = source[begin:end]
-        self.assertIn("address<=0x02400000u-(u32)sizeof(WalkerControl)", function)
+        self.assertIn("walkerControlAddressReadable(address)", function)
+        self.assertIn("if(address) sharedAddr[0] |= 2u;", function)
+        self.assertIn("sharedAddr[0] |= 4u;", function)
         self.assertIn("c->magic==WALKER_MAGIC", function)
         self.assertIn("c->version==WALKER_VERSION", function)
         self.assertIn("walkerHgssNetMissingMask(&c->hgssNet)", function)
@@ -53,6 +55,9 @@ class MenuDiagnosticTests(unittest.TestCase):
         self.assertIn("sharedAddr[4]=WALKER_DIAG_MENU;", view)
         self.assertIn("Wi-Fi: NOT ENABLED", view)
         self.assertIn("Missing net APIs: 0x", view)
+        self.assertIn("Walker: hook not published", view)
+        self.assertIn("Walker: RAM addr rejected", view)
+        self.assertIn("Walker: invalid header", view)
         self.assertNotIn("socConnect(", view)
         self.assertNotIn("wifiInit(", view)
 

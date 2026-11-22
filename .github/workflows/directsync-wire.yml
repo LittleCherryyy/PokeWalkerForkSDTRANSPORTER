@@ -1,0 +1,33 @@
+name: Direct Sync wire contract
+
+on:
+  push:
+    paths:
+      - 'core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java'
+      - 'core/tools/DirectSyncWireContractTest.java'
+      - '.github/workflows/directsync-wire.yml'
+  pull_request:
+    paths:
+      - 'core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java'
+      - 'core/tools/DirectSyncWireContractTest.java'
+      - '.github/workflows/directsync-wire.yml'
+  workflow_dispatch:
+
+jobs:
+  wire-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Validate 64 KiB DSi -> Android PUSH framing, CRC and ACK
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw-wire"
+          javac -d "$RUNNER_TEMP/pw-wire" \
+            core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java \
+            core/tools/DirectSyncWireContractTest.java
+          java -cp "$RUNNER_TEMP/pw-wire" \
+            io.github.sdtransporter.pokewalker.DirectSyncWireContractTest

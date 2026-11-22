@@ -103,7 +103,8 @@ void walkerDirectArm9Tick(void) {
         workerBusy=0;
         return;
     }
-    if(!committed(c) ||
+    if(!committed(c) || 
+       (workerStage!=WORKER_IDLE && !c->direct.lockReady) ||
        (c->direct.state!=WALKER_DIRECT_PUSH_READY &&
         c->direct.state!=WALKER_DIRECT_PUSHING)) {
         if(workerStage!=WORKER_IDLE) retry(c);
@@ -119,6 +120,15 @@ void walkerDirectArm9Tick(void) {
         if(!api || !api->available || !api->connect || !api->write ||
            !api->read || !api->close || api->available()<=0) {
             /* An absent Wi-Fi driver leaves Pokémon safe in the .walker. */
+            workerBusy=0;
+            return;
+        }
+        /* First ask the ARM7 SD writer to persist a checked PENDING
+         * record. Never transmit even one byte until the record has
+         * survived physical read-back. If the console powers off after
+         * this point, the next launcher refuses duplicate IR access. */
+        if(!c->direct.lockReady) {
+            c->direct.lockRequested=1;
             workerBusy=0;
             return;
         }

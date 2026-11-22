@@ -53,7 +53,7 @@ typedef struct WalkerDirectBridge {
     volatile unsigned int lockRequested;
 } WalkerDirectBridge;
 
-static void walkerDirectBridgeReset(WalkerDirectBridge *d,unsigned durableSeq) {
+static inline void walkerDirectBridgeReset(WalkerDirectBridge *d,unsigned durableSeq) {
     if(!d) return;
     d->magic=WALKER_DIRECT_BRIDGE_MAGIC;
     d->state=WALKER_DIRECT_IDLE;

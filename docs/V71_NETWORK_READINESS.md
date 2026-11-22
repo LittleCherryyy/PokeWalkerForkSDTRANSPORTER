@@ -137,3 +137,33 @@ error rather than distributing generated files.
 
 Future acceptance requires confirmed targeted and full bootstrap build logs,
 plus a physical DSi menu test with disposable saves.
+
+## Physical DSi report: original V7.1 menu and V7.1.1 correction
+
+The user supplied photographs of HeartGold booting and the V7.1 read-only
+menu showing **Walker: not installed / Wi-Fi: NOT ENABLED**. The game
+preferences screen visibly had **Virtual Pokéwalker On**. ARM7 replied
+through the IGM diagnostics handshake (no "ARM7: no diagnostic reply").
+
+Source review found a concrete false-negative condition: the original
+ARM7 diagnostic accepted only `0x02000000–0x023FFFFF`, but DSi NTR cache
+allocation in `bootloaderi/source/arm7/hook_arm9.c` may place the walker
+control block near `0x0CFDC000` when using the DSi ROM cache, after
+reserving space below `0x0CFE0000`. This window was incorrectly rejected
+without examining the control's magic/version, making the message
+"not installed" insufficient evidence of a failed hook.
+
+V7.1.1 fixes read-only diagnostics with an alignment-checked dual window
+(legacy DS main RAM and DSi extended 0x0C000000–0x0CFFFFFF RAM) and
+explicit reasons: hook address not published, RAM address rejected,
+or invalid WalkerControl header. Host regression checks cover the extended
+address. The result still needs physical DSi confirmation. In particular,
+a missing pointer may still arise from skipped walker selection, a missing
+`.walker` file or unsuccessful ARM9 hook signature search; check
+`/_nds/nds-bootstrap/pokewalker-error.txt` if the new panel reports
+"hook not published".
+
+The device Wi-Fi indicator being active does **not** prove HGSS can use
+a resident Wi-Fi socket; the WCM/SOCL/SOC transport remains fail-closed.
+The expected next physical test is the V7.1.1 read-only menu on a
+disposable save, not Android PING or Pokémon transfers.

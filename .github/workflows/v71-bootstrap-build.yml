@@ -63,6 +63,20 @@ jobs:
           export PATH="/tmp:$PATH"
           make -C core/bootstrap/retail/bootloaderi -j2
           test -s core/bootstrap/retail/nitrofiles/loadi0.lz77
+      - name: Build DSi ARM7/ARM9 cardengines without compatibility packs
+        shell: bash
+        env:
+          DEVKITPRO: /opt/devkitpro
+        run: |
+          set -euo pipefail
+          export PATH="/tmp:/opt/devkitpro/devkitARM/bin:/opt/devkitpro/tools/bin:$PATH"
+          make -C core/bootstrap/retail -j2 \
+            DEVKITARM="${GITHUB_WORKSPACE}/core/bootstrap/portable-ds-rules" \
+            LEGACY_DEVKITARM="/opt/devkitpro/devkitARM" \
+            LEGACY_LIBNDS="/opt/devkitpro/libnds" \
+            LIBDIRS="/opt/devkitpro/libnds" \
+            PYTHON=python3 GIT_VER=sdlang2 LZSS=/tmp/lzss \
+            cardenginei_arm7 cardenginei_arm9 cardenginei_arm9_igm
       - name: Attempt complete modified nds-bootstrap build (not a release)
         shell: bash
         env:

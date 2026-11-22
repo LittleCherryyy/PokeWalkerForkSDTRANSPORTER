@@ -57,3 +57,13 @@ After adding the missing `readFirmware` prototype, restoring the historical `PM_
 - Legacy `cdcWriteReg(u8,u8,u8)` returning `void` conflicts with Calico's `bool cdcWriteReg(CdcPage,unsigned,u8)`.
 
 This **must not** be addressed by arbitrary casts or silencing warnings: the newer codec API has different semantics and ABI. Audit the legacy codec implementation and complete bootloader toolchain compatibility before shipping a modified nds-bootstrap binary to a console.
+
+### Bootloader compatibility work following codec ABI mismatch
+
+The experimental branch now preserves the old ARM7 peripheral access logic while avoiding incompatible declarations from modern Calico:
+- Renamed only the local `bootloaderi` SPI codec implementation and its callers to `walkerLegacyCdcReadReg` / `walkerLegacyCdcWriteReg`.
+- Renamed the local I²C implementation and callers to `walkerLegacyI2cReadRegister` / `walkerLegacyI2cWriteRegister`.
+- Renamed the historical power-management SPI function/callers to `walkerLegacyWritePowerManagement`.
+- Restored the documented ARM9 DSi `SCFG_RST` 16-bit register alias at `0x04004006` when the toolchain does not declare it.
+
+All changes are confined to the non-main experimental branch and retain upstream authors' headers. They aim to preserve old behavior instead of silently adapting parameters to a different Calico ABI. **Compile success, console boot stability, and runtime correctness require separate verification; never infer HGSS Wi-Fi functionality from these fixes.**

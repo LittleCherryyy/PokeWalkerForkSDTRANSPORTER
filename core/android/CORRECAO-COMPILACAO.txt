@@ -1,0 +1,20 @@
+# Correção de compilação V18 + V5 (WalkingService)
+
+Corrige: ensureRunning(Context) ausente, widgetOnly fora de escopo.
+Restaura a lógica da V18 para animação LCD a cada 400 ms quando há widget.
+Mantém contagem temporizada de 60 em 60 segundos e amostras de bateria espaçadas; preserva logs, Wi-Fi e recursos.
+Não altera outros arquivos do projeto.
+
+## Aplicar no PowerShell
+
+Extraia este ZIP e execute dentro da pasta extraída:
+
+  powershell -ExecutionPolicy Bypass -File .\corrigir_walkingservice.ps1 -Projeto "C:\Users\marcu\OneDrive\Documentos\Projetos\SD-Transporter-main DIRECT-DSI-SYNC\android"
+
+Para aplicar no projeto integrado, altere -Projeto para o caminho dele.
+
+Em seguida:
+  cd "C:\Users\marcu\OneDrive\Documentos\Projetos\SD-Transporter-main DIRECT-DSI-SYNC\android"
+  .\gradlew.bat :app:assembleDebug
+
+A compilação Android não foi executada neste ambiente.

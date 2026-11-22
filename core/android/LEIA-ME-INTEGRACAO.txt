@@ -1,0 +1,16 @@
+POKEWALKER ANDROID V18 + V5 DIAGNOSTICS
+
+Visual: V18 original with 27 skins and proportional widget layouts / classic LCD / buttons.
+Network: V4 Android->DSi and V5 DSi->Android hotspot.
+Diagnostic: crash, battery snapshot, logs and export.
+Walking: time accounting every 60 seconds while the V18 classic LCD animation still runs every 400ms when a widget is present.  This preserves the animation but prevents claiming the highest possible battery savings: the widget uses regular CPU updates.
+
+This is an integration source project, not a compiled APK. Confirm the build and test resize, 27 skin choices, LCD interactions, WiFi and diagnostics before using as daily build.
+
+Windows PowerShell in extracted project root:
+$sdk = "$env:LOCALAPPDATA\Android\Sdk"
+"sdk.dir=$($sdk.Replace('\','/'))" | Set-Content -Path "local.properties" -Encoding ASCII
+.\gradlew.bat :app:assembleDebug --no-build-cache
+
+APK: app\build\outputs\apk\debug\app-debug.apk
+Do not uninstall the current app before backing up your data.

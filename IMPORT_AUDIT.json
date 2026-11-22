@@ -1,0 +1,30 @@
+{
+  "sources": [
+    {
+      "name": "Pokewalker-Virtual.zip",
+      "sha256": "301b9aef41dedbc74dbb10637192dd2679a8cba471e4cbeddcd28713e24c2cb4",
+      "bytes": 272220789
+    },
+    {
+      "name": "Projetos.zip",
+      "sha256": "72cd2b0226acc96a69ba3e2b9438fb909d94281c6b96177bcee72f6dc2f96192",
+      "bytes": 9007821
+    }
+  ],
+  "copied_counts": {
+    "core": 4724,
+    "v7_1_safe": 4,
+    "android_v5": 67,
+    "dsi_ping_v6": 19
+  },
+  "skipped_counts": {
+    "generated binaries": 853,
+    "generated dirs": 6388,
+    "local config": 2
+  },
+  "notes": [
+    "Este pacote e um snapshot de fontes, nao uma build testavel",
+    "Conservador: artefatos binarios sao omitidos",
+    "Codigo fonte do core nao foi modificado"
+  ]
+}

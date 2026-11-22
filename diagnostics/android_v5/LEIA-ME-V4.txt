@@ -1,0 +1,34 @@
+POKEWALKER ANDROID V4 - TESTE DE TRANSFERENCIA COM DSi V3
+
+Esta pasta contem um projeto Android Studio baseado no app Pokewalker Android anterior.
+Preserva o widget e as atividades existentes; adiciona um botao na tela principal:
+"DSi Wi-Fi V4 (teste)". O botao abre uma tela de testes independente.
+
+COMPILAR
+1. Abra esta pasta no Android Studio com SDK Android 36, NDK 29.0.14206865 e CMake instalados.
+2. Aguarde o Gradle Sync e execute Build > Build Bundle(s) / APK(s) > Build APK(s).
+3. O APK debug deve ser gerado em app/build/outputs/apk/debug/.
+4. Se o Android Studio solicitar JDK/SDK, use as opcoes de instalacao oficiais do IDE.
+5. O applicationId e o mesmo do aplicativo anterior. APKs precisam estar assinados
+   pela MESMA chave para instalar como atualizacao sem desinstalar o anterior.
+   Um APK debug com outra chave nao atualizara o app instalado. Faca backup dos
+   dados antes de qualquer substituicao/desinstalacao. NAO desinstale o app atual
+   sem backup, especialmente se ele contem dados ou Pokemon.
+
+USAR
+1. No Nintendo DSi, execute PokeWalker_DSi_V3_Transferencia.nds, ja testado.
+2. Conecte Android e DSi a uma rede que permita contato TCP entre os dois.
+3. No Android, abra Pokewalker > DSi Wi-Fi V4 (teste).
+4. Informe o IP que aparece no DSi e teste PING.
+5. Teste 2048 bytes, depois 8192 bytes e finalmente CRC corrompido.
+6. Nenhum dado real e enviado do widget/arquivo de save.
+
+PROTOCOLO
+- TCP 30821; cada comando usa uma conexao nova.
+- Cabeçalho de 16 bytes: magic PWDSI001(8), versao(1), acao(1), tamanho BE16(2), CRC32 BE32(4).
+- Acoes PING 0x04, BEGIN 0x10, CHUNK 0x11, COMMIT 0x12, ABORT 0x13.
+- Blocos de ate 512 bytes. Sessao de ate 8192 bytes sinteticos na RAM.
+
+VALIDACAO
+O codigo Java do transporte pode ser testado separadamente com javac.
+A compilacao do APK Android NAO foi executada neste ambiente; validar no Android Studio e no seu S10+.

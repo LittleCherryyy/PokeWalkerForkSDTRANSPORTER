@@ -1,0 +1,18 @@
+V6 CLIENTE SEM LISTENERS - correcao para Codigo -2 sock:48
+
+Diagnostico anterior: pw_direct_ping() retorna -2 ao falhar socket(AF_INET, SOCK_STREAM, 0), errno 48.
+Na V6 anterior o DSi reservava dois sockets servidores nas portas 30820 e 30821, que NAO eram necessarios para o envio ao Android.
+Esta variante elimina os listeners do DSi. Ela NAO altera a porta do servidor Android.
+
+Compilacao com devkitPro MSYS2:
+Copie os arquivos para C:/Projetos/PokeWalker_V6, fora de pastas com espacos e caracteres especiais.
+cd /c/Projetos/PokeWalker_V6
+make clean && make
+Copie PokeWalker_DSi_V6_Direct_PING.nds para SD e execute pelo TWiLight.
+
+No celular: hotspot 2.4GHz e Settings > Direct DSi Sync ON, porta 30821.
+No DSi: B testa Direct PING 30821; A/X testam V5 na porta 30822 (se receptor iniciado).
+Observe Evento, Codigo, sock e Fase.
+
+NENHUMA alteracao em ROM, save, bootstrap, app Android, skins ou widget.
+Sem compilacao/teste em console nesta maquina.

@@ -1,0 +1,19 @@
+POKEWALKER DSi V6.1 REAL — diagnostico cliente-only
+
+Este pacote substitui a pasta do projeto C:\Projetos\PokeWalker_V6 inteira.
+IMPORTANTE: o main.c enviado anteriormente ainda era a versao V5/V6 antiga, que abria servidores locais 30820 e 30821.
+
+No Windows, faça backup da pasta C:\Projetos\PokeWalker_V6 antes de substituir.
+Copie TODOS os arquivos deste pacote, incluindo source/main.c, source/direct_ping.c e Makefile.
+No devkitPro MSYS2:
+ cd /c/Projetos/PokeWalker_V6
+ make clean
+ make
+
+Copie PokeWalker_DSi_V6_Direct_PING.nds novamente para o SD e abra pelo TWiLight Menu++.
+A tela DEVE dizer: POKEWALKER DSi | V6.1 REAL
+Se disser V5, a copia que esta rodando nao e deste pacote.
+No Android, mantenha o hotspot 2.4GHz e Direct DSi Sync ON (porta 30821).
+Pressione B e leia Codigo/sock/Fase. A e X preservam os testes V5 na 30822.
+Nenhum arquivo de save, HeartGold ou bootstrap e alterado.
+Pacote NAO compilado para NDS neste ambiente.

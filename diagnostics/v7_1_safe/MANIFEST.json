@@ -1,0 +1,7 @@
+{
+  "status": "source_preflight_only",
+  "source_v18_sha256": "C302FCF212440A862EB5260BCB8A295894441BC2EA2B07667ACF79574811A64C",
+  "patched_sha256": "C80388ECCD10FC13269FF03E35A1ADE7B3A6BC7063808A992D48F3EA5FDB8B65",
+  "ping_during_game_implemented": false,
+  "devkitarm_build_verified": false
+}

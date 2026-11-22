@@ -1,0 +1,28 @@
+POKEWALKER DSi V6.3 TCP TRACE — CLIENTE SOMENTE
+
+Esta versao NAO substitui o nds-bootstrap, nao modifica ROM/save e nao transfere Pokemon.
+
+MUDANCAS
+- O botao B ou Y inicia o Direct PING ao Android:30821.
+- Exibe continuamente a etapa: socket, fcntl, connect, espera, SO_ERROR, send, recv, validacao e close.
+- Utiliza socket em modo NAO BLOQUEANTE ate finalizar; timeout de 4s para select em cada etapa.
+- Fecha o socket aberto em todos os caminhos de retorno.
+- Botao A/X mantem testes V5 em 30822 (sem alterar o protocolo anterior).
+- Mostra V6.3 TCP TRACE para reconhecer a compilacao.
+
+COMPILAR: copiar os arquivos INTEIROS do ZIP para C:/Projetos/PokeWalker_V6,
+substituindo source e Makefile. No devkitPro MSYS2:
+  cd /c/Projetos/PokeWalker_V6
+  make clean && make
+
+Copiar PokeWalker_DSi_V6_Direct_PING.nds compilado para SD do DSi.
+No Android, ligar hotspot 2,4GHz e Settings > Direct DSi Sync.
+Abrir homebrew V6.3 no DSi, apertar e soltar Y ou B UMA VEZ.
+
+Se houver travamento, tirar FOTO da Fase EXATA exibida antes de reiniciar.
+Se retornar erro, anotar Codigo, sock, Fase, Evento.
+Nao reinicie o teste repetidamente antes de registrar o resultado.
+
+LIMITACAO: o timeout usa select() da biblioteca DSWifi. Se o proprio select
+bloquear indevidamente, a tela registra a etapa mas nao consegue impor
+um timeout absoluto. Nesse caso, o proximo ajuste exigira analisar DSWifi.

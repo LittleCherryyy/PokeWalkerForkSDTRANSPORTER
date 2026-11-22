@@ -1,0 +1,436 @@
+SD TRANSPORTER - POKEWALKER COMPANION USER GUIDE
+Version 1.7.0 - Updated 13 November 2026
+
+This guide covers the 3DS, NDS and Android companions and the iPhone source
+port. The phone apps use the same walker progress and activities. The iPhone
+port currently requires a separate Apple SDK build; no iPhone binary is included.
+
+1. INSTALL OR UPDATE
+
+The release ZIP has one folder per setup: DS or DS Lite - flashcart,
+DSi - flashcart, 3DS - flashcart, DSi - custom firmware and 3DS - custom
+firmware. Open START HERE.txt, pick the one folder that matches your console
+and follow its README.txt. Each folder already includes TWiLight Menu++ 27.25.1
+with the SD Transporter changes applied, so nothing else needs downloading.
+
+Copy the CONTENTS of each "Copy to ..." folder to the root of the card it
+names, merging folders. Keep your existing game saves and walker files; they
+are not overwritten. Back up the card first.
+
+3DS:
+- Run 3ds/pokewalker3ds/pokewalker3ds.3dsx from the Homebrew Launcher.
+  A CIA for the companion is not included in 1.7.0.
+NDS / DS Lite / DSi (and 3DS in DS mode):
+- Launch roms/nds/Pokewalker-NDS.nds from TWiLight Menu++, with working
+  SD/DLDI access.
+Android:
+- Install the signed 1.7.0 APK over the existing app. Keeping the installed
+  app's data preserves the active walker, saved consoles and handoff records.
+  Never uninstall the app while it holds your Pokemon.
+
+Update the console and phone companions together when updating sync features.
+See README.md for the GBA migration, Poke Transfer and other features.
+
+2. CREATE AND OPEN A WALKER
+
+In TWiLight Menu++, highlight HeartGold or SoulSilver and press Y. Set
+Bootstrap: to Nightly, then highlight "Virtual Pokewalker: Off" and press A so
+it reads "Virtual Pokewalker: On". Launch the game as normal.
+Use HGSS's normal Pokewalker menu to register the walker and send a Pokemon
+on a stroll. The virtual connection is triggered by pressing SELECT on the
+normal Pokewalker connection/search screen. SELECT is the walker's button,
+like the button on a real Pokewalker: press it once, don't hold it. Each
+connection needs its own press; wait a second or two after a transfer
+before connecting again.
+
+SELECT + LEFT RESETS THE WALKER. Holding SELECT and LEFT together for about two
+seconds while HGSS is searching wipes the virtual walker back to a brand-new,
+unregistered one, the same as deleting the .walker file: trainer registration,
+partner, caught Pokemon, items, watts and step history are all cleared. A quick
+or accidental press of both does nothing. It only works on the search screen,
+before the connection starts, never during normal play or a transfer. Use it only
+when you deliberately want a fresh walker (for example, one registered to a
+different save that HGSS refuses). If you press it by accident, stop, and
+restore the newest "prelaunch" snapshot from before the wipe using Recovery
+(section 8). A prelaunch snapshot is saved automatically before every launch.
+If a Pokemon was out on a stroll when you wiped it, just restart the game: the
+automatic repair (section 7) puts the walker back.
+
+Real HGSS cartridges (DSi/3DS in DSi mode with console SD access):
+Launch roms/nds/Virtual-Pokewalker-Cartridge.nds, insert the cartridge when
+asked, press A to check it, then A to start. Its walker is saved on the
+console SD as roms/nds/saves/Cartridge-<game code>-<header CRC>.walker and
+opens in the companions like any other walker. Keep the SD card inserted.
+
+Close HGSS before opening its walker in a companion. The game creates a 64 KiB
+.walker file next to its save, for example:
+  /roms/nds/saves/Pokemon HeartGold.walker
+
+The console companion searches only /roms and its subfolders. Select the
+walker using the D-pad or touch screen and press A to open it. The preview
+shows its trainer name and public five-digit Trainer ID when available.
+A registered empty walker earns steps and watts but no Pokemon joins it; send
+a partner from HGSS. A blank/unregistered file is not ready.
+
+Android and iPhone receive a walker from a console over Wi-Fi; ordinary
+recovery exports do not automatically become an active phone walker.
+
+3. WALKING SETTINGS
+
+Open Settings to choose your step source and time-based rate.
+
+3DS:
+- Physical 3DS pedometer counting is available separately from the time counter.
+- Time-based counting is off by default. Physical counting can remain enabled
+  while time-based counting is off.
+- Time-based progress counts while the app is open, including open-app sleep.
+NDS:
+- DS hardware has no built-in pedometer. It uses time-based counting, enabled
+  by default, while the companion is running, including open-app sleep.
+Android / iPhone:
+- Physical phone steps are the default; permit motion/physical activity access
+  when asked. Time-based counting is off by default.
+- Select the desired step source in Settings. Pausing stops credited progress.
+- Android uses its ongoing walking notification for background tracking.
+- iPhone may recover physical step history supplied by iOS when reopening;
+  its simulated timer runs only while the app is active.
+
+The default simulated rate is one step every 10 seconds. Closed-app time does
+not generate simulated steps. Normally, 20 credited steps earn one watt.
+Stroll steps and lifetime steps are different counters. An ordinary timer
+change keeps progress already earned. The trainer card shows additional totals.
+
+4. ACTIVITIES AND YOUR PACK
+
+Poke Radar costs 10 watts. Follow the rustling grass patches, then choose attack,
+evade or a Poke Ball in battle. A successful catch names the Pokemon caught.
+Dowsing costs 3 watts. Search the grass patches using the near/far hints.
+Your pack holds up to three caught Pokemon and three items. If it is full,
+choose a slot to replace or leave the new reward.
+
+Catches and item finds are saved immediately and get recovery snapshots.
+If saving fails, keep the app open and retry saving. Do not treat an error as
+a completed save. Android offers Retry saving; consoles show a save-error
+screen. Phone recovery copies remain accessible in Settings.
+
+Before every save, all companions check the walker. A damaged copy of a
+mirrored record is repaired from its good copy automatically. If both copies
+are bad, or a Pokemon in the walker is malformed (species, level, item, form
+or moves), the save is refused ("Walker data check") so HGSS never receives
+broken data. Nothing on the card is changed; keep the app open and use
+Recovery. Consoles apply the same check to a walker returned from a phone.
+
+Pokemon received in HGSS from the walker now get 0 PP in empty move slots.
+HGSS used to leave the PP of the default move that slot had before; the
+1.6.1 bootstrap corrects this while the walker is connected.
+
+Normal course encounters are shiny-locked. Walking events may find rewards.
+A registered empty walker earns steps and watts, but from 1.6.1 no Pokemon
+joins it: HGSS builds a joined partner as an event Pokemon from walker data
+the companions never had, so those partners came back illegal. A partner that
+joined under an older version is still on its walker. These companions
+implement supported original-style activities; they do not execute original
+Pokewalker firmware. Sections 14-17 describe original-style controls, optional
+rewards, visits, Bluetooth battles and supported special-course activation.
+
+5. CONNECT CONSOLE AND PHONE
+
+Connect both devices to the same local Wi-Fi network. On the console, open
+Settings > Phone sync. Keep that screen open and note its IP address.
+On Android, scroll down on the main screen past Settings to Console Wi-Fi sync.
+On iPhone, open its console sync screen. Enter the console IP address.
+No six-digit code is required. The default port is 30820. Android accepts an
+optional IP:port; on iPhone enter the IPv4 address only.
+Android's Save this console and Saved consoles buttons store a named address.
+If the console's IP changes later, update or save its new address.
+
+To send CONSOLE -> PHONE:
+1. Open the intended walker on the console and enter Phone sync.
+2. On the phone, choose Receive Pokemon from console.
+3. Wait for the phone's received confirmation.
+4. The selected phone profile now owns the active Pokemon. The console copy is
+   locked. Other active phone profiles continue earning steps.
+
+To send PHONE -> CONSOLE:
+1. On the same console, reopen the matching walker's Phone sync screen.
+2. On the phone, choose Return Pokemon.
+3. Wait for the confirmed return. The console is unlocked and the phone's
+   active copy is removed from that profile. Other profiles are unchanged.
+   Recovery snapshots are kept separately.
+
+Do not change Wi-Fi configuration during a handoff. A locked or pending copy
+cannot be used for activities. If a return is unconfirmed, retry with the same
+console and session rather than starting another handoff.
+
+The current LAN protocol is unencrypted HTTP. Use a local network you trust.
+Guest networks with client isolation may stop the devices reaching each other.
+No developer server receives the walker.
+
+6. DS LITE WI-FI SETUP
+
+Configure Wi-Fi BEFORE checking the walker out to a phone.
+Use Settings > Wi-Fi setup, or Y on the NDS walker list when available.
+DS Lite supports compatible open or WEP networks, not modern WPA-only networks.
+For WEP, enter the supported hexadecimal key (10, 26 or 32 digits).
+Choose a blank-name result to enter a hidden SSID, or press Y inside Wi-Fi setup
+to enter the network name and run a directed search. SSIDs are case-sensitive.
+The Wi-Fi profile contains your WEP key and is stored on the card; keep it private.
+After setup, leave the scan screen and open Phone sync before using the phone.
+On 3DS/DSi, configure the network using the platform's supported settings.
+
+7. RETURN PROGRESS TO HGSS
+
+Return the Pokemon from the phone to its original console first, if necessary.
+Save and close the companion before launching HGSS. Use the game's normal
+Pokewalker menu to return from the stroll or receive supported gifts/rewards.
+Keep each walker paired with the HGSS save that created its registration.
+Recovery does not merge separate Pokemon, trainers or newly reset strolls.
+
+The walker saves its changes to the card as soon as the connection ends, while
+HGSS is saving the game. Let HGSS finish saving before you reset or turn the
+console off.
+
+AUTOMATIC REPAIR. Every launch first compares the walker with the HGSS save
+(same trainer only, never a walker that is out on a phone):
+- Save says nothing is out but the walker holds a Pokemon (for example a send
+  that reached the walker but the game did not finish, which shows "a Pokemon
+  is already on the Pokewalker"): the leftover copy is removed. The game
+  still has that Pokemon in its party or PC.
+- Save says a Pokemon is out but the walker is empty or wiped: the walker is
+  put back from <walker>.walker.lastgood, or the newest matching prelaunch
+  snapshot.
+- Save says nothing is out but the walker has lost its registration (HGSS
+  says "This Pokewalker has not been registered"), usually because a pairing
+  was cut off part way: the last walker registered to the same trainer is put
+  back, with its steps and watts. A walker you wiped on purpose with
+  SELECT + LEFT, or a .walker file you deleted, is left as a new walker.
+The .lastgood file is kept next to the walker whenever walker and save agree;
+only the launcher uses it. Any repair is described in
+_nds/nds-bootstrap/pokewalker-repair.txt, and the walker as it was before the
+repair stays in transfers/backups. The real-cartridge launcher cannot read the
+cartridge save first, so it does not repair automatically.
+
+8. BACKUPS AND DELETION
+
+Recovery history keeps at most 10 snapshots PER WALKER. A newly written
+snapshot is verified before the oldest history entries are removed.
+Console histories are grouped by original walker path. Phone histories are
+grouped by the stable trainer/device identity, not by a changing sync token.
+Older existing histories are trimmed when that walker next creates a snapshot.
+Active files, pending handoff safety copies, locks and ownership receipts are
+outside this history limit. They protect unfinished transfers.
+
+Backups never load automatically as active Pokemon. Open Recovery deliberately.
+On console, histories are under the walker's adjacent transfers/backups folder.
+
+Console controls:
+- Settings: X opens Recovery copies / delete.
+- Walker file list: SELECT opens histories, including missing active files.
+- Locked-walker screen: R opens Backups.
+- Recovery browser: Y changes walker; L/R changes snapshot; B goes back.
+- START opens Restore selected backup; inspect it and press A to confirm.
+  The current file is archived first, and any outstanding phone lease is
+  revoked. Restoring an old checkpoint can duplicate Pokemon already received
+  in HGSS; use it only when recovery is needed. Trainer mismatches are refused.
+- SELECT opens missing-file recovery for adjacent .tmp/.bak candidates.
+- A deletes the selected snapshot AFTER confirmation.
+- X deletes the selected walker's active file AFTER confirmation. A verified
+  recovery snapshot is preserved first. A phone handoff is revoked if needed.
+
+Phone controls:
+- Settings > Recovery copies lets you export or delete individual snapshots.
+- Delete active walker removes the local active Pokemon after preserving a
+  recovery snapshot. It does not automatically unlock an offline console.
+- Ownership/session records are separate and cannot be deleted in this browser.
+
+9. INTERRUPTED TRANSFERS
+
+If receiving on the phone fails, the console keeps a locked recovery snapshot.
+Retry Receive on the same console. If a return fails, the phone retains a frozen
+pending copy until it gets confirmation that the console saved the data.
+
+If the phone cannot be recovered, use the console's Force unlock / Recover
+option and confirm it deliberately. This restores the console's earlier
+checkout snapshot and permanently revokes that phone session. Progress earned
+only on the lost phone is not included. That old phone session cannot later
+return over the recovered walker; a fresh handoff is required.
+
+A force recovery is not a progress merge. Do not keep using an old exported
+copy as another active Pokemon.
+
+10. MISSING .WALKER AFTER AN INTERRUPTED SAVE
+
+If you find .walker.tmp or .walker.bak but the final .walker is missing,
+keep those files. The .tmp may contain newer rewards than the .bak.
+
+On the console:
+1. Rescan /roms if needed, then press SELECT for Recovery.
+2. Press Y to select the missing walker's history.
+3. Press SELECT inside the recovery browser for Recover missing file.
+   START also opens this flow when there are no history snapshots.
+4. Use L/R to inspect available verified candidates and trainer/pack details.
+5. Press A to deliberately restore the chosen candidate, or B to cancel.
+6. Open the recovered file from the normal list.
+
+Recovery can use .tmp, .replace-old, .bak and .bak.tmp candidates. It keeps the
+source files, refuses to overwrite an existing active walker and does not bypass
+a phone lock. A phone-owned walker must use its normal revoking recovery flow.
+
+11. BACKUP DATES
+
+The 3DS companion reads actual SD modification dates through its native
+filesystem API for display and oldest-first retention. If no valid file date
+can be read, it shows Unknown date rather than 1970 or an invented date.
+The displayed date follows the recorded file time and the console's clock;
+changing the system clock can affect the dates of later snapshots.
+
+For source, compilation, limitations and project credits, see README.md,
+BUILDING-WINDOWS.md and CREDITS.md.
+
+12. MULTIPLE WALKERS ON ONE PHONE
+
+Open Walker profiles from the phone home screen. The existing single walker
+becomes Walker 1 without moving or deleting its journal or recovery copies.
+Use Add walker profile to create a separate slot, then receive that walker's
+Pokemon from its console. Rename profiles to something recognizable, such as
+HeartGold and SoulSilver. Select a profile to view it, play activities, change
+its settings, return it, or manage its recovery copies.
+
+ALL active profiles earn steps. Each keeps a separate sensor baseline, timer,
+progress, pack, console address/session and recovery folder. Paused, revoked,
+return-pending and currently syncing profiles do not earn steps. Changing the
+viewed profile does not pause others. Walking Settings affect the selected
+profile; Android's notification Pause all stops all profiles.
+
+A profile binds to the received trainer NAME and public Trainer ID. Later
+receives must match both. The console refuses a mismatch before checking out
+the walker; the phone also validates received data. Profiles retain their
+binding after a normal return. Deleting the active Pokemon clears the binding;
+the empty profile can then receive from another trainer. Saves with identical trainer names and IDs
+are treated as the same trainer; these checks do not distinguish those saves.
+Existing per-session checks prevent returning through an unrelated handoff.
+Profile changes are blocked during a transfer.
+
+Update console and phone companions together for the pre-checkout trainer
+check. A previously empty legacy phone profile binds on its next receive.
+Recovery snapshots remain recovery-only and never become playable profiles.
+
+13. BATTLE PRESENTATION AND SAVE SAFETY
+
+Phone battles use the original two-frame partner/opponent images stored in the
+walker, rather than enlarging the home portrait for battle. Attack, evade and
+Poke Ball sequences display motion, HP changes and catch confirmation. Their
+presentation timing is recreated; original retail firmware is not executed.
+Catches with space in the pack are saved BEFORE the animation is played, so
+leaving the screen cannot discard an already stored catch. A full pack still
+requires a replacement choice. Console battle sprite frames are preserved.
+
+The NDS companion disables filesystem write-back caching for its storage mount
+so verification reaches DLDI media. Both console companions recheck the final
+.walker after return lock cleanup. A receipt alone never confirms a missing,
+empty or invalid final walker. An unconfirmed phone return stays locked for
+retry/recovery. Keep its app data while retrying.
+
+A partial watt can finish in fewer than 20 additional steps. Subsequent full
+watts still require 20 steps; walking events may grant separate bonus watts.
+
+14. ORIGINAL-STYLE CONTROLS AND OPTIONAL REWARDS
+
+Tap the Pokewalker on the Android/iPhone home screen to open its original-style
+LCD and three buttons. Left/right select; the centre button confirms. Progress,
+catches, items, sound and contrast settings belong to the selected profile.
+The original uploaded graphics and sound scores are read from your own data.
+Retail firmware is not executed; audio and animation timing are recreated.
+
+Expanded items are OFF by default. Opt in under Settings on each phone profile,
+or press SELECT in console Settings for reward options (A enables, X disables).
+Dowsing uses the expanded rates in section 18. Normal walking events are unchanged.
+
+15. VISITS AND FRIENDLY BATTLES
+
+Choose Connect another Pokewalker, then Another profile or Nearby phone.
+Same-phone profiles can visit once per pair each day. Both gifts are saved
+together. Nearby visits and battles use Bluetooth LE, separate from console
+Wi-Fi transfers. Keep both apps open; choose the same activity on both phones,
+host on one and search/connect on the other. Grant Bluetooth permissions when
+asked. Older Android versions also require location permission for discovery;
+the app does not read your geographic location.
+
+Both players confirm a friendly battle before paying 30 watts each. Use the
+three controls to select and confirm retained moves. PP, power, accuracy and
+priority are used; status moves brace against the next attack. Full game stats,
+type matchups and other special effects are not simulated. Battle progress is
+separate from the Pokemon's HGSS stats. Only the winner receives an item; claim
+or leave a pending reward from Home before starting another battle or returning.
+Expanded battle rewards require opt-in on BOTH phones. Otherwise, all rewards
+come from the current course, with its rarer entries weighted more heavily.
+If settings differ, both apps warn before acceptance. See section 18 for rates.
+
+An interrupted paid battle can be resumed against the same partner without
+another entry charge; it starts a fresh battle board. Saved completed results
+are restored on retry. Visits and battles never move or replace either partner.
+
+16. RETURNING WHEN CONSOLE FILES ARE MISSING
+
+The console file list remains usable with no walker files. Press Y, select the
+matching HGSS ROM under /roms, press A, then confirm Receive phone copy with A.
+On the phone, select Return Pokemon. If a revoked-session recovery prompt is
+shown, follow it only with this console recovery screen open. The final .walker
+must exist and verify before success. An existing active Pokemon or another
+phone's lease is refused rather than replaced.
+
+On the phone, deleting an active Pokemon preserves a recovery copy and clears
+that profile's trainer pairing. A new receive can bind the empty profile to a
+different trainer. Returning normally keeps the original pairing.
+
+17. SPECIAL AND EVENT COURSES
+
+From the console file list press Y, choose the HGSS game, press X for Courses,
+then A to confirm. A matching raw 512 KiB HGSS save is required. The app validates
+its identity and checksums and preserves the original in saves/transfers/backups
+before enabling supported special-course flags. Select a course from HGSS when
+sending a Pokemon. Language-exclusive unsupported entries are left disabled;
+ordinary watt-based course progression remains unchanged.
+
+Save checks cover missing-file returns, final-file verification, interrupted
+profile writes, malformed Bluetooth packets, storage alignment and, from 1.6.1,
+walker data validation before every save and on phone returns. Physical
+radio/console compatibility still depends on the device. Keep independent save
+backups and update the phone and console companions together.
+
+18. EXPANDED REWARD RATES
+
+Group                                  Dowsing       Battle win
+Master Ball                            0.01%         0.5%
+PP Max                                 0.09%         4.5%
+PP Up                                  0.20%         10%
+TM01-TM92 combined                      1.70%         35%
+HP Up, Protein, Iron, Carbos,
+Calcium and Zinc                        3%            10%
+Rare Candy                              0.5%          5%
+Macho Brace and six Power items         0.5%          5%
+Evolution stones/held evolution items   1%            5%
+Battle held items                       0.5%          5%
+Heart Scale                             0.5%          5%
+Original course items                   92%           15%
+
+Items are equally likely within a group. A battle winner receives one item.
+The battle column requires BOTH phones to enable Expanded Dowsing items.
+With either phone opted out, original course slots 1-10 have weights of
+30, 25, 15, 12, 8, 5, 2, 1, 1 and 1. Invalid slots are skipped and the remaining
+weights are normalized. Dowsing opt-out preserves original course rules.
+
+19. PHONE DISPLAY
+
+The device shell uses the exact image supplied by the project owner. Its
+sample Pikachu and counters are covered at runtime by the live LCD. Browsing
+keeps the current course scene, Pokemon, steps and pack indicators visible.
+Course, watts and named pack contents remain in the profile details. During
+battles only the LCD changes; the shell and buttons stay in place. Tap the
+device to enable Classic mode. Only the Pokewalker and the Classic mode
+toggle are shown. Tap the three buttons on the device image to navigate
+its menus. Hold the centre image button to return to the main LCD while browsing.
+Settings > Menu button hold offers 0.25, 0.5, 1, 1.5, 2 or 3 seconds (default: 1 second).
+This setting is saved on the phone and applies to every profile. Left and right wrap through menu options.
+Turn Classic mode off to show the navigation controls and profile details;
+choose Back to app to return to the full app controls.

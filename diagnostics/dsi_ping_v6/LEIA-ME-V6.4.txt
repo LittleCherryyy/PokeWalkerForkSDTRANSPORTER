@@ -1,0 +1,22 @@
+POKEWALKER V6.4 - Direct PING compatibilidade DSWifi
+
+CORRECAO: V6.3 retornou Codigo -3 / sock 88 ao usar fcntl().
+Esta versao remove fcntl() do caminho Direct PING e usa connect() bloqueante,
+como o transporte V5 A/X que ja foi validado no DSi.
+
+IMPORTANTE: O limite de 4 s controla select() no envio e recebimento,
+mas NAO limita o connect() bloqueante. Se o Android nao aceitar conexoes,
+o DSi pode ficar esperando no estado 'connect() bloqueante'.
+
+COMPILACAO: no terminal devkitPro MSYS2, dentro da pasta sem espacos:
+  make clean
+  make
+
+Copie PokeWalker_DSi_V6_Direct_PING.nds para o cartao SD.
+A tela deve mostrar V6.4 COMPAT TCP.
+No Android: hotspot 2,4GHz e Settings > Direct DSi Sync na porta 30821.
+No DSi: pressione B ou Y uma vez.
+A/X continuam os testes V5 na porta 30822.
+
+Este homebrew NAO altera HeartGold, bootstrap, EEPROM ou saves.
+Nao substitui o nds-bootstrap. Compilacao no devkitARM e teste real pendentes.

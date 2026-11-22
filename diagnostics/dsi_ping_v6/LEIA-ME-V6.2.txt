@@ -1,0 +1,26 @@
+POKEWALKER DSi V6.2 - diagnostico dos botoes
+
+O QUE MUDOU
+- Cabecalho mostra V6.2 KEYS para diferenciar builds.
+- Pressionar B ou Y inicia o mesmo Direct PING TCP na porta 30821.
+- A e X mantem os testes V5 na porta 30822.
+- Tela mostra contadores Teclas e Direct e os estados B/Y/A/X.
+- Estado de botao pressionado fica travado ate soltar, evitando conexoes em sequencia enquanto segura.
+- DSi continua apenas cliente. Nao ha acesso a ROM nem a saves.
+
+COMPILAR (devkitPro MSYS2):
+  cd /c/Projetos/PokeWalker_V6
+  make clean && make
+
+TESTAR:
+1. Com Android hotspot e Direct DSi Sync ligados, inicie o novo .nds.
+2. A tela deve mostrar POKEWALKER DSi | V6.2 KEYS.
+3. Aperte E SOLTE Y uma vez e leia Teclas, Direct, Evento, Codigo, sock e Fase.
+4. Aperte e solte B e compare os contadores.
+5. Nao repita varias vezes sem ler a saida.
+
+Se Teclas e Direct sobem com Y mas nao com B, problema e reconhecimento da tecla B.
+Se ambos sobem e falham, enviar Codigo, sock e Fase.
+Se ambos nao sobem, revisar inicializacao/leitura de botoes no DSi.
+
+IMPORTANTE: nao substitui nds-bootstrap e nao transfere Pokemon.

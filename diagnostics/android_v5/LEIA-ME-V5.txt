@@ -1,0 +1,39 @@
+POKEWALKER ANDROID V5 - RECEPTOR DE DADOS DO DSi
+================================================
+
+Esta versao preserva o app e as funcoes de V4. Adiciona no menu:
+  DSi Hotspot V5 (receber)
+
+Compile no PowerShell, dentro da pasta Android_V5:
+  .\gradlew.bat clean :app:assembleDebug
+
+O Android SDK deve estar configurado no local.properties:
+  sdk.dir=C:/Users/marcu/AppData/Local/Android/Sdk
+(O caminho acima e um exemplo do usuario; ajuste caso necessario.)
+APK: app\build\outputs\apk\debug\app-debug.apk
+
+O projeto V5 inclui uma copia de codigo C do diretorio shared do SD-Transporter;
+nao precisa criar pasta Projetos\shared para compilar. A licenca original
+permanece aplicavel a esses arquivos.
+
+TESTE DIRETO, SEM ROTEADOR:
+  1. Ative MANUALMENTE o hotspot de 2.4 GHz no Android e conecte o DSi.
+     O DSi exige seguranca compativel com o modo DS (normalmente aberto/WEP);
+     hotspots WPA2/WPA3 podem impedir a conexao no modo DS.
+  2. Abra o homebrew DSi V5 no console.
+  3. No Android abra DSi Hotspot V5 (receber), toque Iniciar receptor.
+  4. Mantenha a tela Android aberta (servidor nao e servico em background).
+  5. Pressione B no DSi para PING; A para 2 KB; X para 8 KB.
+  6. Confira o log Android: PING recebido, blocos confirmados, SUCESSO e CRC32.
+
+PORTAS:
+  30822 Android servidor (DSi inicia conexao)
+  30820 DSi HTTP V3 (Android pode consultar)
+  30821 DSi binario V3 (Android pode enviar; menu V4 permanece)
+
+Sem internet, sem PC/roteador no teste, sem alterar dados de Pokemon.
+NAO e uma integracao ao HeartGold ou ao nds-bootstrap. Isso permanece futuro.
+
+Validacao: java standalone compilado e testado localmente para PING, 2 KB,
+8 KB, quadro CRC invalido. Ainda nao temos APK compilado com Android SDK nem
+confirmacao em Android/DSi fisicos nesta versao.

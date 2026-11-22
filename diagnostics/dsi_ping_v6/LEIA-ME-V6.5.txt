@@ -1,0 +1,30 @@
+POKEWALKER V6.5 - DIAGNOSTICO DE TRAVAMENTO NO close()
+
+OBSERVACAO: na V6.4 a ultima fase visivel foi "validar header" e o DSi
+parou de reagir a A/X. A unica chamada de rede posterior no caminho de
+finalizacao e close(fd), mas ainda nao esta provado que ela e responsavel.
+
+B: faz PING direto normalmente; registra VALIDACAO OP_OK,
+   B: antes close() e B: depois close() (o close pode travar).
+Y: faz PING direto mas PULA close() para UMA UNICA conexao de diagnostico.
+   Nao faca outra conexao; o programa bloqueia novos testes e solicita
+   reiniciar o DSi apos Y. Nao use o Y como solucao definitiva.
+A/X: continuam V5, mas teste Y primeiro APOS REINICIAR O DSi.
+
+INSTRUCOES
+1. Extraia/substitua o projeto em C:/Projetos/PokeWalker_V6.
+2. devkitPro MSYS2: cd /c/Projetos/PokeWalker_V6 && make clean && make
+3. Copie PokeWalker_DSi_V6_Direct_PING.nds para o SD.
+4. Confirme titulo V6.5 CLOSE TEST. Hotspot Android 2.4GHz;
+   Settings -> Direct DSi Sync ativado.
+5. Pressione Y UMA VEZ. Fotografe Codigo, sock, Fase e Evento.
+6. Reinicie o DSi antes de qualquer novo teste.
+
+Se o Y concluir OP_OK, mas o B travar em antes close(), a causa provavel
+e o fechamento do socket na biblioteca DSWifi. Se o Y travar em validar
+header, a causa e anterior e precisaremos outra instrumentacao.
+
+Seguranca: nao altera ROM, bootstrap, cartucho, EEPROM nem save.
+Este teste intencionalmente deixa UM socket aberto em modo Y;
+portanto exige reinicio do DSi e NAO e adequado para uso continuo.
+Sem compilacao nem teste real neste ambiente.

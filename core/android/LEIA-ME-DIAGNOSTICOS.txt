@@ -1,0 +1,27 @@
+POKEWALKER ANDROID V5 - DIAGNOSTICS
+=================================
+
+Included: previous V5 consolidated app, widget fix, battery optimization, local crash/error/event reporting.
+
+Open the app: Settings > Diagnostics · battery, crashes and errors.
+- Sample battery now: logs whole PHONE battery level, charge counter and current if Android supplies them.
+- Export log: saves a .txt file where you choose (no automatic upload).
+- Clear stored logs: deletes only diagnostics files; does not touch Pokemon saves.
+- Log history: private files/diagnostics.log + diagnostics.previous.log, up to ~1 MB combined.
+- Background tracking samples battery at most every 15 minutes; the Diagnostics screen refreshes every 30 seconds while open.
+- Crash log: stores exception message and first ten stack trace frames before delegating to Android crash handling.
+- Network: records V4 tests and V5 receiver progress/errors without Pokemon data payloads.
+
+WARNING: Android does NOT provide reliable per-app energy consumption via BatteryManager. The battery readings are for the ENTIRE phone, and do not establish the app's battery impact. Device model and potentially sensitive exception text can appear in exported logs: REVIEW before sharing.
+
+COMPILATION ON WINDOWS
+---------------------
+Open PowerShell inside this project folder:
+  $sdk = "$env:LOCALAPPDATA\Android\Sdk"
+  "sdk.dir=$($sdk.Replace('\','/'))" | Set-Content -Path local.properties -Encoding ASCII
+  .\gradlew.bat clean :app:assembleDebug
+
+APK: app\build\outputs\apk\debug\app-debug.apk
+Only install as update if signing key matches; do NOT uninstall an existing app containing data without backup.
+
+NO Android SDK/NDK was available for compilation in this environment; Java/manifest checks were performed but real compilation requires your Windows machine.

@@ -15,26 +15,37 @@ on:
 jobs:
   native-arm-build:
     runs-on: ubuntu-latest
-    container: devkitpro/devkitarm:20260610
+    container: devkitpro/devkitarm:20241104
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare host tools and safe git access
+      - name: Prepare pinned legacy SDK and portable rules
         shell: bash
         run: |
           set -euo pipefail
           git config --global --add safe.directory '*'
+          # NTR cardengine code depends on libnds 1.8.x / old fifomessages.h.
+          # Modern devkitarm images remove this header; use the release's
+          # pinned Docker toolchain and included portable Makefile rules.
+          export DEVKITPRO=/opt/devkitpro
+          export LEGACY_DEVKITARM=/opt/devkitpro/devkitARM
+          export LEGACY_LIBNDS=/opt/devkitpro/libnds
+          export DEVKITARM="$GITHUB_WORKSPACE/core/bootstrap/portable-ds-rules"
+          export PATH="$LEGACY_DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH"
+          for var in DEVKITPRO LEGACY_DEVKITARM LEGACY_LIBNDS DEVKITARM; do
+            echo "$var=${!var}" >> "$GITHUB_ENV"
+          done
+          echo "$LEGACY_DEVKITARM/bin" >> "$GITHUB_PATH"
+          echo "$DEVKITPRO/tools/bin" >> "$GITHUB_PATH"
+          test -f "$LEGACY_LIBNDS/include/nds/fifomessages.h"
+          "$LEGACY_DEVKITARM/bin/arm-none-eabi-gcc" --version | head -1
+          # GCC is a host utility here, not the ARM compiler.
           if ! command -v gcc >/dev/null 2>&1; then
-            apt-get update
-            apt-get install -y gcc
+            rm -rf /var/lib/apt/lists/*
+            apt-get -o Acquire::http::No-Cache=true update -qq
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential
           fi
           gcc -O2 core/bootstrap/lzss.c -o /usr/local/bin/lzss
-          export DEVKITARM="${DEVKITARM:-/opt/devkitpro/devkitARM}"
-          export PATH="$DEVKITARM/bin:$PATH"
-          echo "$DEVKITARM/bin" >> "$GITHUB_PATH"
-          echo "DEVKITARM=$DEVKITARM" >> "$GITHUB_ENV"
-          test -x "$DEVKITARM/bin/arm-none-eabi-gcc"
-          "$DEVKITARM/bin/arm-none-eabi-gcc" --version | head -1
       - name: Rebuild injected original-IR ARM9 payload from source
         shell: bash
         run: |

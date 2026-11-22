@@ -23,6 +23,8 @@ on:
       - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
       - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
       - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/source/walker_arm9_wifi_sig.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/include/walker_arm9_wifi_sig.h'
       - 'core/bootstrap/retail/cardenginei/arm9/source/cardengine.c'
       - 'core/bootstrap/retail/nettransport/**'
       - 'tests/v71_host/**'
@@ -50,6 +52,8 @@ on:
       - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
       - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
       - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/source/walker_arm9_wifi_sig.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/include/walker_arm9_wifi_sig.h'
       - 'core/bootstrap/retail/cardenginei/arm9/source/cardengine.c'
       - 'tests/v71_host/**'
       - 'tools/v7_3/**'
@@ -181,7 +185,7 @@ jobs:
             LEGACY_DEVKITARM="$COMPILER_DIR" LEGACY_LIBNDS="$SDK_DIR" LIBDIRS="$SDK_DIR" \
             PYTHON=python3 GIT_VER=sdlang2 LZSS="$GITHUB_WORKSPACE/core/bootstrap/lzss" all
           test -s bin/nds-bootstrap.nds
-          echo "Full build succeeded; V7.2 READ-ONLY IRQ/timer snapshot only. No Wi-Fi."
+          echo "Full build succeeded; V7.7 READ-ONLY ARM9 Wi-Fi code fingerprint diagnostic. No radio startup."
           # Verify no accidental radio library linked into this retail image.
           if arm-none-eabi-nm cardenginei/arm7/build/cardenginei_arm7.elf 2>/dev/null | grep -E "Wifi_Init|socConnect|walkerPingStep"; then
             echo "ERROR: unexpected V7.2 radio/PING symbol linked into ARM7" >&2
@@ -196,7 +200,7 @@ jobs:
       - name: Upload experimental DSi menu diagnostic artifact (not a release)
         uses: actions/upload-artifact@v4
         with:
-          name: v72-8-arm7-heartbeat-readonly-test-only
+          name: v77-hgss-arm9-code-fingerprint-readonly-no-wifi-test-only
           path: |
             core/bootstrap/retail/bin/nds-bootstrap.nds
             core/bootstrap/retail/bin/nds-bootstrap.nds.sha256

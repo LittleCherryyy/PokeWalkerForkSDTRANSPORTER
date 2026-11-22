@@ -54,9 +54,11 @@ def inspect(root: Path) -> dict:
             "../../common/source " in build or
             "walker_direct_transport.c" in build
         ),
-        "resolver_has_unverified_wcm_entrypoints": (
-            "out->wcmInit =" in net or "out->socSocket =" in net
-        ),
+        "resolver_explicitly_disabled": "out->ready = 0;" in net,
+        "resolver_does_not_guess_gateway": "out->soclGatewayPtr=" not in net
+          and "out->soclGatewayPtr =" not in net,
+        "resolver_uses_wcm_search_name": "wcmSearchAsync" in control,
+
     }
     requirements = {
         "shared_layout_ready": (
@@ -69,9 +71,13 @@ def inspect(root: Path) -> dict:
             and checks["dsi_arm9_build_includes_runtime_transport_source"]
             and not checks["bridge_uses_placeholder_backend"]
         ),
-        "resolver_ready": checks["resolver_has_unverified_wcm_entrypoints"],
+        "resolver_ready": False,  # no vetted runtime resolver exists yet
     }
     return {
+        "safety": {
+            "network_fail_closed": checks["resolver_explicitly_disabled"],
+            "gateway_not_guessed": checks["resolver_does_not_guess_gateway"],
+        },
         "status": "RESIDENT_NETWORK_BLOCKED" if not all(requirements.values())
                   else "STATIC_GATES_CANDIDATE_ONLY",
         "checks": checks,
@@ -97,6 +103,8 @@ def main() -> int:
         print("V7.1 " + result["status"])
         for name, ok in result["requirements"].items():
             print(("READY" if ok else "BLOCKED") + ": " + name)
+        for name, ok in result["safety"].items():
+            print(("PASS" if ok else "UNSAFE") + ": " + name)
         print(result["notice"])
     # Always 0: an investigation with blocked gates is an expected result,
     # not a CI failure. Never present it as a passed in-game test.

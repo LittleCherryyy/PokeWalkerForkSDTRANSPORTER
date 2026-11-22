@@ -22,13 +22,23 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
+      # GitHub ubuntu-latest has Android command-line tools preinstalled.
+      # Avoid setup-android@v3's retired "tools" package installation,
+      # which fails before Gradle starts on current SDK repositories.
       - name: Install exact SDK and native receiver build requirements
         shell: bash
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" \
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(command -v sdkmanager)"
+          fi
+          printf 'Android SDK: %s\\n' "$ANDROID_HOME"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" \
+            "platforms;android-36" "build-tools;36.0.0" \
             "ndk;29.0.14206865" "cmake;3.22.1"
       - name: Compile Java, resources and native EEPROM parser together
         shell: bash

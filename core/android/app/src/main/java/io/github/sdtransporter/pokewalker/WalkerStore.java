@@ -16,6 +16,10 @@ final class WalkerStore {
     byte[] data;
     // pin is an unused legacy storage slot retained so existing app journals remain readable.
     String token="",host="",pin="",pendingToken="",error="";
+    /* CRC of the original DSi checkout payload. Preserve it because the
+     * Android walking engine changes data after receiving the Pokémon.
+     * Needed to safely ACK retries if the original TCP ACK was lost. */
+    String directCheckoutCrc="";
     int mode=2,rate=10,boot=-1;
     long sensorLast=-1,sensorElapsed;
     boolean revoked,returnPending,expandedItems,visitBlocked;
@@ -67,12 +71,15 @@ final class WalkerStore {
             if(in.available()>0)expandedItems=in.readBoolean();
             if(in.available()>0){classicVolume=in.readInt();classicContrast=in.readInt();if(classicVolume<0||classicVolume>2||classicContrast<0||classicContrast>2)throw new IOException("Invalid display settings");}
             if(in.available()>0){if(in.readInt()!=0x50425731)throw new IOException("Invalid battle record");battleSession=in.readUTF();battlePeer=in.readUTF();battlePaid=in.readBoolean();battleDone=in.readBoolean();battleRewarded=in.readBoolean();battleRewardChoice=in.readInt();battleWinner=in.readInt();if(!battleSession.isEmpty()&&!battleSession.matches("[a-f0-9]{32}"))throw new IOException("Invalid battle session");if(battleRewardChoice < -1 || battleRewardChoice>0x8218||battleWinner<0||battleWinner>3)throw new IOException("Invalid battle result");}
+            /* Optional tail field; older app state files have no checkout CRC. */
+            if(in.available()>0)directCheckoutCrc=in.readUTF();
+            if(!directCheckoutCrc.isEmpty()&&!directCheckoutCrc.matches("[a-f0-9]{8}"))throw new IOException("Invalid direct checkout checksum");
             if(!trainerKey.isEmpty()&&!trainerKey.matches("[a-f0-9]{36}"))throw new IOException("Invalid trainer binding");
             if(mode<0||mode>2||rate<1||rate>86400)throw new IOException("Invalid settings");
             if(data!=null && !Native.walkable(data))throw new IOException("Invalid or unregistered walker contents");
             if(!token.isEmpty() && completedSession(token)) {
                 if(deletedSession(token))trainerKey="";
-                data=null;token="";pendingToken="";returnPending=false;revoked=false;mode=0;returnCompleted=true;
+                data=null;token="";pendingToken="";directCheckoutCrc="";returnPending=false;revoked=false;mode=0;returnCompleted=true;
             }
             if(data==null && token.isEmpty() && !trainerKey.isEmpty() && latestSessionDeleted())trainerKey="";
         } catch(FileNotFoundException ignored) {
@@ -145,7 +152,7 @@ final class WalkerStore {
         if(syncing)throw new IOException("Wait for sync to finish");
         if(data==null)throw new IOException("No active walker to delete");
         archiveCurrent("deleted");retireSession(token,data,true);
-        data=null;token="";pendingToken="";trainerKey="";returnPending=false;revoked=false;returnCompleted=false;mode=0;sensorLast=-1;boot=-1;
+        data=null;token="";pendingToken="";trainerKey="";directCheckoutCrc="";returnPending=false;revoked=false;returnCompleted=false;mode=0;sensorLast=-1;boot=-1;
         save();
     }
     private static boolean matches(AtomicFile file,byte[] expected)throws IOException {
@@ -202,7 +209,7 @@ final class WalkerStore {
             if(data!=null)out.write(data);
             out.writeUTF(token);out.writeUTF(host);out.writeUTF(pin);out.writeUTF(pendingToken);
             out.writeInt(mode);out.writeInt(rate);out.writeInt(boot);out.writeLong(sensorLast);
-            out.writeLong(sensorElapsed);out.writeBoolean(revoked);out.writeBoolean(returnPending);out.writeUTF(trainerKey);out.writeBoolean(expandedItems);out.writeInt(classicVolume);out.writeInt(classicContrast);out.writeInt(0x50425731);out.writeUTF(battleSession);out.writeUTF(battlePeer);out.writeBoolean(battlePaid);out.writeBoolean(battleDone);out.writeBoolean(battleRewarded);out.writeInt(battleRewardChoice);out.writeInt(battleWinner);out.flush();
+            out.writeLong(sensorElapsed);out.writeBoolean(revoked);out.writeBoolean(returnPending);out.writeUTF(trainerKey);out.writeBoolean(expandedItems);out.writeInt(classicVolume);out.writeInt(classicContrast);out.writeInt(0x50425731);out.writeUTF(battleSession);out.writeUTF(battlePeer);out.writeBoolean(battlePaid);out.writeBoolean(battleDone);out.writeBoolean(battleRewarded);out.writeInt(battleRewardChoice);out.writeInt(battleWinner);out.writeUTF(directCheckoutCrc);out.flush();
             return bytes.toByteArray();
     }
     void save() throws IOException {

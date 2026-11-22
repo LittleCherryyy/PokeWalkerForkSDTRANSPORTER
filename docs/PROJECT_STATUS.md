@@ -164,6 +164,59 @@ Before enabling a real radio backend, validate normal-MPU accessibility,
 cross-CPU cache coherency and, if necessary, create a safe bounded staging
 path. Do NOT turn on the backend by guessing Wi-Fi API addresses.
 
+### Persistent direct checkout fence implemented (2026-11-22)
+
+A conservative, no-homebrew, non-duplicating **pre-send journal**
+has been integrated into the modified DSi bootstrap, though it still
+requires the real resident radio backend and full loader compilation:
+
+1. `retail/arm9/include/walker_prepare.h` preallocates
+   `<save>.walker.directlock`, **exactly one 512-byte sector**, for
+   original DSi NTR HGSS on SD. The record begins in PREPARED state,
+   and on subsequent launches its full length, CRC and state are checked.
+   PENDING or corrupt records **refuse to launch virtual HGSS**.
+   The original `.walker.lease` check is preserved. For DS Lite/B4DS
+   the direct journal path is not used.
+2. The launcher passes the preallocated FAT cluster to
+   `bootloaderi/walker_boot.c` in `walkerPayloadOffset`, a loader field
+   unused when `walkerPayloadSize==0` on NTR (B4DS payload semantics
+   remain unchanged). The cardengine ARM7 C structure and its assembly
+   storage both gain one **append-only** `walkerDirectLockCluster` field,
+   with startup clearing stale state on unsuccessful IR hook installs.
+3. The normal ARM7 VBlank flush now invokes
+   `walker_direct_lock_writer.c` under the existing SD save mutex.
+   It first checks the 512-byte PREPARED sector, writes a CRC-protected
+   PENDING record with session ID, EEPROM CRC32 and write sequence,
+   and reads back physically using the existing checked SD backend.
+   Only then does it set `direct.lockReady`.
+4. ARM9 can request this transition **only after a radio backend is
+   available**, and the C TCP worker refuses to send a **single byte**
+   until `lockReady` is true. ARM7's 64 KiB CRC scan is now likewise
+   deferred until ARM9 requests real checkout, preventing needless
+   EEPROM RAM accesses while offline.
+5. Tests `core/tools/test_walker_direct_lock.c` and
+   `test_walker_direct_lock_cpp.cpp` cover sector serialization,
+   CRC validation, corruption rejection, disk round trip and C++
+   launcher compatibility. These tests compiled and passed locally
+   against a reconstructed copy of the same record-format functions
+   with GCC/G++, **not** the devkitARM target build.
+
+**Important:** This marker intentionally remains PENDING if the radio
+fails or the console powers off, because Android may have received the
+Pokémon before the TCP ACK was lost. There is **no safe automatic
+rollback** until a verified phone-return / recovery path is built.
+Do not test with an irreplaceable Pokémon. This new sidecar is separate
+from the legacy `PWLEASE1` `.walker.lease` format; the NDS companion
+does not automatically clear it. Future end-to-end return must remove
+this blocker transactionally and only after the restored .walker is
+verified.
+
+**Still blocked:** safe resident ARM7 Wi-Fi driver, valid shared MPU
+memory mapping, frequently called non-IRQ ARM9 worker, successful full
+devkitARM build/link and actual hardware send/return. The desktop
+format test proves neither console compatibility nor safe power-loss
+behavior on FAT media.
+
 ### Host execution results (source-equivalent regression, no DSi)
 
 A locally reconstructed, functionally identical copy of the transport C

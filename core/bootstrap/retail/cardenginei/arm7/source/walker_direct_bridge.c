@@ -50,11 +50,21 @@ void walkerDirectBridgeInit(WalkerControl *c) { if(c) walkerDirectBridgeReset(&c
 /* Called immediately after the ARM7 has physically verified all dirty walker
  * sectors on SD. Never advertise RAM that has not been committed first. */
 void walkerDirectBridgeCommitted(WalkerControl *c,u32 seq) {
-    if(!c || c->direct.magic!=WALKER_DIRECT_BRIDGE_MAGIC) return;
+    if(!c || c->magic!=WALKER_MAGIC || c->version!=WALKER_VERSION ||
+       c->direct.magic!=WALKER_DIRECT_BRIDGE_MAGIC || !c->eeprom) return;
+    /* This function is invoked only after the checked SD writer completed.
+     * Never announce data while an IR session or a newer EEPROM write exists. */
+    if(c->state || c->writeSeq!=seq || c->flushedSeq!=seq) return;
+    for(unsigned i=0;i<WALKER_SECTORS;i++) if(c->dirty[i]) return;
     c->direct.durableSeq=seq;
-    if(seq==c->direct.offeredSeq || c->state) return;
-    c->direct.crc32=crc32((const u8 *)c->eeprom,WALKER_DIRECT_WALKER_SIZE);
-    makeSession(c,c->direct.crc32,seq);
+    if(seq==c->direct.offeredSeq) return;
+    const u32 crc=crc32((const u8 *)c->eeprom,WALKER_DIRECT_WALKER_SIZE);
+    /* A write may have raced the CRC scan. Keep the previous offer intact
+     * and let the verified SD writer retry from the new write sequence. */
+    if(c->state || c->writeSeq!=seq || c->flushedSeq!=seq) return;
+    for(unsigned i=0;i<WALKER_SECTORS;i++) if(c->dirty[i]) return;
+    c->direct.crc32=crc;
+    makeSession(c,crc,seq);
     c->direct.offeredSeq=seq;
     c->direct.error=WALKER_DIRECT_ERR_NONE;
     c->direct.attempts=0;

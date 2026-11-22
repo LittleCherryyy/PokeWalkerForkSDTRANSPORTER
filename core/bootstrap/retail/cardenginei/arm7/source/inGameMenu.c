@@ -42,6 +42,22 @@ extern u32 walkerBootStatus;
 #define WALKER_RADIO_REPLY   0x4B525057u /* WPRK */
 #define WALKER_RESOURCE_REQUEST 0x44535057u /* WPSD */
 #define WALKER_RESOURCE_REPLY   0x4B535057u /* WPSK */
+#define WALKER_TABLE_REQUEST    0x51545057u /* WPTQ */
+#define WALKER_TABLE_REPLY      0x4B545057u /* WPTK */
+extern u32 walkerIrqTableAddress;
+extern u32 walkerIrqImageStart;
+extern u32 walkerIrqImageSize;
+extern u32 walkerIrqTableMethod;
+
+static void walkerIrqTableReadOnlyDiagnostics(void) {
+    /* These four words are boot-time *metadata* already stored in ce7,
+     * not dereferences of the game IRQ table. */
+    sharedAddr[0]=walkerIrqTableAddress;
+    sharedAddr[1]=walkerIrqImageStart;
+    sharedAddr[2]=walkerIrqImageSize;
+    sharedAddr[3]=walkerIrqTableMethod;
+    sharedAddr[4]=WALKER_TABLE_REPLY;
+}
 static u32 radioIeBeforeMenu, radioImeBeforeMenu;
 static u16 radioTimersBeforeMenu[4];
 /* DMA3 control, source and destination read before IRQ masking. A zero
@@ -285,6 +301,9 @@ void inGameMenu(void) {
                 case WALKER_RESOURCE_REQUEST: // WPSD: read-only ARM7 DMA3
                     walkerResourceReadOnlyDiagnostics();
                     break;
+                case WALKER_TABLE_REQUEST: // WPTQ: bootloaderi IRQ metadata
+                    walkerIrqTableReadOnlyDiagnostics();
+                    break;
                 #endif
 				case 0x524D4152: // RAMR
 					u32* dst = (u32*)((u32)sharedAddr[0]);
@@ -331,6 +350,7 @@ void inGameMenu(void) {
                 && sharedAddr[4] != WALKER_DIAG_REPLY
                 && sharedAddr[4] != WALKER_RADIO_REPLY
                 && sharedAddr[4] != WALKER_RESOURCE_REPLY
+                && sharedAddr[4] != WALKER_TABLE_REPLY
                 #endif
                 && sharedAddr[4] == menuCommandSeen
             ) {

@@ -10,6 +10,7 @@ on:
       - 'core/bootstrap/retail/common/include/walker_hgss_net.h'
       - 'core/bootstrap/retail/common/source/walker_hgss_net.c'
       - 'tests/v71_host/**'
+      - 'tools/v7_1/identify_hgss_nds.py'
   pull_request:
     paths:
       - '.github/workflows/v71-host-check.yml'

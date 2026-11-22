@@ -20,6 +20,7 @@ static void photographed_dsi(void) {
     assert(flags & WALKER_WIFI_BLOCK_ARM7_TIMER_OWNER);
     assert(flags & WALKER_WIFI_BLOCK_DMA3_OWNER);
     assert(flags & WALKER_WIFI_BLOCK_IRQ_WIFI);
+    assert(flags & WALKER_WIFI_BLOCK_IRQ_TABLE_UNVERIFIED);
     assert(flags & WALKER_WIFI_BLOCK_ARM9_WORKER);
     assert(flags != 0);
 }
@@ -43,9 +44,19 @@ static void each_resource_is_required(void) {
     s.arm9TimerOwnershipVerified=s.arm7TimerOwnershipVerified=1;
     s.arm7Dma3OwnershipVerified=s.arm7WifiIrqChainingVerified=1;
     s.arm7WifiServiceVerified=s.arm9CooperativeWorkerVerified=1;
+    s.irqLayout.arm7ImageStart=0x03800000u;
+    s.irqLayout.arm7ImageBytes=0x2000u;
+    s.irqLayout.irqTableAddress=0x03801000u; /* synthetic 25-slot range */
+    s.irqLayout.runtimeTable=0;
     /* This is purely synthetic; only an actual hardware ownership audit
      * could ever justify setting all these flags in a device adapter. */
     assert(walkerWifiPreflight(&s)==0);
+    s.irqLayout.runtimeTable=1; /* no verified runtime capacity */
+    assert(walkerWifiPreflight(&s) & WALKER_WIFI_BLOCK_IRQ_TABLE_UNVERIFIED);
+    s.irqLayout.runtimeTable=0;
+    s.irqLayout.irqTableAddress=0x03801fb0u; /* only 80 bytes remain */
+    assert(walkerWifiPreflight(&s) & WALKER_WIFI_BLOCK_IRQ_TABLE_UNVERIFIED);
+    s.irqLayout.irqTableAddress=0x03801000u;
     s.arm9SelectedTimerCr=0x80;
     assert(walkerWifiPreflight(&s) & WALKER_WIFI_BLOCK_ARM9_TIMER_ACTIVE);
     s.arm9SelectedTimerCr=0;s.arm7SelectedTimerCr=0x80;
@@ -58,6 +69,6 @@ int main(void) {
     photographed_dsi();
     idle_is_not_ownership();
     each_resource_is_required();
-    puts("PASS V7.2.3 radio preflight: real photo rejected; idle not ownership; all resources guarded");
+    puts("PASS V7.2.4 radio preflight: IRQ_WIFI table footprint integrated; no unsafe radio approval");
     return 0;
 }

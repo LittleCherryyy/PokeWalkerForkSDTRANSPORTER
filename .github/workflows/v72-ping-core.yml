@@ -40,6 +40,10 @@ jobs:
         run: |
           python3 -m unittest discover -s tests/v72_host -p 'test_irq_audit.py' -v
           python3 tools/v7_2/analyze_irq_snapshot.py --ie 0x00050019 --ime 0x01 --timer0 0x00C1 --timer1 0x00C1 --timer2 0x0000 --timer3 0x0000
+      - name: Decode real V7.2.1 DMA3 and ARM9 menu snapshot
+        run: |
+          python3 -m unittest discover -s tests/v72_host -p 'test_arm9_dma_audit.py' -v
+          python3 tools/v7_2/analyze_arm9_dma_snapshot.py --dma-cr 0 --dma-src 0 --dma-dst 0 --arm9-timer3 0x00C1 --arm9-ie 0x00050049 --arm9-ime 0
 
   arm-cross-check:
     runs-on: ubuntu-latest

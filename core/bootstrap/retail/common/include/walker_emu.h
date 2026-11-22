@@ -64,6 +64,9 @@
 #define WALKER_CTL_DIRTY    0x20
 
 #ifndef __ASSEMBLER__
+/* Append-only shared state for direct DSi sync. Keep legacy field offsets stable. */
+#include "walker_direct_bridge.h"
+#include "walker_hgss_net.h"
 typedef struct WalkerControl {
 	/* Written once by the bootloader. */
 	unsigned int magic;
@@ -96,11 +99,16 @@ typedef struct WalkerControl {
 	unsigned int cooldown;     /* idle reads left before advertising again after a session */
 	unsigned int wipeStart;    /* game VBlank count when the SELECT + LEFT hold began */
 	unsigned int linkMode;     /* identity command the game sent this link (0x60 = receive a gift) */
+	/* V7.1: shared bridge state, unused by older walker protocol callers. */
+	WalkerDirectBridge direct;
+	WalkerHgssNetApi hgssNet;
 } WalkerControl;
 
 #define WALKER_ASSERT(name, cond) typedef char walker_assert_##name[(cond) ? 1 : -1]
 WALKER_ASSERT(dirty, __builtin_offsetof(WalkerControl, dirty) == WALKER_CTL_DIRTY);
 WALKER_ASSERT(size, sizeof(WalkerControl) <= WALKER_BLOB_OFF - WALKER_CONTROL_OFF);
+/* DS-mode and Slot-1 layouts reserve only the first 0x800 bytes for control. */
+WALKER_ASSERT(ds_and_cart_control_size, sizeof(WalkerControl) <= 0x800u);
 #endif
 
 #endif

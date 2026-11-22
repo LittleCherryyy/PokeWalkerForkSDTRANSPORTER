@@ -67,10 +67,10 @@ class V79DeferredArm9(unittest.TestCase):
         self.assertIn("(const WalkerArm9Snapshot*)0",ARM9)
 
     def test_igm_screen_cannot_claim_wifi_ready(self):
-        self.assertIn("V8.3 ARM9 THREAD FLAG",IGM)
+        self.assertIn("V7.9 ARM9 DEFERRED",IGM)
         self.assertIn("walkerArm9PreWrapper.postReadEligibleCalls",IGM)
         self.assertIn("walkerArm9PreWrapper.dryRunStage",IGM)
-        self.assertIn("Read only, not ABI proof",IGM)
+        self.assertIn("0 idle 1 queued 2 done",IGM)
         self.assertIn("Wi-Fi: NOT ENABLED",IGM)
         self.assertNotIn("Wifi_InitDefault(",IGM)
 

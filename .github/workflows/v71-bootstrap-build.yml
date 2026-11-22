@@ -77,6 +77,30 @@ jobs:
             LIBDIRS="/opt/devkitpro/libnds" \
             PYTHON=python3 GIT_VER=sdlang2 LZSS=/tmp/lzss \
             cardenginei_arm7 cardenginei_arm9 cardenginei_arm9_igm
+      - name: Restore missing official preload configuration data (pinned)
+        shell: bash
+        env:
+          UPSTREAM_COMMIT: f6728baaa28a6fffbd070badce60d0b470180e1e
+        run: |
+          set -euo pipefail
+          target=core/bootstrap/retail/preLoadSettings
+          tmp=/tmp/nds-bootstrap-preload-upstream
+          git init -q "$tmp"
+          git -C "$tmp" remote add origin https://github.com/DS-Homebrew/nds-bootstrap.git
+          git -C "$tmp" sparse-checkout init --cone
+          git -C "$tmp" sparse-checkout set retail/preLoadSettings
+          git -C "$tmp" fetch --depth 1 --filter=blob:none origin "$UPSTREAM_COMMIT"
+          git -C "$tmp" checkout --detach FETCH_HEAD
+          test "$(git -C "$tmp" rev-parse HEAD)" = "$UPSTREAM_COMMIT"
+          for dir in "$tmp"/retail/preLoadSettings/files-*; do
+            test -d "$dir" || continue
+            name="${dir##*/}"
+            if test ! -e "$target/$name"; then
+              cp -a "$dir" "$target/$name"
+            fi
+          done
+          echo "Preload data pinned to upstream commit $UPSTREAM_COMMIT" >> "$GITHUB_STEP_SUMMARY"
+          echo "Upstream authorship: https://github.com/DS-Homebrew/nds-bootstrap" >> "$GITHUB_STEP_SUMMARY"
       - name: Check availability of upstream compatibility inputs
         id: compatibility
         shell: bash

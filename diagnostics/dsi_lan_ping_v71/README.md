@@ -1,20 +1,23 @@
-# Diagnóstico V7.1 — PING DSi na rede local (SEM SAVE)
+# V7.1 — DSi PING usando somente hotspot Android
 
-**Este programa é apenas uma ferramenta de diagnóstico homebrew.** Não é intermediário para transferir Pokémon; não altera o Pokémon HGSS, o nds-bootstrap, o widget ou qualquer save.
+**Modo pretendido: Android hotspot -> Nintendo DSi, sem roteador, sem Wi-Fi doméstico e sem digitar IP.** O celular é o hotspot/servidor TCP; o DSi é o cliente.
 
-A V6.7 sempre enviava para o gateway, adequado ao hotspot. Agora o endereço do Android pode ser escolhido, inclusive numa rede doméstica em que o celular não é o roteador.
+Esta é uma compilação diagnóstica homebrew independente. Não funciona dentro de HeartGold/SoulSilver ainda; não lê ou escreve save, ROM ou .walker, e não substitui o nds-bootstrap.
 
-## DSi
-1. Configure o DSi para conectar a uma rede Wi-Fi **compatível com Nintendo DS** (2,4 GHz e segurança compatível; jogos DS comuns não suportam WPA2). Redes abertas devem ser usadas apenas temporariamente e com cuidado.
-2. Mantenha no Android V18 o serviço **Direct DSi Sync** ativo e acessível na porta TCP 30821.
-3. Copie **somente** `PokeWalker_V71_LAN_PING.nds` para o SD do DSi e abra pelo TWiLight Menu++. Não modifique arquivos do HGSS nem substitua o nds-bootstrap.
-4. O programa mostra o gateway e o endereço de destino Android. Na sua rede atual o gateway do Windows é `192.168.0.1` e o Android foi testado em `192.168.0.5`. **A rede usada no DSi pode ser diferente**. Ajuste o último octeto do destino com cima/baixo (±1) ou esquerda/direita (±10). `SELECT` restaura o gateway. Se os três primeiros octetos forem diferentes, use outra rede compatível; esta ferramenta não edita esses octetos.
-5. Pressione **B** para PING (porta 30821) ou **X** para eco de 2 KB sintéticos; veja `Codigo`, `Fase`, `PING OK` e `ECO OK`.
-6. Fotografe a tela com código, erro, IP do DSi e alvo Android. Após conectar, não é possível alterar o IP sem reiniciar o aplicativo no DSi: as sessões V6.7 persistem para evitar um problema observado no fechamento de socket.
+## Preparação
 
-**Importante:** o DSi normalmente só consegue usar redes com modos de segurança compatíveis com jogos DS. Seu Windows e Android estarem no mesmo Wi-Fi WPA2 não prova que o DSi consiga entrar nessa rede. O console pode exigir outro ponto de acesso temporário e adequado.
+1. No Android V18, ative o **Direct DSi Sync**, que escuta na porta TCP **30821**.
+2. Ative um hotspot **2,4 GHz com segurança realmente compatível com o modo Wi-Fi DS do homebrew**. Em muitos smartphones modernos, só WPA2/WPA3 está disponível; **isso não é compatível com o modo DS clássico** do DSi usado por `Wifi_InitDefault(WFC_CONNECT)`. Um hotspot aberto temporário (quando disponível e permitido) facilita testes, mas evite expor dados e desative-o ao terminar.
+3. Configure a conexão Wi-Fi adequada nas configurações de conexão Nintendo DS do console (não apenas no navegador DSi). Se o hotspot não oferecer a segurança compatível, **não tente contornar com IP ou modo de rede doméstica: o teste não terá como conectar**.
+4. Copie **PokeWalker_V71_HOTSPOT_PING.nds** do artefato GitHub Actions (somente após build verde) para o SD do DSi e abra no TWiLight Menu++.
 
-O teste envia apenas os pacotes de PING/ECHO definidos no código V6.7; não toca EEPROM, ROM ou save. Um PING positivo aqui **não** comprova funcionamento enquanto HeartGold/SoulSilver estiver rodando. Não é a transferência final do projeto.
+## Comandos na tela do DSi
 
-## Builds
-O GitHub Actions compila a versão de teste com a toolchain devkitPro e armazena o `.nds` como artefato, quando o job estiver verde. O código base continua em `diagnostics/dsi_ping_v6`; o workflow substitui apenas `source/main.c` antes do build.
+- O programa lê o IP local e o **gateway DHCP** da conexão. Quando conectado diretamente ao hotspot do Android, o gateway normalmente é o próprio telefone. Não é preciso escrever IP nem usar notebook.
+- **B** envia um `OP_PING` de 88 bytes para a porta 30821 no gateway; exibe fase/código/erro, PINGs OK.
+- **X** envia e confirma 2 KB sintéticos por `OP_TEST_ECHO`, sem saves.
+- **START** sai. Pela ocorrência anterior de travamento ao fechar sockets DSWifi, o teste mantém uma única conexão e não chama `close()` explicitamente. Se houver erro de sessão ou for necessário mudar de rede, reinicie o DSi antes do novo teste.
+
+Um PING positivo significa somente que o homebrew standalone conseguiu falar com o Android; **não prova Wi-Fi residente no HGSS**. Nenhuma transferência de Pokémon deve ser habilitada por causa desse resultado.
+
+Código adaptado do diagnóstico V6.7 de SD Transporter, mantendo todos os créditos upstream e licenças.

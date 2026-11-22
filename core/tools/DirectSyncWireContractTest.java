@@ -102,6 +102,29 @@ public final class DirectSyncWireContractTest {
                 ack.crc == 0 && session.equals(ack.session),
                 "ACK frame does not match DSi session");
 
+        if (args.length == 1) {
+            /* Verify the actual bytes produced by walker_push_stream.c,
+             * with its real 512-byte sender chunks and partial writes. */
+            try (InputStream raw = new FileInputStream(args[0])) {
+                DirectSyncProtocol.Frame fromC = DirectSyncProtocol.read(raw);
+                check(fromC.op == DirectSyncProtocol.OP_PUSH_TO_PHONE,
+                        "C sender used the wrong operation");
+                check(fromC.length == DirectSyncProtocol.WALKER_SIZE,
+                        "C sender payload length mismatch");
+                check("0123456789abcdef0123456789abcdef".equals(fromC.session),
+                        "C sender session was corrupted");
+                check("0123456789abcdef0123456789abcdef0123".equals(fromC.trainer),
+                        "C sender trainer was corrupted");
+                check(fromC.crc == DirectSyncProtocol.crc(walker) &&
+                      Arrays.equals(walker, fromC.payload),
+                        "C sender bytes differ from Java protocol interpretation");
+                check(raw.read() == -1, "C sender appended unexpected bytes");
+            }
+            System.out.println("PASS: real C sender wire frame decoded byte-for-byte by Android Java");
+        } else {
+            check(args.length == 0, "Usage: DirectSyncWireContractTest [c-frame.bin]");
+        }
+
         System.out.println("PASS: 64 KiB PUSH + CRC, fragmented TCP, corruption, length and ACK");
         System.out.println("LIMIT: protocol test only; no Wi-Fi/console or real Pokémon transfer tested");
     }

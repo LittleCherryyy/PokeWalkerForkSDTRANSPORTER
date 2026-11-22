@@ -70,7 +70,7 @@ int walkerPushStep(WalkerPushStream *s, const WalkerPushIo *io, void *ctx,
     if(currentWriteSeq!=s->durableSeq) return failure(s);
     const unsigned char *data=0;
     unsigned remaining=0;
-    unsigned *offset=0;
+    uint32_t *offset=0;
     if(s->phase==WALKER_PUSH_HEADER) {
         data=s->header;
         remaining=WALKER_DIRECT_HEADER_SIZE-s->sentHeader;

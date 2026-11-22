@@ -26,3 +26,12 @@ Use the game's original Pokéwalker interface in Pokémon HeartGold/SoulSilver o
 ## Import safeguards
 
 Keep original third-party headers and licenses. Exclude ROMs, game saves, firmware, downloaded binaries, personal paths, signing secrets, generated build folders and snapshot duplicates. Distinguish project-owned modifications from unmodified upstream source. Import remains incomplete until a reviewed source tree is committed.
+
+
+## Parallel development track: Android Pokéwalker widget
+
+The Android home-screen Pokéwalker widget is a core feature of this fork and predates the current DSi networking work. Its source code, layouts and skin assets have already been imported to `core/android/app/src/main/`; **their presence does not mean all visual defects have been fixed**.
+
+Track ongoing work and acceptance criteria in [Widget issue #2](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/issues/2), including LCD/shell alignment across layouts, Premier Ball white appearance, transparent assets, touch targets, visual scaling and preserving original emulator behavior.
+
+Keep widget enhancements and DSi/network changes separately reviewable where practical. Do not report a widget fix as complete without a built APK and a repeatable phone test. Credit Shinygati and every relevant original contributor, and preserve licenses and source notices.

@@ -39,6 +39,15 @@ jobs:
             -Icore/bootstrap/retail/common/include \
             -I/opt/devkitpro/libnds/include \
             tools/v7_1/check_shared_layout.c
+      - name: Cross-compile no-save PING frame helper (syntax only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          /opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc \
+            -std=gnu11 -mcpu=arm946e-s -marm \
+            -ffreestanding -Wall -Wextra -Werror -fsyntax-only \
+            -Icore/bootstrap/retail/common/include \
+            tools/v7_1/ping_only_arm_compile.c
       - name: Compile virtual walker payload with new shared ABI (syntax only)
         shell: bash
         run: |

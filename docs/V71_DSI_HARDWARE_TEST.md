@@ -177,3 +177,55 @@ A V7.1.4 muda SOMENTE o mecanismo de diagnóstico:
 O teste no DSi deve mostrar `VIRTUAL POKEWALKER V7.1.4` e, idealmente,
 `Boot stage` ou o estado do hook. Faça backup do Nightly e use apenas
 save descartável; não testar Wi-Fi nem envio/recebimento de Pokémon.
+
+## Foto física V7.1.4: Boot stage 0x03 — arquivo não selecionado, RAM não reservada
+
+A foto do DSi confirma que o IPC ARM7/ARM9 funciona com o retry:
+`VIRTUAL POKEWALKER V7.1.4`, `Walker: hook not published`,
+`Boot stage: 0x03`, `No file + no RAM area`.
+
+**Interpretação importante:** 0x03 não prova duas falhas independentes.
+`walkerBoot()` registra os bits `!walkerCluster` e `!walkerBase`.
+Em `bootloaderi/source/arm7/hook_arm9.c`, a reserva de RAM só acontece
+se `walkerWanted()` for verdadeiro, e esse predicado já exige
+`walkerCluster != 0`. Portanto, um arquivo não selecionado normalmente
+impede também a reserva de RAM. Deve-se investigar **primeiro por que
+`walkerPrepare()` deixou `conf->walkerCluster == 0`**, não os padrões de IR.
+
+A preparação do NTR DSi exige: ROM e save no filesystem do SD do próprio
+DSi; título HGSS (`IPK`/`IPG`); opção `VIRTUAL_WALKER=1` na seção
+correspondente ao hash do caminho da ROM em
+`sd:/_nds/nds-bootstrap/pokewalker.ini`; `savPath` configurado;
+nenhum `.walker.lease`; `.walker` com 65.536 bytes no mesmo diretório
+do save (nome derivado do save); e snapshot pré-lançamento bem-sucedido.
+Se o arquivo não existir, o launcher normalmente tenta criá-lo com 0xFF.
+
+**Exclusão explícita importante:** `walkerPrepare()` retorna sem
+selecionar Walker em um DSi NTR quando a ROM é iniciada de um
+flashcart/R4 (`gameOnFlashcard && dsiFeatures() && !b4dsMode`).
+O predicado `walkerWanted()` também exige `!gameOnFlashcard`.
+A opção visual "On" em um menu aberto para uma ROM de
+`fat:/` pode estar salva em `fat:/_nds/nds-bootstrap/pokewalker.ini`,
+mas isso não torna o caminho suportado. Teste com ROM e save de teste
+copiados ao cartão SD **interno do DSi**, carregados pelo TWiLight Menu++
+desse cartão, não diretamente pelo R4. Faça backups antes de qualquer
+movimentação e não use o save principal.
+
+### Verificação sem recompilar
+1. Na lista de jogos do TWiLight Menu++ no cartão SD do DSi, escolha o
+   arquivo HGSS em `sd:/roms/nds/` (ou outra pasta do mesmo SD).
+2. Nas opções da ROM, alterne Virtual Pokéwalker Off e On novamente para
+   regravar a chave baseada no caminho atual. Evite criar seções de hash
+   manualmente.
+3. Abra o jogo com save descartável, volte ao painel V7.1.4 e veja se
+   o código deixa de ser `0x03`. Não tente transferir Pokémon.
+4. Confira o diretório real do arquivo `.sav` (com frequência
+   `sd:/roms/nds/saves/`) para encontrar o `.walker` correspondente
+   com tamanho de 65.536 bytes.
+5. Se houver `sd:/_nds/nds-bootstrap/pokewalker-error.txt`, leia
+   o motivo e confira a data de modificação. Parte dos retornos iniciais
+   não produz log, portanto ausência do arquivo não comprova sucesso.
+
+A arquitetura continua sem ROM patch e sem Wi-Fi residente funcional.
+O próximo teste depende da preparação do `.walker` pelo launcher, não
+de uma nova compilação do nds-bootstrap.

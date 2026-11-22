@@ -23,8 +23,8 @@ endif
 # all directories are relative to this makefile
 #---------------------------------------------------------------------------------
 BUILD		:=	build
-SOURCES		:=	source source_ext ../../common/source_general
-INCLUDES	:= include include_ext ../../common/include ../../cardenginei/arm7/include ../../cardenginei/arm7/include/patcher ../../common/include_fat
+SOURCES		:=	source source_ext ../../common/source_general ../../transport
+INCLUDES	:= include include_ext ../../common/include ../../transport ../../cardenginei/arm7/include ../../cardenginei/arm7/include/patcher ../../common/include_fat
 DATA		:=	data
 
 

@@ -21,7 +21,7 @@ class DirectSyncWiringTests(unittest.TestCase):
         bridge = code.index("walkerDirectBridgeReset(&c->direct, c->flushedSeq)")
         resolver = code.index("walkerResolveNetworkApi(c, ndsHeader)")
         publish = code.index("ce7->walkerControl = (u32)c")
-        self.assertTrue(hook < bridge < resolver < publish)
+        self.assertTrue(bridge < resolver < hook < publish)
 
     def test_only_offer_after_verified_flush(self):
         writer = read("cardenginei/arm7/source/walker_file.c")
@@ -32,6 +32,9 @@ class DirectSyncWiringTests(unittest.TestCase):
         self.assertIn("c->writeSeq!=seq", bridge)
         self.assertIn("c->flushedSeq!=seq", bridge)
         self.assertIn("if(c->dirty[i]) return", bridge)
+        self.assertIn("#define WALKER_CRC_BYTES_PER_TICK 512u", bridge)
+        self.assertIn("walkerDirectSnapshotTick(c);", bridge)
+        self.assertIn("if(!durableImageStable(c,crcSeq)) return;", bridge)
 
     def test_arm7_tick_follows_sd_flush(self):
         engine = read("cardenginei/arm7/source/cardengine.c")

@@ -39,6 +39,7 @@ on:
       - 'tools/v8_0/**'
       - 'tools/v8_1/**'
       - 'tools/v8_2/**'
+      - 'tools/v8_4/**'
   pull_request:
     paths:
       - '.github/workflows/v71-host-check.yml'
@@ -70,6 +71,7 @@ on:
       - 'tools/v8_0/**'
       - 'tools/v8_1/**'
       - 'tools/v8_2/**'
+      - 'tools/v8_4/**'
 
 permissions:
   contents: read
@@ -173,6 +175,23 @@ jobs:
             tools/v8_2/hgss_thread_scheduler_refs.py
             tools/v8_2/COMPARAR_ESTADO_THREADS.bat
             tools/v8_2/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V8.4 HGSS ARM9 thread-flag cross-reference auditor
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V8_4-Thread-Flag-Crossrefs-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_6/hgss_wifi_entry_audit.py
+            tools/v8_0/hgss_thread_callsite_audit.py
+            tools/v8_1/hgss_thread_abi_context.py
+            tools/v8_2/hgss_thread_scheduler_refs.py
+            tools/v8_4/hgss_thread_flag_xrefs.py
+            tools/v8_4/COMPARAR_REFERENCIAS_THREADS.bat
+            tools/v8_4/README.md
           if-no-files-found: error
           retention-days: 7
       - name: Build portable static LZSS host tool

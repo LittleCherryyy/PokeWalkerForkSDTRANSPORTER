@@ -23,23 +23,22 @@ class V79DeferredArm9(unittest.TestCase):
             "romReadCalls","eligibleReadCalls","lastReadCpsrMode","lastReadIme",
         ])
         self.assertEqual(fields[8:],[
-            "postReadEligibleCalls","dryRunQueued","dryRunDone","dryRunPending",
+            "postReadEligibleCalls","dryRunStage",
         ])
-        self.assertIn("walkerArm9DryRunQueued,",ARM9)
-        self.assertIn("walkerArm9DryRunDone,",ARM9)
+        self.assertIn("walkerArm9PostEligibleCalls,",ARM9)
+        self.assertIn("walkerArm9DryRunStage",ARM9)
 
     def test_menu_exit_queues_but_does_not_complete(self):
         start=ARM9.index("void inGameMenu(s32* exRegisters) {")
         end=ARM9.index("void myIrqHandlerVcount(void)",start)
         menu=ARM9[start:end]
         self.assertIn("leaveCriticalSection(oldIME);",menu)
-        self.assertIn("walkerArm9DryRunPending=1u;",menu)
-        self.assertIn("walkerArm9DryRunQueued++;",menu)
+        self.assertIn("walkerArm9DryRunStage=1u;",menu)
+        self.assertIn("walkerArm9DryRunStage==0u",menu)
         self.assertIn("!exRegisters",menu)
-        self.assertIn("!walkerArm9DryRunPending",menu)
         self.assertLess(menu.index("leaveCriticalSection(oldIME);"),
-                        menu.index("walkerArm9DryRunPending=1u;"))
-        self.assertNotIn("walkerArm9DryRunDone++",menu)
+                        menu.index("walkerArm9DryRunStage=1u;"))
+        self.assertNotIn("walkerArm9DryRunStage=2u;",menu)
         self.assertNotIn("Wifi_Init(",menu)
         self.assertNotIn("SOC_Connect(",menu)
 
@@ -53,11 +52,9 @@ class V79DeferredArm9(unittest.TestCase):
         self.assertIn("postMode=walkerArm9GetCpsrMode();",fn)
         self.assertIn("postMode==0x10u || postMode==0x13u || postMode==0x1fu",fn)
         self.assertIn("(REG_IME & 1u)",fn)
-        self.assertIn("if (walkerArm9DryRunPending)",fn)
-        self.assertIn("walkerArm9DryRunPending=0u;",fn)
-        self.assertIn("walkerArm9DryRunDone++;",fn)
-        self.assertLess(fn.index("walkerArm9DryRunPending=0u;"),
-                        fn.index("walkerArm9DryRunDone++;"))
+        self.assertIn("if (walkerArm9DryRunStage==1u)",fn)
+        self.assertIn("walkerArm9DryRunStage=2u;",fn)
+        self.assertNotIn("walkerArm9DryRunStage=1u;",fn)
         tail=fn[fn.index("/* Read/write operations above have returned."): ]
         for banned in ("waitForArm7(","IPC_SendSync(","SOC_","WCM_",
                        "fileRead(","fileWrite(","walkerWrite(","swiDelay(",
@@ -72,9 +69,8 @@ class V79DeferredArm9(unittest.TestCase):
     def test_igm_screen_cannot_claim_wifi_ready(self):
         self.assertIn("V7.9 ARM9 DEFERRED",IGM)
         self.assertIn("walkerArm9PreWrapper.postReadEligibleCalls",IGM)
-        self.assertIn("walkerArm9PreWrapper.dryRunQueued",IGM)
-        self.assertIn("walkerArm9PreWrapper.dryRunDone",IGM)
-        self.assertIn("Dry run: no network I/O",IGM)
+        self.assertIn("walkerArm9PreWrapper.dryRunStage",IGM)
+        self.assertIn("0 idle 1 queued 2 done",IGM)
         self.assertIn("Wi-Fi: NOT ENABLED",IGM)
         self.assertNotIn("Wifi_InitDefault(",IGM)
 

@@ -1,4 +1,4 @@
-# V7.1.3 — teste limitado do painel de diagnóstico no Nintendo DSi
+# V7.1.4 — teste limitado do painel de diagnóstico no Nintendo DSi
 
 **Este pacote NÃO transfere Pokémon por Wi-Fi.** O servidor Android, a ROM e
 os arquivos de Pokémon não devem ser alterados para este teste. As funções
@@ -15,7 +15,7 @@ em um DSi real.
 2. No SD do DSi, copie o arquivo antigo
    `/_nds/nds-bootstrap-nightly.nds` para o computador como backup.
    Não altere o `nds-bootstrap-release.nds` nem sua ROM.
-3. Baixe o artefato **v71-3-dsi-boot-hook-status-diagnostic-test-only** na execução
+3. Baixe o artefato **v71-4-dsi-ipc-retry-diagnostic-test-only** na execução
    **Actions** do PR #4, extraia o `nds-bootstrap.nds` e confira o SHA-256
    com `nds-bootstrap.nds.sha256`. Este pacote é um artefato de teste,
    não uma release estável.
@@ -151,3 +151,29 @@ a seleção do Walker retornam silenciosamente; por exemplo, no atual
 caminho NTR do DSi o código `walkerWanted()` exige ROM no SD, não
 iniciada diretamente de um flashcart/R4. A opção **On** no menu não é,
 por si só, evidência de uma sessão pronta.
+
+## Foto física V7.1.3 e correção do protocolo IPC V7.1.4
+
+A foto V7.1.3 confirma `ARM7: no diagnostic reply`, com o último
+valor IPC `0x554E454D` (comando `MENU`). O HGSS continua operando,
+mas o diagnóstico ainda não informa o estágio de instalação.
+
+**Causa plausível no código:** a versão V7.1.3 enviava `WPDG` uma vez,
+e encerrava a consulta ao ver qualquer valor diferente de `WPDG`,
+inclusive `MENU`. O loop do ARM7 escreve `MENU` para confirmar
+comandos processados; há uma janela em que uma consulta emitida
+pelo ARM9 pode ser apagada antes de ser reconhecida. A imagem, sozinha,
+não comprova qual linha descartou o comando.
+
+A V7.1.4 muda SOMENTE o mecanismo de diagnóstico:
+- ARM9 reenvia `WPDG` caso a caixa de mensagens volte ao estado ocioso
+  `MENU`, num máximo de 90 quadros. Não reenvia se houver outro serviço.
+- ARM7 guarda o comando que despachou naquele quadro e não substitui um
+  comando novo recebido depois do despacho.
+- A resposta `WPDK` continua preservada até ser reconhecida pelo ARM9.
+- O painel mantém os códigos de falha de instalação introduzidos na
+  V7.1.3, permitindo investigar a ausência de `walkerControl`.
+
+O teste no DSi deve mostrar `VIRTUAL POKEWALKER V7.1.4` e, idealmente,
+`Boot stage` ou o estado do hook. Faça backup do Nightly e use apenas
+save descartável; não testar Wi-Fi nem envio/recebimento de Pokémon.

@@ -110,19 +110,23 @@ WALKER_ASSERT(size, sizeof(WalkerControl) <= WALKER_BLOB_OFF - WALKER_CONTROL_OF
 /* DS-mode and Slot-1 layouts reserve only the first 0x800 bytes for control. */
 WALKER_ASSERT(ds_and_cart_control_size, sizeof(WalkerControl) <= 0x800u);
 
-/* V7.1 DSi diagnostic: the NTR game code and the DSi ROM cache can
- * legitimately live in different RAM windows. In particular the DSi
- * cache hook can allocate the walker at ~0x0CFDC000 (0x0CFE0000 minus
- * the reserved image/control/blob region). Reject unmapped addresses
- * and wraparound, but do not reject the DSi extended main-RAM window.
- * This predicate only checks a range; callers still verify magic/version.
- */
+/* ARM7-only diagnostics: address ranges are NOT proof of a mapped bus.
+ * V7.1.1 attempted to dereference 0x0Cxxxxxx DSi extended-memory pointers
+ * from the ARM7 in-game menu and could leave the request unacknowledged.
+ * This range can depend on console/SCFG mapping. Classify it, but DO NOT
+ * dereference it from the ARM7 menu unless separately proven safe. */
+static inline int walkerControlAddressIsDsiMirror(unsigned int addr) {
+    const unsigned int bytes = (unsigned int)sizeof(WalkerControl);
+    return (addr & 3u) == 0u &&
+           addr >= 0x0C000000u && addr <= 0x0D000000u - bytes;
+}
+
+/* Only original DS shared main RAM is eligible for ARM7 header inspection.
+ * The pointer still needs its magic/version validated after the range check. */
 static inline int walkerControlAddressReadable(unsigned int addr) {
     const unsigned int bytes = (unsigned int)sizeof(WalkerControl);
-    if ((addr & 3u) != 0u) return 0;
-    if (addr >= 0x02000000u && addr <= 0x02400000u - bytes) return 1;
-    if (addr >= 0x0C000000u && addr <= 0x0D000000u - bytes) return 1;
-    return 0;
+    return (addr & 3u) == 0u &&
+           addr >= 0x02000000u && addr <= 0x02400000u - bytes;
 }
 #endif
 

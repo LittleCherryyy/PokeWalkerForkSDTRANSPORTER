@@ -519,7 +519,7 @@ static void virtualPokewalkerMenu(void) {
     #endif
 
     clearScreen(false);
-    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.1", FONT_LIME, false);
+    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.1.1", FONT_LIME, false);
     print(1, 3, (const unsigned char *)"HeartGold / SoulSilver", FONT_WHITE, false);
     print(1, 5, (const unsigned char *)"Android TCP: 30821", FONT_WHITE, false);
     if(!answered) {

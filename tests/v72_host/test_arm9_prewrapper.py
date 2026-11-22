@@ -50,9 +50,9 @@ class Arm9PreWrapperTests(unittest.TestCase):
         m=self.menu
         self.assertIn("V7.8 ARM9 ROM TASKS",m)
         self.assertIn("the menu enters from IRQ",m)
-        self.assertIn("Pre-menu IME:0x",m)
+        self.assertIn("Read IME: 0x",m)
         self.assertIn("Not a periodic worker",m)
-        self.assertIn("Non-IRQ+IME: 0x",m)
+        self.assertIn("NonIRQ+IME:0x",m)
         self.assertIn("Wi-Fi: NOT ENABLED",m)
         self.assertIn("A: ARM9 pre-wrapper view",m)
         self.assertIn("KEY_A | KEY_B",m)

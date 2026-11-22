@@ -40,17 +40,17 @@ static void walkerReadOnlyDiagnostics(void) {
      * only used while the in-game menu is active on both processors. */
     sharedAddr[0] = 0u;
     sharedAddr[1] = 0x1FFFu; /* 13 missing network functions by default. */
-    sharedAddr[2] = 0u;
     sharedAddr[3] = 0u;
     const u32 address=walkerControl;
-    /* Preserve the reason in the lower status bits:
-     * bit 0: valid WalkerControl header
-     * bit 1: a hook address was published
-     * bit 2: address is in a supported DS/DSi RAM window.
-     * The DSi NTR cache can reside at 0x0CFxxxxx. Do not claim a missing
-     * hook merely because the pointer is outside original 4 MiB DS RAM. */
+    sharedAddr[2] = address; /* Show raw pointer if header is not inspected. */
+    /* Status bits: bit0 valid header, bit1 hook address was published,
+     * bit2 safely inspected in DS RAM, bit3 DSi extended pointer deferred.
+     * V7.1.2 MUST NOT dereference the 0x0C mirror from the ARM7 menu:
+     * the mapping is not proven for this NTR runtime configuration. */
     if(address) sharedAddr[0] |= 2u;
-    if(walkerControlAddressReadable(address)) {
+    if(walkerControlAddressIsDsiMirror(address)) {
+        sharedAddr[0] |= 8u; /* Pointer published; contents NOT inspected. */
+    } else if(walkerControlAddressReadable(address)) {
         sharedAddr[0] |= 4u;
         const WalkerControl *c=(const WalkerControl *)address;
         if(c->magic==WALKER_MAGIC && c->version==WALKER_VERSION) {

@@ -451,3 +451,55 @@ The V7.2.2 snapshot answered the timer-state question. Next engineering
 work is to identify the Timer3 interrupt handler/ownership and a safe
 ARM7 Wi-Fi IRQ dispatcher, not to repeatedly generate screenshots of
 the same active timer.
+
+## V7.2.4 — IRQ_WIFI slot-24 safe footprint inspection
+
+Follow-up to the physical V7.2.2 confirmation: ARM9 TIMER3 is already
+running at `0x00C1` **before** the cardengine menu's critical section;
+`REG_IE=0x00050049`, `REG_IME=1`. These readings still do not identify
+the owner of the timer.
+
+An additional concrete blocker was found in
+`cardenginei/arm7/source/patcher/hook_arm7.c`:
+
+- The legacy Nitro IRQ-table hook validates a footprint of only **17
+  entries** (slots 0..16), enough to chain VBlank (0) and IPC sync (16).
+  Wi-Fi uses **IRQ_WIFI slot 24**, which requires at least **25 entries
+  (100 bytes)**. The current 17-entry guarantee cannot authorize writing
+  to slot 24. An attempted blind extension could corrupt the game's RAM.
+- For `returnIndex==3`, the existing code selects a **runtime table**,
+  whose capacity is **not known** from the address of its first element.
+  The fact that the address lies in the ARM7 RAM range is not proof that
+  entry 24 exists.
+- The existing hook's two write points MUST remain unchanged until
+  layout and original dispatch/chaining ownership are established.
+
+New `nettransport/walker_wifi_irq_audit.{h,c}` provides an **offline,
+pure, no-dereference** footprint checker for this distinction.
+`walkerWifiIrqInspect()` returns a conservative classification:
+`INLINE_TABLE_OUTSIDE_IMAGE`, `INLINE_25_SLOTS_WITHIN_IMAGE`,
+`RUNTIME_TABLE_UNBOUNDED`, or `BAD_ARGUMENT`. Even an inline
+25-slot result is **not permission to hook**: the actual layout,
+handler-chain semantics, writable memory and IRQ ownership must still
+be independently verified.
+
+`tests/v72_host/test_wifi_irq_audit.c` exercises the 17-versus-25
+boundary, a valid in-image 25-slot footprint, an unbounded runtime
+table, unaligned and missing image values, and near-upper-address ranges.
+CI runs these host tests and cross-compiles the checker for ARM7.
+The object is **not linked into the functioning HGSS/nds-bootstrap**;
+it does not initialize Wi-Fi, manipulate IRQs or access user data.
+
+Related official documentation:
+- https://blocksds.skylyrac.net/libnds/interrupts_8h.html
+- https://blocksds.skylyrac.net/dswifi/index.html
+
+### Next engineering task
+Identify the real HeartGold ARM7 IRQ-table variant during boot, and
+determine the **actual** writable table extent and whether chaining a
+new handler at 24 is supported. For the runtime-table variant, the
+loader must locate a trustworthy table-length source rather than
+guess 25 entries. In parallel, trace ownership of ARM9 TIMER3 and
+validate an alternative Wi-Fi timer if the actual DSWifi toolchain
+permits one. This needs source-level plus on-hardware evidence.
+**No new binary or Android APK should be installed for this offline audit.**

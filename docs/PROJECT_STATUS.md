@@ -198,7 +198,18 @@ been retrieved/confirmed in this session.
   `.github/workflows/directsync-wire.yml` links both tests together.
   This is a synthetic byte-for-byte interoperability check; CI must
   report success before describing it as passed.
-- **Not yet crash-safe ownership:** `PHONE_OWNS` is only in RAM, and
+- **Existing reuse opportunity:** `retail/arm9/include/walker_prepare.h`
+already refuses to launch HGSS when `<save>.walker.lease` exists.
+The existing NDS companion `core/nds/source/lease.c` already writes a
+`PWLEASE1` 64-byte lease and a `.walker.phone` recovery image. The
+resident direct path must persist that compatible lease on SD before
+making Android the owner, without launching the companion. The bootstrap
+cardengine currently receives only `walkerCluster` and has no
+lease-file cluster or verified creation path, so the persistent lock is
+not yet available inside HGSS. Do not treat the in-memory guard above
+as durable against reboot.
+
+**Not yet crash-safe ownership:** `PHONE_OWNS` is only in RAM, and
   `walkerDirectBridgeReset` clears state at boot. After a DSi restart,
   the SD recovery image can again appear locally available despite the
   Android holding the Pokémon. A persistent, verified ownership lease

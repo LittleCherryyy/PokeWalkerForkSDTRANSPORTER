@@ -19,6 +19,7 @@ on:
       - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_boot.c'
       - 'core/bootstrap/retail/bootloaderi/source/arm7/hook_arm7.c'
       - 'core/bootstrap/retail/common/include/cardengine_header_arm7.h'
+      - 'core/bootstrap/retail/common/include/walker_irq_live_guard.h'
       - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
       - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
       - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
@@ -41,6 +42,7 @@ on:
       - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_boot.c'
       - 'core/bootstrap/retail/bootloaderi/source/arm7/hook_arm7.c'
       - 'core/bootstrap/retail/common/include/cardengine_header_arm7.h'
+      - 'core/bootstrap/retail/common/include/walker_irq_live_guard.h'
       - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
       - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
       - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
@@ -149,7 +151,7 @@ jobs:
       - name: Upload experimental DSi menu diagnostic artifact (not a release)
         uses: actions/upload-artifact@v4
         with:
-          name: v72-5-hgss-ntr-irq-table-diagnostic-test-only
+          name: v72-6-hgss-irq-word-peek-readonly-test-only
           path: |
             core/bootstrap/retail/bin/nds-bootstrap.nds
             core/bootstrap/retail/bin/nds-bootstrap.nds.sha256

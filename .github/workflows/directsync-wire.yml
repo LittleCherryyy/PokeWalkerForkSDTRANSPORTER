@@ -9,6 +9,7 @@ on:
       - 'core/bootstrap/retail/common/include/walker_directsync.h'
       - 'core/tools/test_walker_push_stream.c'
       - 'core/tools/test_walker_direct_lock.c'
+      - 'core/tools/test_walker_direct_lock_cpp.cpp'
       - 'core/bootstrap/retail/common/include/walker_direct_lock.h'
       - '.github/workflows/directsync-wire.yml'
   pull_request:
@@ -19,6 +20,7 @@ on:
       - 'core/bootstrap/retail/common/include/walker_directsync.h'
       - 'core/tools/test_walker_push_stream.c'
       - 'core/tools/test_walker_direct_lock.c'
+      - 'core/tools/test_walker_direct_lock_cpp.cpp'
       - 'core/bootstrap/retail/common/include/walker_direct_lock.h'
       - '.github/workflows/directsync-wire.yml'
   workflow_dispatch:
@@ -71,3 +73,11 @@ jobs:
             core/tools/test_walker_direct_lock.c \
             -o "$RUNNER_TEMP/pw-direct-lock-test"
           "$RUNNER_TEMP/pw-direct-lock-test"
+      - name: Verify C++ launcher ownership-fence ABI
+        shell: bash
+        run: |
+          g++ -std=c++11 -O2 -Wall -Wextra -Werror -Wno-unused-function \
+            -I core/bootstrap/retail/common/include \
+            core/tools/test_walker_direct_lock_cpp.cpp \
+            -o "$RUNNER_TEMP/pw-direct-lock-cpp-test"
+          "$RUNNER_TEMP/pw-direct-lock-cpp-test"

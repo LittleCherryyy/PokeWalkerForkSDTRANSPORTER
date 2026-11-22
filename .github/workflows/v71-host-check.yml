@@ -15,6 +15,8 @@ on:
       - 'core/bootstrap/retail/cardenginei/arm7/source/walker_direct_bridge.c'
       - 'core/bootstrap/retail/cardenginei/arm7/source/walker_file.c'
       - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_boot.c'
+      - 'core/bootstrap/retail/common/include/cardengine_header_arm7.h'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
       - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
       - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
       - 'tests/v71_host/**'
@@ -30,6 +32,8 @@ on:
       - 'core/bootstrap/retail/cardenginei/arm7/source/walker_direct_bridge.c'
       - 'core/bootstrap/retail/cardenginei/arm7/source/walker_file.c'
       - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_boot.c'
+      - 'core/bootstrap/retail/common/include/cardengine_header_arm7.h'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
       - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
       - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
       - 'tests/v71_host/**'
@@ -131,7 +135,7 @@ jobs:
       - name: Upload experimental DSi menu diagnostic artifact (not a release)
         uses: actions/upload-artifact@v4
         with:
-          name: v71-2-dsi-safe-ipc-diagnostic-test-only
+          name: v71-3-dsi-boot-hook-status-diagnostic-test-only
           path: |
             core/bootstrap/retail/bin/nds-bootstrap.nds
             core/bootstrap/retail/bin/nds-bootstrap.nds.sha256

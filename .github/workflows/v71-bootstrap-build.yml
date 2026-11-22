@@ -21,7 +21,22 @@ permissions:
   contents: read
 
 jobs:
+  host-lzss:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build host LZSS compressor
+        run: |
+          cc -O2 core/bootstrap/lzss.c -o lzss
+          test -s lzss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v71-host-lzss
+          path: lzss
+          if-no-files-found: error
+
   bootstrap-compile:
+    needs: host-lzss:
     runs-on: ubuntu-latest
     container:
       # September 2024 predates libnds 2.x / Calico migration.
@@ -29,6 +44,10 @@ jobs:
       image: devkitpro/devkitarm:20240918
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: v71-host-lzss
+          path: /tmp
       - name: Compile modified DSi bootloader (not a testable release)
         shell: bash
         env:
@@ -38,9 +57,7 @@ jobs:
           set -euo pipefail
           /opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc --version | head -1
           test -d /opt/devkitpro/libnds/include
-          apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends build-essential
-          gcc -O2 core/bootstrap/lzss.c -o /tmp/lzss
+          chmod +x /tmp/lzss
           export PATH="/tmp:$PATH"
           make -C core/bootstrap/retail/bootloaderi -j2
           test -s core/bootstrap/retail/nitrofiles/loadi0.lz77

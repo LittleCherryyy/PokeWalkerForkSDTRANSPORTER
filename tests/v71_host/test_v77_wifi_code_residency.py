@@ -41,12 +41,12 @@ class ResidentCodeFingerprintContracts(unittest.TestCase):
         start=src.index("static void walkerArm9WifiCodeMenu(void)")
         end=src.index("static void virtualPokewalkerMenu(void)",start)
         snippet=src[start:end]
-        self.assertIn("walkerWifiCheckStaticCode(crc);",snippet)
-        self.assertIn("printHex(16,row,crc[i],4",snippet)
+        self.assertIn("walkerArm9ThreadAvailabilityRaw(&raw)",snippet)
+        self.assertIn("printHex(17,5,raw,4",snippet)
         self.assertIn("Wi-Fi: NOT ENABLED",snippet)
         self.assertNotIn("REG_IE =",snippet)
         self.assertNotIn("walkerWrite(",snippet)
-        self.assertIn("L: ARM9 Wi-Fi code audit",src)
+        self.assertIn("L: ARM9 OS raw status",src)
         self.assertIn("if(KEYS & KEY_L){showWifiCode=true;break;}",src)
         self.assertIn("walkerArm9WifiCodeMenu();",src)
 

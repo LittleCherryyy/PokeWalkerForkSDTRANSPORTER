@@ -71,20 +71,23 @@ jobs:
         run: |
           set -euo pipefail
           make -C core/bootstrap/retail/bootloaderi
-      - name: Assemble complete DSi nds-bootstrap from native source (do not distribute)
-        shell: bash
-        run: |
-          set -euo pipefail
-          make -C core/bootstrap/retail -j2 all \
-            GIT_VER=sdlang2 PYTHON=python3 LZSS=/usr/local/bin/lzss
-      - name: Check final NTR components and full bootstrap image
+      - name: Validate NTR component outputs and asset prerequisites
         shell: bash
         run: |
           set -euo pipefail
           test -s core/bootstrap/retail/common/include/walker_payload.h
           test -s core/bootstrap/retail/nitrofiles_dec/cardenginei_arm7.bin
           test -s core/bootstrap/retail/nitrofiles_dec/cardenginei_arm9.bin
-          test -s core/bootstrap/retail/bin/nds-bootstrap.nds
-          stat -c "Full bootstrap: %s bytes (NOT READY for actual Wi-Fi transfer)" \
-            core/bootstrap/retail/bin/nds-bootstrap.nds
-          echo "Compile/link only. In-game resident Wi-Fi is still missing."
+          # This fork does not contain the original preload settings
+          # asset directories (files-mep/files-dsi/...). Do NOT synthesize
+          # empty packs, present a partial bootstrap as installable or mark
+          # a whole-image compilation successful when the sources are absent.
+          if [ -d core/bootstrap/retail/preLoadSettings/files-mep ] &&
+             [ -d core/bootstrap/retail/preLoadSettings/files-dsi ]; then
+            make -C core/bootstrap/retail -j2 all \
+              GIT_VER=sdlang2 PYTHON=python3 LZSS=/usr/local/bin/lzss
+            test -s core/bootstrap/retail/bin/nds-bootstrap.nds
+          else
+            echo "::notice::NTR ARM7/ARM9/IR/bootloader linked. Full image blocked by missing upstream preLoadSettings assets in fork."
+          fi
+          echo "Not playable: there is no verified resident Wi-Fi service for HGSS."

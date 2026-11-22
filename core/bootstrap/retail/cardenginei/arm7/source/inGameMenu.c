@@ -197,7 +197,10 @@ void biosRead(void* dst, const void* src, u32 len)
 
 volatile int timeTillStatusRefresh = 7;
 
-void inGameMenu(void) {
+/* Keep this paused-menu routine compact: the resident ARM7 engine has a
+ * fixed 0xF400-byte WRAM allocation. Scope -Os to this menu, not to the
+ * gameplay VBlank path or storage routines. */
+__attribute__((optimize("Os"))) void inGameMenu(void) {
     /* Snapshot BEFORE the menu masks interrupts. This is diagnostic only;
      * a captured IRQ enable bit never proves who owns the IRQ handler. */
 #ifndef TWLSDK

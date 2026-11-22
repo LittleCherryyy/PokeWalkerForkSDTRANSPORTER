@@ -1,0 +1,18 @@
+# Android and DSi build outputs
+.gradle/
+.cxx/
+.idea/
+**/build/
+__pycache__/
+*.apk
+*.aab
+*.nds
+*.elf
+*.o
+*.sav
+*.dsv
+*.walker
+*.jks
+*.keystore
+local.properties
+.env

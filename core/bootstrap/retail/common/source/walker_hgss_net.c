@@ -27,11 +27,6 @@ int walkerResolveHgssNet(const u32 *arm9,u32 base,u32 bytes,WalkerHgssNetApi *ou
      * Do not mark ready until all callable entry points are resolved.
      * The V18 resolver cannot yet prove these addresses, therefore ready=0.
      * Never guess function addresses from heuristics. */
-    out->ready = out->wcmInit && out->wcmStartupAsync &&
-        out->wcmBeginSearchAsync && out->wcmConnectAsync &&
-        out->wcmGetPhase && out->wcmPointApList &&
-        out->soclStartup && out->socSocket && out->socConnect &&
-        out->socRecv && out->socSend && out->socClose &&
-        out->soclGatewayPtr;
+    out->ready = (walkerHgssNetMissingMask(out) == 0u);
     return 1;
 }

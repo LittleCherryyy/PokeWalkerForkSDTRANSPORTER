@@ -1,0 +1,50 @@
+name: V7.2 resident PING protocol tests (offline only)
+
+on:
+  push:
+    branches:
+      - dev/v72-resident-ping-core
+    paths:
+      - '.github/workflows/v72-ping-core.yml'
+      - 'core/bootstrap/retail/nettransport/**'
+      - 'core/bootstrap/retail/common/include/walker_directsync.h'
+      - 'tests/v72_host/**'
+  pull_request:
+    paths:
+      - '.github/workflows/v72-ping-core.yml'
+      - 'core/bootstrap/retail/nettransport/**'
+      - 'core/bootstrap/retail/common/include/walker_directsync.h'
+      - 'tests/v72_host/**'
+
+permissions:
+  contents: read
+
+jobs:
+  protocol-host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test host protocol (NO sockets, saves, or console)
+        run: python3 tests/v72_host/run.py
+
+  arm-cross-check:
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitarm:20241104
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile V7.2 protocol object for ARM7 and ARM9 (not linked)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARM_CC=/opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc
+          SRC=core/bootstrap/retail/nettransport/walker_ping_engine.c
+          ENGINE=core/bootstrap/retail/nettransport
+          COMMON=core/bootstrap/retail/common/include
+          "$ARM_CC" -std=c11 -O2 -Wall -Wextra -Werror -Wno-unused-function \
+            -march=armv4t -mthumb -I "$ENGINE" -I "$COMMON" -c "$SRC" -o /tmp/walker-ping-arm7.o
+          "$ARM_CC" -std=c11 -Os -Wall -Wextra -Werror -Wno-unused-function \
+            -march=armv5te -I "$ENGINE" -I "$COMMON" -c "$SRC" -o /tmp/walker-ping-arm9.o
+          test -s /tmp/walker-ping-arm7.o
+          test -s /tmp/walker-ping-arm9.o
+          echo "Both CPU protocol objects compile; neither is linked into nds-bootstrap."

@@ -96,9 +96,13 @@ void walkerDirectArm9Tick(void) {
      * radio/memory backend, do not even dereference walkerControl from the
      * normal ARM9 card-read path. A future backend must prove the memory
      * mapping and coordinate cache maintenance before being linked. */
+    const WalkerDirectRadioOps *api=0;
     if(workerStage==WORKER_IDLE) {
-        const WalkerDirectRadioOps *probe=walkerDirectRadioBackend();
-        if(!probe || !probe->available || probe->available()<=0) return;
+        /* A verified driver is the ONLY condition that permits reading
+         * the virtual Walker control in the normal-MPU game context. */
+        api=walkerDirectRadioBackend();
+        if(!api || !api->available || !api->connect || !api->write ||
+           !api->read || !api->close || api->available()<=0) return;
     }
     workerBusy=1;
     cardengineArm9 *local=ce9;
@@ -124,10 +128,7 @@ void walkerDirectArm9Tick(void) {
        c->direct.magic==WALKER_DIRECT_BRIDGE_MAGIC &&
        c->checkoutState==WALKER_CHECKOUT_COMPLETE &&
        c->direct.state==WALKER_DIRECT_IDLE) {
-        const WalkerDirectRadioOps *api=walkerDirectRadioBackend();
-        if(api && api->available && api->connect && api->write &&
-           api->read && api->close && api->available()>0)
-            c->direct.lockRequested=1;
+        c->direct.lockRequested=1;
         workerBusy=0;
         return;
     }
@@ -147,13 +148,7 @@ void walkerDirectArm9Tick(void) {
             workerBusy=0;
             return;
         }
-        const WalkerDirectRadioOps *api=walkerDirectRadioBackend();
-        if(!api || !api->available || !api->connect || !api->write ||
-           !api->read || !api->close || api->available()<=0) {
-            /* An absent Wi-Fi driver leaves Pokémon safe in the .walker. */
-            workerBusy=0;
-            return;
-        }
+        /* The API was checked once before accessing WalkerControl. */
         /* First ask the ARM7 SD writer to persist a checked PENDING
          * record. Never transmit even one byte until the record has
          * survived physical read-back. If the console powers off after

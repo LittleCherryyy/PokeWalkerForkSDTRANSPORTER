@@ -21,6 +21,7 @@ on:
       - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
       - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
       - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
+      - 'core/bootstrap/retail/cardenginei/arm9/source/cardengine.c'
       - 'core/bootstrap/retail/nettransport/**'
       - 'tests/v71_host/**'
       - 'tests/v72_host/**'
@@ -41,6 +42,7 @@ on:
       - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
       - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
       - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
+      - 'core/bootstrap/retail/cardenginei/arm9/source/cardengine.c'
       - 'tests/v71_host/**'
 
 permissions:
@@ -145,7 +147,7 @@ jobs:
       - name: Upload experimental DSi menu diagnostic artifact (not a release)
         uses: actions/upload-artifact@v4
         with:
-          name: v72-1-dma3-arm9-audit-test-only
+          name: v72-2-arm9-prewrapper-diagnostic-test-only
           path: |
             core/bootstrap/retail/bin/nds-bootstrap.nds
             core/bootstrap/retail/bin/nds-bootstrap.nds.sha256

@@ -23,6 +23,11 @@
 extern u32 valueBits;
 extern s32 mainScreen;
 
+
+extern u8 consoleModel;
+
+extern vu32* volatile sharedAddr;
+
 /* Read-only Virtual Pokewalker diagnostics; the ARM7 owns the live control
  * address. No network calls and no changes to the walker or save. */
 #ifndef TWLSDK
@@ -56,9 +61,6 @@ static void walkerReadOnlyDiagnostics(void) {
     sharedAddr[4] = WALKER_DIAG_REPLY;
 }
 #endif
-extern u8 consoleModel;
-
-extern vu32* volatile sharedAddr;
 // extern bool returnToMenu;
 extern int afterSwapTimer;
 

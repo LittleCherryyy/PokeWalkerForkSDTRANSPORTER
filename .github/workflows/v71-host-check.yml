@@ -135,7 +135,7 @@ jobs:
       - name: Upload experimental DSi menu diagnostic artifact (not a release)
         uses: actions/upload-artifact@v4
         with:
-          name: v71-3-dsi-boot-hook-status-diagnostic-test-only
+          name: v71-4-dsi-ipc-retry-diagnostic-test-only
           path: |
             core/bootstrap/retail/bin/nds-bootstrap.nds
             core/bootstrap/retail/bin/nds-bootstrap.nds.sha256

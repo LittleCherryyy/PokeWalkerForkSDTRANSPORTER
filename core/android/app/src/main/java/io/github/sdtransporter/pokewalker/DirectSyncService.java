@@ -107,21 +107,60 @@ public final class DirectSyncService extends Service {
         }catch(Exception ex){state(true,"Last DSi request failed: "+ex.getMessage());}
     }
     private void push(Socket peer,DirectSyncProtocol.Frame f)throws IOException{
-        if(!token(f.session)||f.length!=DirectSyncProtocol.WALKER_SIZE)throw new IOException("Invalid DSi checkout frame");
-        if(!Native.walkable(f.payload))throw new IOException("DSi sent an invalid walker");
-        String key=Native.text(f.payload,4).toLowerCase(Locale.ROOT);if(!trainer(key))throw new IOException("Walker trainer binding is unavailable");
-        if(!f.trainer.isEmpty()&&!f.trainer.equals(key))throw new IOException("DSi trainer binding does not match walker data");
-        synchronized(WalkerStore.LOCK){WalkerStore s=WalkerStore.get(this);
+        if(!token(f.session)||f.length!=DirectSyncProtocol.WALKER_SIZE)
+            throw new IOException("Invalid DSi checkout frame");
+        if(!Native.walkable(f.payload))
+            throw new IOException("DSi sent an invalid walker");
+        /* Direct Sync is a Pokémon checkout, not a generic EEPROM backup.
+         * Do not claim success if the uploaded walker has no Pokémon. */
+        long[] details=Native.info(f.payload);
+        if(details==null||details.length<=Native.HAS_POKEMON||
+           details[Native.HAS_POKEMON]==0)
+            throw new IOException("DSi walker contains no Pokémon for a stroll");
+        String key=Native.text(f.payload,4).toLowerCase(Locale.ROOT);
+        if(!trainer(key))throw new IOException("Walker trainer binding is unavailable");
+        if(!f.trainer.isEmpty()&&!f.trainer.equals(key))
+            throw new IOException("DSi trainer binding does not match walker data");
+        final String incomingCrc=String.format(Locale.ROOT,"%08x",f.crc);
+        boolean replay=false;
+        synchronized(WalkerStore.LOCK){
+            WalkerStore s=WalkerStore.get(this);
             if(s.syncing)throw new IOException("Another sync is in progress");
-            if(s.active())throw new IOException("Return the current Pokémon before receiving another");
-            if(!s.trainerKey.isEmpty()&&!s.trainerKey.equals(key))throw new IOException("Select the Android profile paired to this HGSS save");
-            if(s.data!=null)s.archiveCurrent("direct-replaced");
-            if(s.completedSession(f.session))throw new IOException("This DSi session was already returned");
-            s.returnCompleted=false;s.battlePaid=s.battleDone=s.battleRewarded=false;s.battleSession=s.battlePeer="";s.battleWinner=0;s.battleRewardChoice=-1;
-            s.data=f.payload.clone();s.token=f.session;s.pendingToken="";s.trainerKey=key;s.host="direct-dsi";s.revoked=false;s.returnPending=false;s.sensorLast=-1;s.boot=-1;s.mode=2;
-            Native.resume(s.data,Native.now(),s.rate);s.archiveCurrent("direct-received");s.save();
+            if(s.active()&&"direct-dsi".equals(s.host)&&s.token.equals(f.session)){
+                /* Android may have saved the full Pokémon while the DSi lost
+                 * the TCP OK response. ACK this SAME checkout idempotently,
+                 * even if steps changed the EEPROM since it was received.
+                 * Any different payload, profile or return-in-progress fails
+                 * closed rather than overwriting a walking Pokémon. */
+                if(s.returnPending||s.directCheckoutCrc.isEmpty()||
+                   !s.directCheckoutCrc.equals(incomingCrc)||
+                   !s.trainerKey.equals(key))
+                    throw new IOException("Conflicting DSi checkout retry");
+                replay=true;
+            } else {
+                if(s.active())throw new IOException("Return the current Pokémon before receiving another");
+                if(!s.trainerKey.isEmpty()&&!s.trainerKey.equals(key))
+                    throw new IOException("Select the Android profile paired to this HGSS save");
+                if(s.data!=null)s.archiveCurrent("direct-replaced");
+                if(s.completedSession(f.session))
+                    throw new IOException("This DSi session was already returned");
+                s.returnCompleted=false;
+                s.battlePaid=s.battleDone=s.battleRewarded=false;
+                s.battleSession=s.battlePeer="";s.battleWinner=0;s.battleRewardChoice=-1;
+                s.data=f.payload.clone();s.token=f.session;s.pendingToken="";
+                s.trainerKey=key;s.host="direct-dsi";s.directCheckoutCrc=incomingCrc;
+                s.revoked=false;s.returnPending=false;s.sensorLast=-1;s.boot=-1;s.mode=2;
+                Native.resume(s.data,Native.now(),s.rate);
+                s.archiveCurrent("direct-received");
+                /* AtomicFile save + verification MUST complete before TCP OK. */
+                s.save();
+            }
         }
-        WalkingService.ensureRunning(this);PokewalkerWidgetProvider.updateAll(this);ok(peer,f.session,key,null,-1);
+        if(!replay){
+            WalkingService.ensureRunning(this);
+            PokewalkerWidgetProvider.updateAll(this);
+        }
+        ok(peer,f.session,key,null,-1);
     }
     private void pull(Socket peer,DirectSyncProtocol.Frame f)throws IOException{
         final byte[] payload;final String key;
@@ -141,7 +180,7 @@ public final class DirectSyncService extends Service {
             if(s.data==null||s.token.isEmpty()||!s.returnPending)throw new IOException("No direct return is awaiting confirmation");
             if(!f.session.equals(s.token))throw new IOException("Return confirmation session mismatch");
             long expected=DirectSyncProtocol.crc(s.data);if(f.crc!=expected)throw new IOException("DSi stored checksum does not match phone walker");
-            byte[] returned=s.data.clone();s.completeReturn(s.token,returned);s.data=null;s.token="";s.pendingToken="";s.revoked=false;s.returnPending=false;s.sensorLast=-1;s.mode=0;s.save();
+            byte[] returned=s.data.clone();s.completeReturn(s.token,returned);s.data=null;s.token="";s.pendingToken="";s.directCheckoutCrc="";s.revoked=false;s.returnPending=false;s.sensorLast=-1;s.mode=0;s.save();
         }
         PokewalkerWidgetProvider.updateAll(this);ok(peer,f.session,f.trainer,null,f.crc);
     }

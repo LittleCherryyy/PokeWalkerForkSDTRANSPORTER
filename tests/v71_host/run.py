@@ -27,6 +27,15 @@ with tempfile.TemporaryDirectory(prefix="walker_v71_") as tmp:
     print("Compiling V7.1 SDK-free host checks...", flush=True)
     subprocess.run(cmd, check=True)
     subprocess.run([str(exe)], check=True)
+    print("Compiling and executing V7.7 fixed-window SHA256 host vectors...", flush=True)
+    sigdir = root / "core/bootstrap/retail/cardenginei/arm9_igm"
+    shaexe = Path(tmp) / ("v77_sha.exe" if os.name == "nt" else "v77_sha")
+    subprocess.run([cc, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-DB4DS",
+                    "-I", str(sigdir / "include"),
+                    str(testdir / "test_v77_wifi_sha_host.c"),
+                    str(sigdir / "source/walker_arm9_wifi_sig.c"),
+                    "-o", str(shaexe)], check=True)
+    subprocess.run([str(shaexe)], check=True)
     print("Running synthetic identity and source wiring checks...", flush=True)
     subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", str(testdir),
                     "-p", "test_*.py"], check=True)

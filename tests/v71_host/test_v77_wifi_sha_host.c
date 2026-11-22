@@ -26,6 +26,13 @@ int main(void) {
             fprintf(stderr,"B4DS returned nonzero code CRC32\n");return 5;
         }
     }
-    puts("PASS: V7.7 CRC32 fixed-32 vectors and disabled B4DS radio probe");
+    uint32_t schedulerRaw=0xffffffffu;
+    if(walkerArm9ThreadAvailabilityRaw(&schedulerRaw)!=0 || schedulerRaw!=0u) {
+        fprintf(stderr,"B4DS scheduler live probe must fail closed\\n");return 6;
+    }
+    if(walkerArm9ThreadAvailabilityRaw(NULL)!=0) {
+        fprintf(stderr,"NULL scheduler probe output must fail closed\\n");return 7;
+    }
+    puts("PASS: V7.7 CRC32 vectors and V8.3 disabled B4DS scheduler probe");
     return 0;
 }

@@ -1587,23 +1587,21 @@ void initMBKARM9_dsiMode(void) {
 extern void reset(u32 param, u32 tid2);
 
 void inGameMenu(s32* exRegisters) {
-#if !defined(TWLSDK)
+#if !defined(TWLSDK) && !defined(DLDI) && !defined(GSDD)
     /* Capture before the menu's own critical section. This is commonly
      * called from myIrqHandlerIPC(), so pre-wrapper is NOT equivalent to
-     * normal gameplay outside IRQ context; in particular IME may be 0. */
+     * normal gameplay outside IRQ context; in particular IME may be 0.
+     * DLDI and GSDD have tiny cardengine linker budgets. Their IGM
+     * receives NULL and explicitly marks V7.8 diagnostics unavailable. */
     const WalkerArm9Snapshot preMenu9 = {
         WALKER_ARM9_SNAPSHOT_MAGIC,
         (u32)TIMER_CR(3),
         REG_IE,
         REG_IME,
-#if !defined(DLDI) && !defined(GSDD)
         walkerArm9RomReadCalls,
         walkerArm9EligibleReadCalls,
         walkerArm9LastReadCpsrMode,
         walkerArm9LastReadIme
-#else
-        0u, 0u, 0u, 0u
-#endif
     };
 #endif
 	int oldIME = enterCriticalSection();
@@ -1629,8 +1627,13 @@ void inGameMenu(s32* exRegisters) {
      * ARM EABI register r3, avoiding busy sharedAddr slots / ARM7 RAM. */
     volatile u32 (*inGameMenu)(s32*, u32, s32*, const WalkerArm9Snapshot*) =
         (volatile void*)INGAME_MENU_LOCATION + IGM_ENTRY;
+#if defined(DLDI) || defined(GSDD)
+    const u32 res = (*inGameMenu)(&ce9->mainScreen, ce9->consoleModel,
+                                  exRegisters, (const WalkerArm9Snapshot*)0);
+#else
     const u32 res = (*inGameMenu)(&ce9->mainScreen, ce9->consoleModel,
                                   exRegisters, &preMenu9);
+#endif
 #else
 	volatile u32 (*inGameMenu)(s32*, u32, s32*) = (volatile void*)INGAME_MENU_LOCATION + IGM_ENTRY;
 	const u32 res = (*inGameMenu)(&ce9->mainScreen, ce9->consoleModel, exRegisters);

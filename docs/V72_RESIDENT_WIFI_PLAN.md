@@ -126,3 +126,72 @@ in-game menu. It is intentionally *not* a DSWifi driver or network socket.
 
 This proves a safe diagnostics round-trip (if the hardware test succeeds),
 **not** Wi-Fi enabled, a socket in HGSS or the eventual PING/ACK.
+
+## Real DSi V7.2.0 snapshot — 22 November 2026
+
+The user's real DSi photo confirms the **ARM7 register snapshot page works**
+and reports the following values while running HeartGold:
+
+| ARM7 register | Observed raw value | Interpretation |
+|---|---|---|
+| `REG_IE` | `0x00050019` | Enabled IRQs: VBlank (bit 0), Timer 0 (3), Timer 1 (4), IPC sync (16), IPC receive FIFO (18) |
+| `REG_IME` | `0x00000001` | Master IRQ enable is on |
+| `TIMER0_CR` | `0x00C1` | Timer enabled, IRQ enabled, prescaler 1/64 |
+| `TIMER1_CR` | `0x00C1` | Timer enabled, IRQ enabled, prescaler 1/64 |
+| `TIMER2_CR` | `0x0000` | Disabled at instant of capture |
+| `TIMER3_CR` | `0x0000` | Disabled at instant of capture |
+
+No `IRQ_WIFI` (bit 24) is enabled in the captured `REG_IE`.
+**This is only the pre-menu ARM7 snapshot**, not ARM9 state, handler ownership,
+or an observation of every moment of gameplay.
+
+`0xC1` is `TIMER_ENABLE (0x80) | TIMER_IRQ_REQ (0x40) | DIV_64 (0x01)`.
+Both first ARM7 timers are occupied; do not reinitialize or stop them
+to give the Wi-Fi stack a time source.
+
+**Verified external interface requirements (2026):**
+- DSWifi documents an ARM7 Wi-Fi timer `LIBNDS_DEFAULT_TIMER_WIFI`,
+  DS-mode **DMA channel 3**, and an ARM9 Wi-Fi timer.
+- libnds's timer documentation identifies **ARM9 timer 3** as DSWifi
+  resource in its documented configuration. This must be independently
+  audited for the actual version/toolchain integrated with nds-bootstrap.
+- The library expects a matching ARM7 service, interrupt/handler
+  registration, DMA and IPC; **calling `Wifi_InitDefault` from the
+  current in-game menu is not safe** just because Timer 2/3 read zero.
+
+Official technical references:
+- https://blocksds.skylyrac.net/dswifi/index.html
+- https://blocksds.skylyrac.net/dswifi/md_documentation_2internet__mode.html
+- https://blocksds.skylyrac.net/libnds/interrupts_8h.html
+- https://blocksds.skylyrac.net/libnds/timers_8h.html
+
+### Reproducible offline decode
+
+```bash
+python3 tools/v7_2/analyze_irq_snapshot.py \
+  --ie 0x00050019 --ime 0x01 \
+  --timer0 0x00C1 --timer1 0x00C1 \
+  --timer2 0x0000 --timer3 0x0000
+```
+
+Output lists enabled IRQ sources, each timer's flags, and the **still
+unverified** conditions needed for Wi-Fi. The script never accesses
+console hardware, user files, game memory, or the network.
+
+### Next integration gate (no new .nds required yet)
+
+Before implementing the first in-HGSS network PING:
+1. Determine the specific *resident* ARM7 IRQ dispatch table mechanism
+   and safely chain `IRQ_WIFI` without interrupting the game's existing
+   VBlank/timer/IPC handlers.
+2. Audit **ARM7 DMA3** and the chosen periodic Wi-Fi timer against the
+   actual DS-mode cardengine. Do not assume idle means unowned.
+3. Inspect **ARM9 timer 3** and choose a cooperative, bounded network
+   polling context outside IRQ and VBlank.
+4. Define explicit abort/rollback and save-isolation behavior. Only then
+   link the already tested C PING state machine to the resident network
+   callbacks in an experimental image.
+
+**Hardware status:** Virtual IR transmission/return tested successfully;
+diagnostics V7.2.0 read registers successfully; **no Wi-Fi PING within
+HGSS has yet been demonstrated.**

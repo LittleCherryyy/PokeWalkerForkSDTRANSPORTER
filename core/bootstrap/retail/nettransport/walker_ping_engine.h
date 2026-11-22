@@ -45,6 +45,9 @@ typedef struct {
 } WalkerPing;
 
 void walkerPingStart(WalkerPing *p, uint32_t frame, uint32_t timeoutFrames);
+/* Clear any incomplete packet when leaving the menu; socket cleanup is the
+ * responsibility of the platform adapter, never the protocol core. */
+void walkerPingCancel(WalkerPing *p);
 /* At most ONE I/O callback invocation per step; never loops or sleeps.
  * Caller MUST use a real non-blocking transport and a monotonic frame tick. */
 int walkerPingStep(WalkerPing *p, const WalkerPingIo *io, uint32_t frame);

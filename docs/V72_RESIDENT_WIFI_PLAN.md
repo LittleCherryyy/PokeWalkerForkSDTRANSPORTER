@@ -587,3 +587,70 @@ não inicializa DSWifi e não altera save/EEPROM.
 **Sem necessidade de modificar APK Android, hotspot ou ROM.**
 A validação de propriedade real de IRQ_WIFI continua pendente; a
 V7.2.5 não é uma versão de transporte Wi-Fi.
+
+## Captura física V7.2.5 e implementação V7.2.6 — 22/11/2026
+
+Fotografia enviada pelo usuário, capturada dentro de Pokémon HeartGold no
+DSi com o nds-bootstrap V7.2.5:
+
+| Campo mostrado | Valor |
+|---|---|
+| `IRQ table` | `0x0238ECF4` |
+| `ARM7 image` | `0x02380000` |
+| `Image bytes` | `0x000276D8` |
+| `Method` | `Cached IRQ location` |
+| indicação do próprio IGM | `25 slots fit image` |
+
+O deslocamento é `0xECF4`; `table[24]` ficaria em `0x0238ED54`.
+O final hipotético de 25 entradas cabe na região carregada. **Isso não
+comprova que a entrada 24 exista como parte da tabela lógica de IRQ, que
+seja gravável ou que o índice corresponda ao handler Wi-Fi usado pelo
+jogo**. Em particular, o método de localização foi **cache** e
+não uma assinatura nova revalidada neste boot.
+
+### V7.2.6 — leitura somente dos três valores brutos, com limites
+
+Novo `common/include/walker_irq_live_guard.h` faz um check puro,
+sem MMIO nem leitura de RAM, antes de qualquer acesso:
+
+- Método da fonte deve ser um dos caminhos 1..4 do bootloaderi.
+- Endereço da tabela e início de imagem alinhados em 4 bytes.
+- Imagem inteiramente na RAM principal de compatibilidade NTR
+  `0x02000000..0x023FFFFF`, tamanho de imagem dentro desta RAM.
+- 100 bytes contíguos a partir da tabela devem caber **dentro da
+  imagem ARM7 carregada e da RAM**; aritmética é feita sem overflow.
+
+O comando de IPC `WPKQ/WPKK` no ARM7 responde com apenas:
+`status` (1=leitura permitida, 0=bloqueada), `word[0]`,
+`word[16]` e `word[24]`, todos acessados via ponteiro
+`const volatile`, somente se o guard passar. Nenhuma escrita à
+tabela; nenhum IRQ registrado/encadeado, timer ou DMA ativado.
+
+No menu `Virtual Pokéwalker V7.2.6 → Y (ARM7 BOOT IRQ MAP)
+→ A (ARM7 IRQ WORDS)`, mostrar os três valores brutos.
+**Mesmo quando a leitura é permitida, não interpretar word[24] como
+um IRQ_WIFI válido sem prova adicional**: pode ser outro dado em RAM.
+O campo cached significa que a origem da tabela não foi revalidada
+neste boot. O cenário de risco de leitura de dados mapeados é mitigado
+pelo guard estrito, mas a instrumentação permanece experimental.
+
+Testes offline: `tests/v72_host/run_irq_live_guard.py`, casos com os
+valores reais, acessos além da imagem, regiões fora de RAM, alinhamento,
+overflow e borda final. Testes estáticos:
+`tests/v72_host/test_irq_live_integration.py`, verificando que o
+ARM7 só lê `entries[0]`, `entries[16]`, `entries[24]` após
+checagem e que menu não afirma posse de IRQ. Compilação ARM7 incluída
+no CI; nenhum serviço Wi-Fi residente foi ligado.
+
+**Procedimento:** somente após CI completo aprovado, testar com
+save descartável e backup do binário Nightly; no IGM apertar
+**Y → A**, fotografar a nova tela, voltar com **B** e confirmar
+continuidade do jogo. Não reconstruir APK Android nem repetir testes
+de PING/hotspot. Não enviar Pokémon importantes durante este teste.
+
+### Critério de engenharia
+
+O sucesso da leitura não basta para autorizar `IRQ_WIFI`. Precisamos
+comprovar layout e capacidade reais da tabela, o proprietário do
+despachante IRQ no jogo, o encadeamento sem interrupção de handlers,
+e resolver o timer3 ARM9 que estava ativo durante a captura pré-wrapper.

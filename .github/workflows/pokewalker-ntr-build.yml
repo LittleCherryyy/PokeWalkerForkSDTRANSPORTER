@@ -86,19 +86,27 @@ jobs:
           git -C "$source_root" sparse-checkout set \
             bootstrap/retail/preLoadSettings \
             bootstrap/retail/asyncLoadSettings \
-            bootstrap/retail/dsi2dsSavePatches
+            bootstrap/retail/dsi2dsSavePatches \
+            bootstrap/retail/apfix \
+            bootstrap/retail/mobiclipOffsets
           git -C "$source_root" fetch --depth=1 --filter=blob:none origin \
             75610fa9905ac252609081287121e8d4c44febed
           git -C "$source_root" checkout --detach FETCH_HEAD
           test "$(git -C "$source_root" rev-parse HEAD)" = \
             75610fa9905ac252609081287121e8d4c44febed
-          for project in preLoadSettings asyncLoadSettings dsi2dsSavePatches; do
+          for project in preLoadSettings asyncLoadSettings dsi2dsSavePatches apfix mobiclipOffsets; do
             upstream="$source_root/bootstrap/retail/$project"
             target="core/bootstrap/retail/$project"
             for asset in "$upstream"/files*; do
               [ -e "$asset" ] || continue
               destination="$target/$(basename "$asset")"
-              if [ ! -e "$destination" ]; then
+              if [ -d "$asset" ]; then
+                mkdir -p "$destination"
+                # The fork may contain *some* files, but lacks nested
+                # language folders (for example apfix/files/cht).
+                # Merge missing assets only, never overwrite source.
+                cp -a -n "$asset/." "$destination/"
+              elif [ ! -e "$destination" ]; then
                 cp -a "$asset" "$destination"
               fi
             done

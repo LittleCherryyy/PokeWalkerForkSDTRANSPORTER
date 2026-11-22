@@ -768,6 +768,43 @@ static void walkerIrqLifetimeMenu(void) {
     } while (KEYS & KEY_B);
 }
 
+/* V7.2.8: passive proof of whether the resident ARM7 callbacks execute.
+ * This reads counters only. Neither this menu nor the counter instrumentation
+ * installs IRQ handlers, touches WLAN registers, or accesses the game save.
+ */
+static void walkerHeartbeatMenu(void) {
+    u32 counts[4]={0,0,0,0};
+    const bool answered=walkerReadFourWords(0x51485057u,0x4B485057u,counts); /* WPHQ/WPHK */
+    clearScreen(false);
+    print(1,1,(const unsigned char *)"V7.2.8 ARM7 HEARTBEAT",FONT_LIME,false);
+    if (!answered) {
+        print(1,5,(const unsigned char *)"ARM7: no heartbeat reply",FONT_RED,false);
+    } else {
+        print(1,4,(const unsigned char *)"VBlank calls: 0x",FONT_WHITE,false);
+        printHex(19,4,counts[0],4,FONT_LIGHT_BLUE,false);
+        print(1,6,(const unsigned char *)"Bridge ticks: 0x",FONT_WHITE,false);
+        printHex(19,6,counts[1],4,FONT_LIGHT_BLUE,false);
+        print(1,8,(const unsigned char *)"IPC callbacks:0x",FONT_WHITE,false);
+        printHex(19,8,counts[2],4,FONT_LIGHT_BLUE,false);
+        print(1,11,(const unsigned char *)(counts[3] & 1u ?
+            "Walker ptr: present" : "Walker ptr: not set"),FONT_LIGHT_GRAY,false);
+        print(1,13,(const unsigned char *)"Compare after 10s gameplay",FONT_WHITE,false);
+        print(1,15,(const unsigned char *)"Delta > 0 = callback ran",FONT_LIGHT_GRAY,false);
+    }
+    print(1,17,(const unsigned char *)"No Wi-Fi/IRQ ownership proof",FONT_LIGHT_GRAY,false);
+    print(1,19,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,21,(const unsigned char *)"B: Back to IRQ words",FONT_WHITE,false);
+    do {
+        while (REG_VCOUNT != 191) mySwiDelay(100);
+        while (REG_VCOUNT == 191) mySwiDelay(100);
+    } while (KEYS & KEY_Y);
+    waitKeys(KEY_B);
+    do {
+        while (REG_VCOUNT != 191) mySwiDelay(100);
+        while (REG_VCOUNT == 191) mySwiDelay(100);
+    } while (KEYS & KEY_B);
+}
+
 /* V7.2.6: show raw, bounded ARM7 words. Slot24 might be ordinary data!
  * Do not interpret raw words as an IRQ_WIFI handler or authorize a write. */
 static void walkerIrqWordsMenu(void) {
@@ -810,14 +847,17 @@ static void walkerIrqWordsMenu(void) {
     print(1,14,(const unsigned char *)"Raw RAM, NOT handler proof",FONT_LIGHT_GRAY,false);
     print(1,16,(const unsigned char *)"No IRQ values changed",FONT_WHITE,false);
     print(1,19,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,20,(const unsigned char *)"Y: ARM7 heartbeat counters",FONT_WHITE,false);
     print(1,21,(const unsigned char *)"X: Boot vs live IRQ words",FONT_WHITE,false);
     print(1,22,(const unsigned char *)"B: Back to menu",FONT_WHITE,false);
     do {
         while(REG_VCOUNT!=191) mySwiDelay(100);
         while(REG_VCOUNT==191) mySwiDelay(100);
     } while(KEYS & KEY_A);
-    waitKeys(KEY_B | KEY_X);
-    if (KEYS & KEY_X) {
+    waitKeys(KEY_B | KEY_X | KEY_Y);
+    if (KEYS & KEY_Y) {
+        walkerHeartbeatMenu();
+    } else if (KEYS & KEY_X) {
         walkerIrqLifetimeMenu();
     } else {
         do {

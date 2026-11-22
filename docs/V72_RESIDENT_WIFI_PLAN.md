@@ -195,3 +195,29 @@ Before implementing the first in-HGSS network PING:
 **Hardware status:** Virtual IR transmission/return tested successfully;
 diagnostics V7.2.0 read registers successfully; **no Wi-Fi PING within
 HGSS has yet been demonstrated.**
+
+### Static IRQ-dispatch audit of current cardengine
+
+A review of `cardenginei/arm7/source/patcher/hook_arm7.c` found
+that the existing retails' interrupt-table patch is specifically tailored
+to **VBlank (slot 0)** and **IPC sync (slot 16)**:
+
+- `hookNdsRetailArm7()` writes only `hookLocation[0]` and
+  `hookLocation[16]`, chaining their previous handlers.
+- The current bounds check covers **17 entries**, not the
+  `IRQ_WIFI` handler slot **24**. Extending a raw write to slot 24
+  without proving a larger writable table layout could corrupt RAM.
+- A special runtime-table mode also patches only VBlank and IPC.
+  It is not a generic `irqSet(IRQ_WIFI, ...)` dispatcher.
+- `cardenginei/arm7/source/cardengine.c` resets DMA and timer
+  registers during reboot/soft reset. A resident Wi-Fi driver will
+  need an explicit shutdown and must not leave stale peripheral state.
+
+**Decision:** The current design remains **NO-GO for radio initialization**
+until IRQ_WIFI dispatch ownership is identified and a validated chaining
+strategy exists, plus ARM7 DMA3/periodic timer and ARM9 timer/worker audits.
+No automated change has been made to IRQ tables or timer controls.
+
+This is a source-code finding, not a claim of Wi-Fi connectivity or a
+conclusive runtime ownership map. The observed `REG_IE=0x00050019`
+contains no IRQ_WIFI enable flag.

@@ -2,6 +2,7 @@
 #include <nds/ipc.h>
 #include <nds/interrupts.h>
 #include <nds/timers.h>
+#include <nds/dma.h>
 #include <nds/input.h>
 #include <nds/arm7/audio.h>
 #include <nds/arm7/clock.h>
@@ -39,8 +40,21 @@ extern u32 walkerBootStatus;
 /* V7.2 register snapshot only; no Wi-Fi initialization or register writes. */
 #define WALKER_RADIO_REQUEST 0x44525057u /* WPRD */
 #define WALKER_RADIO_REPLY   0x4B525057u /* WPRK */
+#define WALKER_RESOURCE_REQUEST 0x44535057u /* WPSD */
+#define WALKER_RESOURCE_REPLY   0x4B535057u /* WPSK */
 static u32 radioIeBeforeMenu, radioImeBeforeMenu;
 static u16 radioTimersBeforeMenu[4];
+/* DMA3 control, source and destination read before IRQ masking. A zero
+ * DMA3 control does not prove the channel belongs to the bridge. */
+static u32 radioDma3BeforeMenu[3];
+
+static void walkerResourceReadOnlyDiagnostics(void) {
+    sharedAddr[0]=radioDma3BeforeMenu[0];
+    sharedAddr[1]=radioDma3BeforeMenu[1];
+    sharedAddr[2]=radioDma3BeforeMenu[2];
+    sharedAddr[3]=0u;
+    sharedAddr[4]=WALKER_RESOURCE_REPLY;
+}
 
 static void walkerRadioReadOnlyDiagnostics(void) {
     sharedAddr[0]=radioIeBeforeMenu;
@@ -123,6 +137,9 @@ void inGameMenu(void) {
     radioIeBeforeMenu=REG_IE;
     radioImeBeforeMenu=REG_IME;
     for(unsigned i=0;i<4;i++) radioTimersBeforeMenu[i]=TIMER_CR(i);
+    radioDma3BeforeMenu[0]=DMA_CR(3);
+    radioDma3BeforeMenu[1]=DMA_SRC(3);
+    radioDma3BeforeMenu[2]=DMA_DEST(3);
 #endif
 	// returnToMenu = false;
 	sharedAddr[4] = 0x554E454D; // 'MENU'
@@ -265,6 +282,9 @@ void inGameMenu(void) {
                 case WALKER_RADIO_REQUEST: // WPRD: read-only IRQ/timer snapshot
                     walkerRadioReadOnlyDiagnostics();
                     break;
+                case WALKER_RESOURCE_REQUEST: // WPSD: read-only ARM7 DMA3
+                    walkerResourceReadOnlyDiagnostics();
+                    break;
                 #endif
 				case 0x524D4152: // RAMR
 					u32* dst = (u32*)((u32)sharedAddr[0]);
@@ -310,6 +330,7 @@ void inGameMenu(void) {
                 #ifndef TWLSDK
                 && sharedAddr[4] != WALKER_DIAG_REPLY
                 && sharedAddr[4] != WALKER_RADIO_REPLY
+                && sharedAddr[4] != WALKER_RESOURCE_REPLY
                 #endif
                 && sharedAddr[4] == menuCommandSeen
             ) {

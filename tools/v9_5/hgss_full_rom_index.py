@@ -256,7 +256,7 @@ def main(argv=None):
         if spec is None or spec.loader is None: raise ValueError("V9.2 dependency missing")
         v92 = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(v92)
-        result = compare(analyze(args.heartgold,v92), analyze(args.soulsilver,v92))
+        result = compare(analyze(inputs[0], v92), analyze(inputs[1], v92))
         output = json.dumps(result,ensure_ascii=False,indent=2)+"\n"
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)

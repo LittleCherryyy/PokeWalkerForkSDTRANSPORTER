@@ -58,7 +58,7 @@ static int runUntilDone(WalkerPushStream *s,Mock *m,uint32_t seq) {
     }
     return 0;
 }
-int main(void) {
+int main(int argc, char **argv) {
     unsigned char image[WALKER_DIRECT_WALKER_SIZE];
     const char *session="0123456789abcdef0123456789abcdef";
     const char *trainer="0123456789abcdef0123456789abcdef0123";
@@ -80,6 +80,18 @@ int main(void) {
     CHECK(walkerDirectBe32(m.sent+16)==crc);
     CHECK(memcmp(m.sent+20,session,32)==0 && memcmp(m.sent+52,trainer,36)==0);
     CHECK(memcmp(m.sent+WALKER_DIRECT_HEADER_SIZE,image,sizeof(image))==0);
+
+    /* Cross-language fixture: Java Android DirectSyncProtocol.read must
+     * parse this EXACT C-produced frame, not a separately re-encoded mock.
+     * A fixture is synthetic bytes only, never a real Pokémon/save. */
+    if(argc==2) {
+        FILE *file=fopen(argv[1],"wb");
+        CHECK(file!=NULL);
+        CHECK(fwrite(m.sent,1,SIZE,file)==SIZE);
+        CHECK(fclose(file)==0);
+    } else {
+        CHECK(argc==1);
+    }
 
     makeAck(&m,session);
     m.ack[20]='f'; /* incorrect ACK session */

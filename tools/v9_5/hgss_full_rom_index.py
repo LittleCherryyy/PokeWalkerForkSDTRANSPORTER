@@ -205,14 +205,48 @@ def compare(hg, ss):
             "rom_or_save_modified": False,
             "next_gate": "Use whole-ROM index and verified ARM9/overlay analysis to narrow candidate functions; prove runtime paths before Wi-Fi."}
 
+def discover_roms(folder):
+    """Choose by Nintendo game code, never by user-supplied filename."""
+    if not folder.is_dir():
+        raise ValueError(f"ROM directory not found: {folder}")
+    found = {"IPKE": [], "IPGE": []}
+    for candidate in folder.rglob("*"):
+        if not candidate.is_file() or candidate.is_symlink():
+            continue
+        if candidate.suffix.lower() != ".nds":
+            continue
+        with candidate.open("rb") as stream:
+            prefix = stream.read(16)
+        if len(prefix) >= 16:
+            code = prefix[12:16].decode("ascii", "replace")
+            if code in found:
+                found[code].append(candidate.resolve())
+    for code, label in (("IPKE", "HeartGold"), ("IPGE", "SoulSilver")):
+        if len(found[code]) != 1:
+            filenames = ", ".join(str(x) for x in found[code]) or "none"
+            raise ValueError(f"expected exactly one {label} ({code}) .nds inside "
+                             f"{folder}; found {len(found[code])}: {filenames}")
+    return found["IPKE"][0], found["IPGE"][0]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("heartgold", type=Path)
-    parser.add_argument("soulsilver", type=Path)
+    parser.add_argument("heartgold", nargs="?", type=Path)
+    parser.add_argument("soulsilver", nargs="?", type=Path)
+    parser.add_argument("--rom-dir", type=Path,
+                        help="find HeartGold (IPKE) and SoulSilver (IPGE) automatically")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
     try:
-        inputs = [args.heartgold.resolve(), args.soulsilver.resolve()]
+        if args.rom_dir:
+            if args.heartgold or args.soulsilver:
+                raise ValueError("--rom-dir cannot be combined with positional ROMs")
+            inputs = list(discover_roms(args.rom_dir))
+            print(f"HeartGold: {inputs[0]}\nSoulSilver: {inputs[1]}", file=sys.stderr)
+        elif args.heartgold is not None and args.soulsilver is not None:
+            inputs = [args.heartgold.resolve(), args.soulsilver.resolve()]
+        else:
+            raise ValueError("provide both ROM files or use --rom-dir")
         if inputs[0] == inputs[1]: raise ValueError("need two distinct original ROMs")
         if args.output and (args.output.resolve() in inputs or
                             args.output.suffix.lower() in PROHIBITED):

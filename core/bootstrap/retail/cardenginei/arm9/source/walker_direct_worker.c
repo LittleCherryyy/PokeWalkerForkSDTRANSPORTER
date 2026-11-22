@@ -27,7 +27,7 @@ const WalkerDirectRadioOps *walkerDirectRadioBackend(void) { return 0; }
 enum { WORKER_IDLE=0, WORKER_CONNECTING=1, WORKER_SENDING=2 };
 static unsigned workerStage;
 static unsigned workerBusy;
-static WalkerPushStream stream;
+/* Checkout stream resides in WalkerControl's dedicated reserved control page. */
 static const WalkerDirectRadioOps *radio;
 static WalkerControl *owner;
 #define WALKER_CONNECT_TIMEOUT_FRAMES 600u  /* about 10 seconds */
@@ -163,7 +163,7 @@ void walkerDirectArm9Tick(void) {
             workerBusy=0;
             return;
         }
-        if(walkerPushBegin(&stream,(const unsigned char *)c->eeprom,
+        if(walkerPushBegin(&c->directPushStream,(const unsigned char *)c->eeprom,
                 c->writeSeq,c->direct.crc32,
                 c->direct.session,c->direct.trainer)<0) {
             c->direct.error=WALKER_DIRECT_ERR_PROTOCOL;
@@ -188,9 +188,9 @@ void walkerDirectArm9Tick(void) {
             workerStage=WORKER_SENDING;
         }
     } else if(workerStage==WORKER_SENDING) {
-        const u32 before=stream.sentHeader+stream.sentData+stream.receivedAck;
-        const int result=walkerPushStep(&stream,&io,0,c->writeSeq);
-        const u32 after=stream.sentHeader+stream.sentData+stream.receivedAck;
+        const u32 before=c->directPushStream.sentHeader+c->directPushStream.sentData+c->directPushStream.receivedAck;
+        const int result=walkerPushStep(&c->directPushStream,&io,0,c->writeSeq);
+        const u32 after=c->directPushStream.sentHeader+c->directPushStream.sentData+c->directPushStream.receivedAck;
         if(after!=before) c->direct.lastProgress=workerVblankNow();
         if(result<0 || (result==0 && workerTimedOut(workerVblankNow(),
                  c->direct.lastProgress,WALKER_IO_TIMEOUT_FRAMES))) retry(c);

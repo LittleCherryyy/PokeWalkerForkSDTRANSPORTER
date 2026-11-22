@@ -84,3 +84,31 @@ int walkerArm9ThreadAvailabilityRaw(uint32_t *out) {
     return 1;
 #endif
 }
+
+/* V8.6 — opt-in, read-only fixed RAM word probe.
+ * Both words are in the NTR main RAM region and correspond to original
+ * static HGSS US Rev0 one-step references, identical in HG/SS:
+ *
+ * 021E16A4 = 021E16A0 + 4  (20 static read xrefs)
+ * 021E16A8 = 021E16A0 + 8  (4 static read xrefs)
+ *          = 021E167C +44  (1 static read + 3 writes)
+ *
+ * Their actual types and runtime owners are UNKNOWN.  Never follow the
+ * sampled values as pointers or infer active threads from their values.
+ * The exact V8.3 OS_IsThreadAvailable original code gate is mandatory.
+ */
+int walkerArm9ThreadAliasWords(uint32_t out[2]) {
+    if (!out) return 0;
+    out[0]=0u;
+    out[1]=0u;
+#if defined(B4DS) || defined(TWLSDK)
+    return 0;
+#else
+    uint32_t enabled=0u;
+    if (!walkerArm9ThreadAvailabilityRaw(&enabled) || enabled!=1u)
+        return 0;
+    out[0]=*(const volatile uint32_t *)(uintptr_t)0x021E16A4u;
+    out[1]=*(const volatile uint32_t *)(uintptr_t)0x021E16A8u;
+    return 1;
+#endif
+}

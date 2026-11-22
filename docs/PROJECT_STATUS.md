@@ -84,6 +84,48 @@ The Android half of the real payload flow is already present in
 The DSi Wi-Fi radio/socket backend is **not** implemented/validated; do
 not distribute a build presented as capable of this transfer until it is.
 
+### Implementation progress — real checkout path (2026-11-22)
+
+Source changes are committed to this branch, but there is **not yet
+a deployable direct-to-phone DSi build**:
+
+- `retail/pokewalker/walker.c` now marks a checkout STARTED only for
+  original HGSS `CMD_WALK_START_INIT/CMD_WALK_START` and COMPLETE only
+  after `CMD_CONNECT_COMPLETE`. Aborted sessions and returns clear
+  incomplete checkout markers.
+- `retail/common/include/walker_emu.h` appends the marker to the
+  shared control structure without moving previous offsets.
+- `retail/cardenginei/arm7/source/walker_direct_bridge.c` only offers
+  an outgoing EEPROM after that COMPLETE marker and verified durable
+  SD write, including the edge case of SD flush preceding the final
+  IR message. The ARM7 VBlank coordinator no longer contains phantom
+  socket callbacks. It must remain SD-only.
+- `retail/transport/walker_push_stream.{h,c}` is a bounded nonblocking
+  **real 65536-byte PUSH_TO_PHONE frame** serializer: sends the 88-byte
+  PWDSI001 header, the entire committed EEPROM, and validates Android's
+  session-bound OP_OK response. It fails on partial/invalid ACKs and
+  detects EEPROM write-sequence changes. The transport is intentionally
+  **not yet attached** to live sockets or a scheduling site; it is
+  independent portable C ready for that integration.
+- Android `DirectSyncService.java` now refuses an uploaded EEPROM
+  without a Pokémon. `WalkerStore.java` persists the original inbound
+  checkout CRC so a retry after lost TCP ACK can be recognized without
+  importing the Pokémon twice, even if Android has already added steps.
+- Portable internal regression tests (no ROM/save) are in
+  `core/tools/test_walker_push_stream.c` and
+  `core/tools/DirectSyncWireContractTest.java`, with CI workflow
+  `.github/workflows/directsync-wire.yml`. These validate framing
+  logic, **not** console networking or game-save behavior.
+
+**Before any DSi test:** implement and link a verified resident Wi-Fi
+association/TCP backend for physical DSi DS-mode HGSS, identify a safe
+regular non-IRQ ARM9 worker, wire its socket write/read to
+`walkerPushStep` and to the bridge state machine, compile with the
+proper devkitARM toolchain and verify linker memory limits. Also
+verify that the console save and local walker file remain recoverable
+across real transfers. A source-only or CI-pass result is not a
+successful Pokémon transfer.
+
 **Immediate blocker:** Identify a safe ARM7/ARM9 Wi-Fi backend that remains
 available while HGSS executes in DS mode. The WCM/SOCL resolver and network
 callbacks are not implemented/verified, so the phone cannot yet receive
@@ -92,7 +134,7 @@ in-game events. GDB static/CPU scheduling probes do not replace this gate.
 Future work should be measured against this acceptance sequence rather than
 issuing new emulator trace versions without direct relevance.
 
-## Next milestone: V7.1
+## Historical V7.1 research milestones (not user-facing transfer tests)
 
 1. Identify safe networking function entry points and ABI for the target HGSS revision.
 2. Implement nonblocking, cancellable communication or an equivalent safe transport.

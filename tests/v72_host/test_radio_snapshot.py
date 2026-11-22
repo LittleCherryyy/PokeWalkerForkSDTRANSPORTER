@@ -48,7 +48,7 @@ class RadioSnapshotTests(unittest.TestCase):
         self.assertIn("Captured before menu pause",a9)
         self.assertIn("IRQ ownership NOT verified",a9)
         self.assertIn("Wi-Fi: NOT ENABLED",a9)
-        self.assertIn("VIRTUAL POKEWALKER V7.2.5",a9)
+        self.assertIn("VIRTUAL POKEWALKER V7.2.6",a9)
 
 if __name__=="__main__":
     unittest.main()

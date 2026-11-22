@@ -192,6 +192,14 @@ gen5SaveCluster: .word 0
 gen5RomSize: .word 0
 .global walkerBootStatus
 walkerBootStatus: .word 0
+.global walkerIrqTableAddress
+.global walkerIrqImageStart
+.global walkerIrqImageSize
+.global walkerIrqTableMethod
+walkerIrqTableAddress: .word 0
+walkerIrqImageStart: .word 0
+walkerIrqImageSize: .word 0
+walkerIrqTableMethod: .word 0
 .align 4
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

@@ -548,7 +548,7 @@ static void virtualPokewalkerMenu(void) {
     #endif
 
     clearScreen(false);
-    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.1.4", FONT_LIME, false);
+    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.1.5", FONT_LIME, false);
     print(1, 3, (const unsigned char *)"HeartGold / SoulSilver", FONT_WHITE, false);
     print(1, 5, (const unsigned char *)"Android TCP: 30821", FONT_WHITE, false);
     if(!answered) {
@@ -575,6 +575,8 @@ static void virtualPokewalkerMenu(void) {
         printHex(15,9,diag[3]&0xFFu,1,FONT_LIGHT_BLUE,false);
         print(1, 11, walkerBootReason(diag[3]), FONT_LIGHT_BLUE, false);
         print(1, 13, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
+        if(diag[3] == 3u || diag[3] == 1u)
+            print(1, 15, (const unsigned char *)"Check Walker error log", FONT_LIGHT_BLUE, false);
     } else {
         print(1, 7, (const unsigned char *)"Missing net APIs: 0x", FONT_WHITE, false);
         printHex(21,7,diag[1]&0x1FFFu,2,FONT_RED,false);

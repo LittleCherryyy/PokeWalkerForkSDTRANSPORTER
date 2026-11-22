@@ -121,3 +121,19 @@ without modifying the ROM file, save file, Android application, or the
 This is **not yet a compiled or hardware-tested menu**. Do not distribute
 new `.nds` loader builds from this branch until the legacy SDK build is
 verified and the IGM on a disposable-save DSi has been exercised.
+
+## Experimental cross-compile CI
+
+`.github/workflows/v71-dsi-cross-compile.yml` now attempts a targeted
+`cardenginei_arm7` and `cardenginei_arm9_igm` build with the documented
+legacy devkitPro container, separated from SDK-free host tests. It **does not**
+create or upload an `.nds` release.
+
+This workflow is an *attempt to validate cross-compilation*, not proof of
+success. A green host test does not imply that the cross-compile job ran;
+review the `V7.1 experimental DSi NTR cross-compile` workflow separately.
+If the image/toolchain is unavailable or the build fails, report the exact
+error rather than distributing generated files.
+
+Future acceptance requires confirmed targeted and full bootstrap build logs,
+plus a physical DSi menu test with disposable saves.

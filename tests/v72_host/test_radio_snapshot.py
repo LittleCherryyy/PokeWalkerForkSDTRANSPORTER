@@ -33,7 +33,7 @@ class RadioSnapshotTests(unittest.TestCase):
         self.assertIn("sharedAddr[4]=WALKER_RADIO_REPLY;",m)
         self.assertIn("radioIeBeforeMenu",m)
         self.assertIn("radioTimersBeforeMenu",m)
-        self.assertNotRegex(m,r"Wifi_|Wcm|SOCL|socket\\(")
+        self.assertNotRegex(m,r"Wifi_|Wcm|SOCL|socket\(")
         self.assertIn("case WALKER_RADIO_REQUEST:",s)
         self.assertIn("&& sharedAddr[4] != WALKER_RADIO_REPLY",s)
 

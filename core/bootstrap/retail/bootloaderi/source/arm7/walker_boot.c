@@ -17,6 +17,7 @@
 #include "tonccpy.h"
 #include "nds_header.h"
 #include "cardengine_header_arm7.h"
+#include "cardengine_header_arm9.h"
 #include "walker_emu.h"
 #include "walker_payload.h"
 
@@ -113,7 +114,11 @@ void walkerBoot(cardengineArm7 *ce7, const tNDSHeader *ndsHeader) {
 	getStatus[0] = 0xE3A000AA;
 	getStatus[1] = 0xE12FFF1E;
 
-	/* Expose the control block only when the IR hook has been installed. */
+	/* Expose the SAME validated control block to both resident CPUs only
+	 * after all HGSS IR hooks have been successfully installed. Without
+	 * this assignment ce9->walkerControl remains zero, so no ARM9 direct
+	 * transport can ever see a pending real Pokémon checkout. */
 	ce7->walkerControl = (u32)c;
+	((cardengineArm9 *)CARDENGINEI_ARM9_LOCATION)->walkerControl = (u32)c;
 	ce7->walkerBootStatus = WALKER_BOOT_INSTALLED;
 }

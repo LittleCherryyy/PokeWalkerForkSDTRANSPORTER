@@ -37,16 +37,16 @@ typedef struct WalkerDirectHeader {
 
 typedef char walker_direct_header_size[(sizeof(WalkerDirectHeader)==WALKER_DIRECT_HEADER_SIZE)?1:-1];
 
-static unsigned walkerDirectBe16(const unsigned char p[2]) {
+static inline unsigned walkerDirectBe16(const unsigned char p[2]) {
     return ((unsigned)p[0]<<8)|p[1];
 }
-static unsigned walkerDirectBe32(const unsigned char p[4]) {
+static inline unsigned walkerDirectBe32(const unsigned char p[4]) {
     return ((unsigned)p[0]<<24)|((unsigned)p[1]<<16)|((unsigned)p[2]<<8)|p[3];
 }
-static void walkerDirectPut16(unsigned char p[2],unsigned value) {
+static inline void walkerDirectPut16(unsigned char p[2],unsigned value) {
     p[0]=(unsigned char)(value>>8);p[1]=(unsigned char)value;
 }
-static void walkerDirectPut32(unsigned char p[4],unsigned value) {
+static inline void walkerDirectPut32(unsigned char p[4],unsigned value) {
     p[0]=(unsigned char)(value>>24);p[1]=(unsigned char)(value>>16);p[2]=(unsigned char)(value>>8);p[3]=(unsigned char)value;
 }
 #endif

@@ -18,7 +18,8 @@ enum {
     WALKER_PING_RECEIVING = 3,
     WALKER_PING_OK = 4,
     WALKER_PING_FAILED = 5,
-    WALKER_PING_TIMEOUT = 6
+    WALKER_PING_TIMEOUT = 6,
+    WALKER_PING_CLOSING = 7
 };
 
 /* Each callback MUST be nonblocking and perform bounded work.
@@ -43,6 +44,7 @@ typedef struct WalkerPingFlow {
     unsigned state;
     unsigned ticks;
     unsigned tickLimit;
+    unsigned finalState;
     unsigned sent;
     unsigned received;
     unsigned char request[WALKER_DIRECT_HEADER_SIZE];

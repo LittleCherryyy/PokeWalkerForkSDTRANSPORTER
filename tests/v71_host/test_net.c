@@ -19,6 +19,20 @@ static void test_layout(void) {
     assert(sizeof(WalkerDirectHeader) == 88u);
 }
 
+static void test_dsi_control_address_ranges(void) {
+    /* A DSi HGSS ROM cache can place the control at ~0x0CFDC000.
+     * Prior diagnostics incorrectly rejected this valid region. */
+    assert(walkerControlAddressReadable(0x02000000u));
+    assert(walkerControlAddressReadable(0x023FF000u));
+    assert(walkerControlAddressReadable(0x0CFDC000u));
+    assert(walkerControlAddressReadable(0x0CFE0000u));
+    assert(!walkerControlAddressReadable(0u));
+    assert(!walkerControlAddressReadable(0x0CFDC001u));
+    assert(!walkerControlAddressReadable(0x02400000u));
+    assert(!walkerControlAddressReadable(0x0D000000u));
+    assert(!walkerControlAddressReadable(0xFFFFFFFFu));
+}
+
 static void test_invalid_inputs(void) {
     u32 arm9[1024] = {0};
     WalkerHgssNetApi n;
@@ -76,6 +90,7 @@ static void test_mask_individual_slots(void) {
 
 int main(void) {
     test_layout();
+    test_dsi_control_address_ranges();
     test_invalid_inputs();
     test_title_gates();
     test_mask_individual_slots();

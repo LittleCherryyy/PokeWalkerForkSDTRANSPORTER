@@ -16,7 +16,10 @@ class BootOutcomeTests(unittest.TestCase):
         self.assertIn("u32 gen5RomSize;\n\t/* V7.1.3:", header)
         self.assertIn("u32 walkerBootStatus;", header)
         self.assertIn("u32 walkerIrqTableMethod;", header)
-        self.assertIn("u32 walkerIrqBootInstalledIpc;\n} cardengineArm7;", header)
+        self.assertIn("u32 walkerDirectLockCluster;", header)
+        self.assertLess(header.index("u32 walkerIrqBootInstalledIpc;"),
+                        header.index("u32 walkerDirectLockCluster;"))
+        self.assertRegex(header, r"u32 walkerDirectLockCluster;\s*}\s*cardengineArm7;")
         self.assertLess(header.index("u32 walkerIrqTableMethod;"),
                         header.index("u32 walkerIrqBootOriginalVblank;"))
         self.assertRegex(asm, r"gen5RomSize: \.word 0\n\.global walkerBootStatus\nwalkerBootStatus: \.word 0")

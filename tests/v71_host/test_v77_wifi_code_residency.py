@@ -51,7 +51,7 @@ class ResidentCodeSignatureContracts(unittest.TestCase):
         snippet=src[start:end]
         self.assertIn("walkerWifiCheckStaticCode();",snippet)
         self.assertIn("Wi-Fi: NOT ENABLED",snippet)
-        self.assertIn("Not network/ABI proof",snippet)
+        self.assertIn("No Wi-Fi/ABI proof",snippet)
         self.assertNotIn("REG_IE =",snippet)
         self.assertNotIn("walkerWrite(",snippet)
         self.assertIn("L: ARM9 Wi-Fi code audit",src)

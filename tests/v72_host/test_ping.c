@@ -90,6 +90,18 @@ static void test_timeouts_and_bad_io(void) {
     assert(walkerPingStep(&p,&io,1)==WALKER_PING_FAILED);
     assert(p.error==WALKER_PING_ERROR_RECV);
 }
+static void test_cancel(void) {
+    Mock m;setup(&m);
+    WalkerPing p;WalkerPingIo io=makeIo(&m);
+    walkerPingStart(&p,0,60);
+    walkerPingStep(&p,&io,0);
+    assert(m.txOffset>0 && p.state==WALKER_PING_SENDING);
+    walkerPingCancel(&p);
+    assert(p.state==WALKER_PING_IDLE && p.sent==0 && p.received==0);
+    unsigned calls=m.callbackCount;
+    assert(walkerPingStep(&p,&io,1)==WALKER_PING_IDLE);
+    assert(m.callbackCount==calls);
+}
 static void test_frame_wrap(void) {
     Mock m;setup(&m);m.chunks=88;
     WalkerPing p;WalkerPingIo io=makeIo(&m);
@@ -109,6 +121,7 @@ int main(void) {
     test_reply_rejected(52,1);  /* unexpected trainer */
     test_timeouts_and_bad_io();
     test_frame_wrap();
+    test_cancel();
     puts("PASS V7.2 PING: fragmentation, would-block, reply checks, bounded timeouts, u32-wrap");
     return 0;
 }

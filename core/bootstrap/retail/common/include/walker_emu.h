@@ -74,7 +74,7 @@ typedef struct WalkerHgssNetApi {
     unsigned int ready;
     unsigned int wcmInit;
     unsigned int wcmStartupAsync;
-    unsigned int wcmBeginSearchAsync;
+    unsigned int wcmSearchAsync;
     unsigned int wcmEndSearchAsync;
     unsigned int wcmConnectAsync;
     unsigned int wcmDisconnectAsync;

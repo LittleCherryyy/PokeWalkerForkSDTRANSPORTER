@@ -27,3 +27,6 @@ with tempfile.TemporaryDirectory(prefix="walker_v71_") as tmp:
     print("Compiling V7.1 SDK-free host checks...", flush=True)
     subprocess.run(cmd, check=True)
     subprocess.run([str(exe)], check=True)
+    print("Running synthetic NDS header identity checks...", flush=True)
+    subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", str(testdir),
+                    "-p", "test_identity.py"], check=True)

@@ -155,6 +155,9 @@ typedef struct cardengineArm7 {
 	u32 walkerIrqBootOriginalIpc;
 	u32 walkerIrqBootInstalledVblank;
 	u32 walkerIrqBootInstalledIpc;
+    /* Append-only: preallocated <save>.walker.directlock FAT cluster.
+     * Zero for games and platforms without direct DSi checkout. */
+    u32 walkerDirectLockCluster;
 } cardengineArm7;
 
 //

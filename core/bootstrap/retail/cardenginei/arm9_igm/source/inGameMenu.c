@@ -967,8 +967,6 @@ static void walkerArm9WifiCodeMenu(void) {
     print(1,15,(const unsigned char*)"ARM prologues:",FONT_WHITE,false);
     printDec(17,15,good,1,FONT_LIGHT_BLUE,false);
     print(18,15,(const unsigned char*)"/5",FONT_LIGHT_BLUE,false);
-    print(1,17,(const unsigned char*)"CRC32: compare with PC",FONT_LIGHT_GRAY,false);
-    print(1,18,(const unsigned char*)"No Wi-Fi/ABI proof",FONT_LIGHT_GRAY,false);
     print(1,20,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);
     print(1,22,(const unsigned char*)"B: Back",FONT_WHITE,false);
     do {

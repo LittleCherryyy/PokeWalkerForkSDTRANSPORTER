@@ -113,6 +113,30 @@ class WifiCallsiteTests(unittest.TestCase):
                 self.assertEqual(len(img),16)
                 self.assertFalse(details["packed"])
 
+    def test_cross_game_comparison_preserves_fail_closed_gate(self):
+        def fixture(code, offset):
+            return {
+                "game_code":code, "arm9_static_bytes":1122040,
+                "callsites":[{
+                    "name":name,
+                    "caller_address":f"0x{address:08X}",
+                    "decoded_immediate_target":f"0x{0x02050000 + i*4 + offset:08X}",
+                    "target_region":"ARM9 static executable range (not ABI-verified)",
+                } for i, (name, ov, mode, address, neighbor) in enumerate(mod.SITES)],
+            }
+        hg=fixture("IPKE",0)
+        ss=fixture("IPGE",0)
+        paired=mod.compare_reports(hg,ss)
+        self.assertEqual(paired["total_sites"],5)
+        self.assertEqual(paired["same_targets"],5)
+        self.assertFalse(paired["wifi_abi_verified"])
+        self.assertFalse(paired["function_execution_allowed"])
+        ss["callsites"][1]["decoded_immediate_target"]="0x02060000"
+        paired=mod.compare_reports(hg,ss)
+        self.assertEqual(paired["same_targets"],4)
+        with self.assertRaisesRegex(mod.CallsiteError,"one original US"):
+            mod.compare_reports(hg,hg)
+
     def test_output_same_as_source_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
             p=Path(tmp)/"rom.nds"

@@ -39,7 +39,7 @@ jobs:
           /opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc --version | head -1
           test -d /opt/devkitpro/libnds/include
           apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends gcc
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends build-essential
           gcc -O2 core/bootstrap/lzss.c -o /tmp/lzss
           export PATH="/tmp:$PATH"
           make -C core/bootstrap/retail/bootloaderi -j2

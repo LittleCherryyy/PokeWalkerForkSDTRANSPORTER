@@ -531,10 +531,8 @@ static WalkerArm9Snapshot walkerArm9PreWrapper = {0,0,0,0};
  * entry before the existing ROM-read code performs critical sections.
  */
 static void walkerArm9PreWrapperMenu(void) {
-    u32 schedulerWord=0u;
-    const bool guarded=walkerArm9ThreadAvailabilityRaw(&schedulerWord)!=0;
     clearScreen(false);
-    print(1,1,(const unsigned char*)"V8.3 ARM9 THREAD FLAG",FONT_LIME,false);
+    print(1,1,(const unsigned char*)"V7.9 ARM9 DEFERRED",FONT_LIME,false);
     if(walkerArm9PreWrapper.magic == WALKER_ARM9_SNAPSHOT_MAGIC) {
         print(1,4,(const unsigned char*)"ROM reads:0x",FONT_WHITE,false);
         printHex(13,4,walkerArm9PreWrapper.romReadCalls,4,FONT_LIGHT_BLUE,false);
@@ -545,13 +543,7 @@ static void walkerArm9PreWrapperMenu(void) {
     } else {
         print(1,6,(const unsigned char*)"ARM9 snapshot unavailable",FONT_RED,false);
     }
-    if (guarded) {
-        print(1,13,(const unsigned char*)"OS raw:0x",FONT_WHITE,false);
-        printHex(10,13,schedulerWord,4,FONT_LIGHT_BLUE,false);
-    } else {
-        print(1,13,(const unsigned char*)"OS guard mismatch",FONT_RED,false);
-    }
-    print(1,17,(const unsigned char*)"Read only, not ABI proof",FONT_LIGHT_GRAY,false);
+    print(1,17,(const unsigned char*)"0 idle 1 queued 2 done",FONT_LIGHT_GRAY,false);
     print(1,19,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);
     print(1,21,(const unsigned char*)"B: Back",FONT_WHITE,false);
     waitKeys(KEY_B);
@@ -947,42 +939,30 @@ static void walkerIrqTableMenu(void) {
  * not Wi-Fi/ABI proof. No WCM/SOC calls, IRQ or save writes.
  */
 #ifndef B4DS
+/* V8.3 replaces the already-validated V7.7 CRC menu with a small,
+ * guarded OS_IsThreadAvailable return-word reader. Earlier CRC helper
+ * and prior test builds remain preserved in source/history.
+ * No scheduler/WM call, no IRQ writes, no save/ROM modifications. */
 static void walkerArm9WifiCodeMenu(void) {
-    u32 crc[WALKER_WIFI_SIG_COUNT]={0,0,0,0,0};
-    const u32 mask = walkerWifiCheckStaticCode(crc);
-    const unsigned char* names[WALKER_WIFI_SIG_COUNT] = {
-        (const unsigned char*)"WCM_Init",
-        (const unsigned char*)"WCM_Startup",
-        (const unsigned char*)"WCM_GetPhase",
-        (const unsigned char*)"SOC_Socket",
-        (const unsigned char*)"SOC_Connect"
-    };
+    u32 raw=0u;
+    const bool ok=walkerArm9ThreadAvailabilityRaw(&raw)!=0;
     clearScreen(false);
-    print(1,1,(const unsigned char*)"V7.7 ARM9 LIVE CRC",FONT_LIME,false);
-    unsigned good=0;
-    for (unsigned i=0; i<WALKER_WIFI_SIG_COUNT; i++) {
-        const int row = 4 + 2 * i;
-        print(1,row,names[i],FONT_WHITE,false);
-        printHex(16,row,crc[i],4,FONT_LIGHT_BLUE,false);
-        if (mask & (1u<<i)) good++;
-        print(26,row,(const unsigned char*)((mask & (1u<<i)) ?
-              "PRO" : "?"),(mask & (1u<<i))?FONT_LIME:FONT_RED,false);
-    }
-    print(1,15,(const unsigned char*)"ARM prologues:",FONT_WHITE,false);
-    printDec(17,15,good,1,FONT_LIGHT_BLUE,false);
-    print(18,15,(const unsigned char*)"/5",FONT_LIGHT_BLUE,false);
-    print(1,20,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);
-    print(1,22,(const unsigned char*)"B: Back",FONT_WHITE,false);
-    do {
-        while(REG_VCOUNT != 191) mySwiDelay(100);
-        while(REG_VCOUNT == 191) mySwiDelay(100);
-    } while(KEYS & KEY_L);
+    print(1,1,(const unsigned char*)"V8.3 ARM9 OS FLAG",FONT_LIME,false);
+    print(1,5,(const unsigned char*)(ok ?
+         "OS raw value:0x" : "OS opcode guard FAILED"),
+          ok ? FONT_WHITE : FONT_RED,false);
+    if (ok)
+        printHex(17,5,raw,4,FONT_LIGHT_BLUE,false);
+    print(1,11,(const unsigned char*)"No thread API called",FONT_LIGHT_GRAY,false);
+    print(1,19,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,21,(const unsigned char*)"B: Back",FONT_WHITE,false);
     waitKeys(KEY_B);
     do {
-        while(REG_VCOUNT != 191) mySwiDelay(100);
-        while(REG_VCOUNT == 191) mySwiDelay(100);
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
     } while(KEYS & KEY_B);
 }
+
 #endif
 
 static void virtualPokewalkerMenu(void) {
@@ -1067,7 +1047,7 @@ static void virtualPokewalkerMenu(void) {
     print(1, 18, (const unsigned char *)"X: ARM7 IRQ/timer snapshot", FONT_WHITE, false);
     print(1, 19, (const unsigned char *)"Y: ARM7 boot IRQ table", FONT_WHITE, false);
 #ifndef B4DS
-    print(1, 20, (const unsigned char *)"L: ARM9 Wi-Fi code audit", FONT_WHITE, false);
+    print(1, 20, (const unsigned char *)"L: ARM9 OS raw status", FONT_WHITE, false);
     print(1, 22, (const unsigned char *)"R: ARM9 task context", FONT_WHITE, false);
 #endif
     print(1, 21, (const unsigned char *)"B: Back to menu", FONT_WHITE, false);

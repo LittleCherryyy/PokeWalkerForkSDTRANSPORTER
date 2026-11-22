@@ -50,3 +50,11 @@ Both functions use the common `walker_ping_only.h` framing implementation. Nativ
 **Crucial distinction:** this is only a protocol primitive *linked into* the DSi cardengine; neither function is currently invoked from a runtime network path. There is still no resident Wi-Fi initialization, TCP handshake, or PING sent while HGSS runs. The unsigned WCM/SOCL pointers remain zero and transactions PUSH/PULL/CONFIRM remain disabled. It is not a testable HGSS transfer release.
 
 The Android home-screen widget and skins remain separate tracked work and should be included in future APK updates without discarding upstream attribution.
+
+### Resident cardengine symbol/linker validation
+
+Added a CI symbol check using `arm-none-eabi-nm` on the primary DSi `cardenginei_arm9.elf`: it must contain both `walkerV71MakePing` and `walkerV71CheckPingOk` rather than merely accepting source files in the tree.
+
+A complete build exposed a `.bss` overflow in `cardenginei_arm9_dldi` after introducing this helper; the runtime source is now conditioned on `!DLDI && !GSDD && !TWLSDK`, so that alternative cardengines do not import the experimental path or have their fixed memory limits expanded. Recheck whole-build CI before treating the change as verified.
+
+The PING-only helper remains uncalled by any Wi-Fi backend; no new in-game functionality has been shown on hardware.

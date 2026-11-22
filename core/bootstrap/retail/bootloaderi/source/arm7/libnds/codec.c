@@ -71,12 +71,7 @@ static void bankSwitchTSC(u8 bank) {
 }
 
 //---------------------------------------------------------------------------------
-/* V7.1 compatibility: retain the original SPI implementation and bank
- * semantics, but give it private bootloader-specific symbols. Newer Calico
- * declares cdcReadReg(CdcPage,unsigned int), and cdcWriteReg returns bool:
- * exporting the old incompatible signatures under those names is unsafe.
- * Original implementation by fincs; copyright and license preserved above. */
-u8 walkerLegacyCdcReadReg(u8 bank, u8 reg) {
+u8 cdcReadReg(u8 bank, u8 reg) {
 //---------------------------------------------------------------------------------
 
 	bankSwitchTSC(bank);
@@ -84,7 +79,7 @@ u8 walkerLegacyCdcReadReg(u8 bank, u8 reg) {
 }
 
 //---------------------------------------------------------------------------------
-void walkerLegacyCdcWriteReg(u8 bank, u8 reg, u8 value) {
+void cdcWriteReg(u8 bank, u8 reg, u8 value) {
 //---------------------------------------------------------------------------------
 
 	bankSwitchTSC(bank);

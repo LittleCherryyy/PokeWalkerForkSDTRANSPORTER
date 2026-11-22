@@ -26,6 +26,11 @@ uint32_t walkerWifiPreflight(const WalkerWifiPreflight *s) {
         blocked |= WALKER_WIFI_BLOCK_DMA3_OWNER;
     if (!s->arm7WifiIrqChainingVerified)
         blocked |= WALKER_WIFI_BLOCK_IRQ_WIFI;
+    /* Structural table size proof must precede any IRQ_WIFI installation.
+     * Even an in-image 25-slot range does not prove handler ownership. */
+    if (walkerWifiIrqInspect(&s->irqLayout) !=
+            WALKER_WIFI_IRQ_INLINE_25_SLOTS_WITHIN_IMAGE)
+        blocked |= WALKER_WIFI_BLOCK_IRQ_TABLE_UNVERIFIED;
     if (!s->arm7WifiServiceVerified)
         blocked |= WALKER_WIFI_BLOCK_ARM7_SERVICE;
     if (!s->arm9CooperativeWorkerVerified)

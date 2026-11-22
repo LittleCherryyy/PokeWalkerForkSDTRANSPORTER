@@ -687,6 +687,74 @@ static void walkerRadioSnapshotMenu(void) {
     }
 }
 
+/* V7.2.5: obtain the REAL bootloaderi IRQ-table location selected at
+ * HGSS startup. Never dereference a table entry here, especially slot 24.
+ * Only four boot metadata words cross the already-tested bounded IPC. */
+static void walkerIrqTableMenu(void) {
+    u32 record[4]={0,0,0,0};
+    bool answered=false;
+#ifndef B4DS
+    sharedAddr[4]=0x51545057u; /* WPTQ */
+    for(unsigned frame=0;frame<90;frame++) {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+        const u32 response=sharedAddr[4];
+        if(response==0x4B545057u) { /* WPTK */
+            for(unsigned i=0;i<4;i++)record[i]=sharedAddr[i];
+            answered=true;
+            break;
+        }
+        if(response==WALKER_DIAG_MENU)
+            sharedAddr[4]=0x51545057u;
+        else if(response!=0x51545057u)
+            break;
+    }
+    if(sharedAddr[4]==0x51545057u || sharedAddr[4]==0x4B545057u)
+        sharedAddr[4]=WALKER_DIAG_MENU;
+#endif
+    clearScreen(false);
+    print(1,1,(const unsigned char *)"V7.2.5 ARM7 BOOT IRQ MAP",FONT_LIME,false);
+    if(!answered) {
+        print(1,4,(const unsigned char *)"ARM7: no table report",FONT_RED,false);
+    } else {
+        print(1,4,(const unsigned char *)"IRQ table: 0x",FONT_WHITE,false);
+        printHex(15,4,record[0],4,FONT_LIGHT_BLUE,false);
+        print(1,6,(const unsigned char *)"ARM7 image:0x",FONT_WHITE,false);
+        printHex(15,6,record[1],4,FONT_LIGHT_BLUE,false);
+        print(1,8,(const unsigned char *)"Image bytes:0x",FONT_WHITE,false);
+        printHex(15,8,record[2],4,FONT_LIGHT_BLUE,false);
+        print(1,10,(const unsigned char *)"Method:",FONT_WHITE,false);
+        const unsigned char *method =
+            record[3]==1u?(const unsigned char *)"Cached IRQ location" :
+            record[3]==2u?(const unsigned char *)"SDK-known location" :
+            record[3]==3u?(const unsigned char *)"Marker scan" :
+            record[3]==4u?(const unsigned char *)"Relative IRQ literal" :
+                           (const unsigned char *)"Unknown / no location";
+        print(1,12,method,FONT_LIGHT_BLUE,false);
+        /* Arithmetic-only footprint test. The source method, writable
+         * extent, interrupt chaining and actual Wi-Fi IRQ owner are
+         * still NOT verified. Never touch record[0] as a pointer. */
+        bool inImage = record[0]>=record[1] &&
+                       record[2]>=100u &&
+                       record[0]-record[1]<=record[2]-100u &&
+                       (record[0]&3u)==0u;
+        print(1,15,(const unsigned char *)(inImage ?
+            "25 slots fit image" : "25 slots NOT proven"),FONT_LIGHT_GRAY,false);
+    }
+    print(1,17,(const unsigned char *)"No IRQ handler modified",FONT_WHITE,false);
+    print(1,19,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,21,(const unsigned char *)"B: Back to menu",FONT_WHITE,false);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_Y);
+    waitKeys(KEY_B);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_B);
+}
+
 static void virtualPokewalkerMenu(void) {
     u32 diag[4]={0,0,0,0};
     bool answered=false;
@@ -723,7 +791,7 @@ static void virtualPokewalkerMenu(void) {
     #endif
 
     clearScreen(false);
-    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.2.2", FONT_LIME, false);
+    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.2.5", FONT_LIME, false);
     print(1, 3, (const unsigned char *)"HeartGold / SoulSilver", FONT_WHITE, false);
     print(1, 5, (const unsigned char *)"Android TCP: 30821", FONT_WHITE, false);
     if(!answered) {
@@ -767,22 +835,26 @@ static void virtualPokewalkerMenu(void) {
         print(1, 16, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
     }
     print(1, 18, (const unsigned char *)"X: ARM7 IRQ/timer snapshot", FONT_WHITE, false);
-    print(1, 19, (const unsigned char *)"Read-only diagnostics", FONT_LIGHT_GRAY, false);
-    print(1, 20, (const unsigned char *)"B: Back to menu", FONT_WHITE, false);
+    print(1, 19, (const unsigned char *)"Y: ARM7 boot IRQ table", FONT_WHITE, false);
+    print(1, 21, (const unsigned char *)"B: Back to menu", FONT_WHITE, false);
     /* Wait for initial A release, then accept X (snapshot) or B. */
     do {
         while(REG_VCOUNT!=191) mySwiDelay(100);
         while(REG_VCOUNT==191) mySwiDelay(100);
     } while(KEYS & KEY_A);
     bool showRadio=false;
+    bool showTable=false;
     while(1) {
         while(REG_VCOUNT!=191) mySwiDelay(100);
         while(REG_VCOUNT==191) mySwiDelay(100);
         if(KEYS & KEY_B) break;
         if(KEYS & KEY_X){showRadio=true;break;}
+        if(KEYS & KEY_Y){showTable=true;break;}
     }
     if(showRadio) {
         walkerRadioSnapshotMenu();
+    } else if(showTable) {
+        walkerIrqTableMenu();
     } else {
         do {
             while(REG_VCOUNT!=191) mySwiDelay(100);

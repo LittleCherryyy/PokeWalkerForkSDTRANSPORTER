@@ -28,6 +28,8 @@ on:
       - 'tests/v71_host/**'
       - 'tests/v72_host/**'
       - 'tools/v7_1/identify_hgss_nds.py'
+      - 'tools/v7_3/**'
+      - 'tools/v7_4/**'
   pull_request:
     paths:
       - '.github/workflows/v71-host-check.yml'
@@ -60,6 +62,17 @@ jobs:
         uses: actions/checkout@v4
       - name: Compile and execute host checks (no ROM/SDK)
         run: python3 tests/v71_host/run.py
+      - name: Package Windows V7.4 HGSS ARM9 audit after tests pass
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V7_4-ROM-ARM9-offline-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_4/TESTAR_ARM9_WIFI.bat
+            tools/v7_4/README.md
+          if-no-files-found: error
+          retention-days: 7
       - name: Build portable static LZSS host tool
         run: |
           gcc -static -O2 core/bootstrap/lzss.c -o lzss

@@ -503,3 +503,28 @@ guess 25 entries. In parallel, trace ownership of ARM9 TIMER3 and
 validate an alternative Wi-Fi timer if the actual DSWifi toolchain
 permits one. This needs source-level plus on-hardware evidence.
 **No new binary or Android APK should be installed for this offline audit.**
+
+### V7.2.4 integration — IRQ table gate now enforced by the Wi-Fi preflight
+
+The pure `walkerWifiIrqInspect()` function is now actually called by the
+existing `walkerWifiPreflight()` policy. Added
+`WalkerWifiPreflight.irqLayout` and the blocking flag
+`WALKER_WIFI_BLOCK_IRQ_TABLE_UNVERIFIED` (bit 10).
+
+A future Wi-Fi adapter **cannot get a zero gate result** by asserting that
+the timers/DMA/IRQ services are available while supplying either:
+- a 17-slot legacy table footprint that excludes IRQ_WIFI slot 24;
+- an external runtime IRQ table with no independently proven capacity;
+- an invalid or out-of-bounds IRQ table candidate.
+
+The only non-blocking table classification is an inline 25-slot range
+proven inside the loaded ARM7 image. This is still *not permission to
+install*: original handler ownership, chain semantics, memory
+writability, timer alternatives and the resident radio service remain
+separate requirements. The existing working HGSS hook is unchanged.
+All new code remains **offline**, not linked into the DSi binary.
+
+`run_preflight.py` now links both the preflight and the IRQ-footprint
+module; regression tests verify that the synthetic "all resources
+verified" case stops passing if its IRQ table is changed to a truncated
+or unbounded runtime variant.

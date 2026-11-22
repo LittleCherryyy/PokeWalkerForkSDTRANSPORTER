@@ -15,6 +15,13 @@ typedef struct {
     u32 timer3;
     u32 ie;
     u32 ime;
+    /* V7.8: observations captured at entry of the original ARM9 cardRead,
+     * never from an IRQ handler or Wi-Fi. This extends, not reorders, V7.2.
+     * Counts may stay zero in gameplay without cartridge reads. */
+    u32 romReadCalls;
+    u32 eligibleReadCalls;
+    u32 lastReadCpsrMode;
+    u32 lastReadIme;
 } WalkerArm9Snapshot;
 
 #endif

@@ -89,3 +89,40 @@ Run `python3 tests/v72_host/run_interop.py` on a PC with a C compiler
 and JDK 17+. All intermediate bytes are synthetic and temporary. This
 proves agreement on wire format across C and Android Java, **not** real
 network connection, Wi-Fi initialization, or an HGSS resident socket.
+
+## V7.2.0 — first safe on-device radio-compatibility diagnostic
+
+A separate read-only **ARM7 IRQ/timer snapshot** has been wired to the
+in-game menu. It is intentionally *not* a DSWifi driver or network socket.
+
+- The resident ARM7 `inGameMenu()` samples `REG_IE`, `REG_IME`,
+  and four `TIMER_CR(i)` values **before its critical section disables
+  interrupts**. No radio register, timer, IRQ mask or game memory is written.
+- A second IPC command `WPRD`/`WPRK` returns these four packed values
+  in the existing diagnostic reply region. The prior Walker `WPDG`/`WPDK`
+  request is preserved, and the shared reply is held until ARM9 ACK.
+- In Virtual Pokéwalker **V7.2.0**, press **X** to open the
+  `V7.2 ARM7 IRQ/TIMER SNAPSHOT` page. Press **B** to return to the
+  parent menu. The snapshot displays raw hex registers, no fabricated
+  Wi-Fi ready/available assertion, and explicitly says Wi-Fi is disabled.
+- This is only a *sample before the menu pauses the game*. A nonzero
+  `REG_IE` bit does not identify the interrupt's owning function,
+  and the timer values are not a full IRQ compatibility proof.
+- Static host checks under `tests/v72_host/test_radio_snapshot.py`
+  cover read-only wiring, timing of the capture and matching IPC IDs.
+
+**Hardware test instructions (once GitHub CI publishes a tested binary):**
+1. Preserve working `/_nds/nds-bootstrap-nightly.nds` and make copies
+   of expendable `.sav`, `.walker` and auxiliary files.
+2. Install only the V7.2.0 *test-only* Nightly diagnostic build,
+   leaving Android APK and game ROM untouched.
+3. Boot HGSS with a disposable save and confirm the existing IR virtual
+   Pokéwalker behavior was not regressed. **Do not start a phone transfer.**
+4. Open nds-bootstrap's Virtual Pokéwalker panel, confirm title V7.2.0,
+   press X and photograph REG_IE, REG_IME and TIMER0..3 values.
+5. Press B to return to menu and verify the game remains responsive.
+6. If any crash, white screen or unusual save behavior occurs, restore
+   the original V7.1.5 Nightly and test save backups.
+
+This proves a safe diagnostics round-trip (if the hardware test succeeds),
+**not** Wi-Fi enabled, a socket in HGSS or the eventual PING/ACK.

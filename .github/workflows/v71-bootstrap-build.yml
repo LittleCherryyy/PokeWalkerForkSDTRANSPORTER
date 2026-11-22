@@ -1,0 +1,37 @@
+name: V7.1 DSi bootstrap integration compile
+
+on:
+  push:
+    branches:
+      - "dev/v7.1-*"
+    paths:
+      - "core/bootstrap/retail/bootloaderi/**"
+      - "core/bootstrap/retail/common/**"
+      - "core/bootstrap/retail/cardenginei/**"
+      - ".github/workflows/v71-bootstrap-build.yml"
+  pull_request:
+    paths:
+      - "core/bootstrap/retail/bootloaderi/**"
+      - "core/bootstrap/retail/common/**"
+      - "core/bootstrap/retail/cardenginei/**"
+      - ".github/workflows/v71-bootstrap-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap-compile:
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitarm:20260610
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile modified DSi bootloader (not a testable release)
+        shell: bash
+        env:
+          DEVKITPRO: /opt/devkitpro
+          DEVKITARM: /opt/devkitpro/devkitARM
+        run: |
+          set -euo pipefail
+          make -C core/bootstrap/retail/bootloaderi -j2

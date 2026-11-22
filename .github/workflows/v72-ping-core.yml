@@ -32,6 +32,8 @@ jobs:
         run: python3 tests/v72_host/run.py
       - name: Verify real Android Java parser and C PING client interoperably
         run: python3 tests/v72_host/run_interop.py
+      - name: Verify fail-closed Wi-Fi hardware resource gate
+        run: python3 tests/v72_host/run_preflight.py
       - name: Verify radio snapshot IPC source is read-only
         run: python3 -m unittest discover -s tests/v72_host -p 'test_radio_snapshot.py' -v
       - name: Verify DMA3/ARM9 read-only resource snapshot
@@ -67,4 +69,11 @@ jobs:
             -march=armv5te -I "$ENGINE" -I "$COMMON" -c "$SRC" -o /tmp/walker-ping-arm9.o
           test -s /tmp/walker-ping-arm7.o
           test -s /tmp/walker-ping-arm9.o
-          echo "Both CPU protocol objects compile; neither is linked into nds-bootstrap."
+          PREFLIGHT=core/bootstrap/retail/nettransport/walker_wifi_preflight.c
+          "$ARM_CC" -std=c11 -O2 -Wall -Wextra -Werror \
+            -march=armv4t -mthumb -I "$ENGINE" -c "$PREFLIGHT" -o /tmp/walker-wifi-gate-arm7.o
+          "$ARM_CC" -std=c11 -Os -Wall -Wextra -Werror \
+            -march=armv5te -I "$ENGINE" -c "$PREFLIGHT" -o /tmp/walker-wifi-gate-arm9.o
+          test -s /tmp/walker-wifi-gate-arm7.o
+          test -s /tmp/walker-wifi-gate-arm9.o
+          echo "Both CPU PING/gate objects compile; neither is linked into nds-bootstrap."

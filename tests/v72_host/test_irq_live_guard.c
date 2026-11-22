@@ -19,7 +19,9 @@ int main(void) {
     assert(!walkerIrqReadOnlyRangeOk(table,0x01FFFFFFu,length,1));
     assert(!walkerIrqReadOnlyRangeOk(table,image,0xFFFFFFFFu,1));
     assert(!walkerIrqReadOnlyRangeOk(0xFFFFFFF0u,0xFFFFFF00u,0x500u,1));
-    assert(walkerIrqReadOnlyRangeOk(0x023FFF9Cu,image,0x400000u-(image-0x02000000u),4) == 0);
+    /* 100 bytes ending at exclusive RAM limit is valid, +4 is not. */
+    assert(walkerIrqReadOnlyRangeOk(0x023FFF9Cu,image,0x80000u,4));
+    assert(!walkerIrqReadOnlyRangeOk(0x023FFFA0u,image,0x80000u,4));
     puts("PASS V7.2.6: photo fits bounded RAM; invalid image/addresses fail closed");
     return 0;
 }

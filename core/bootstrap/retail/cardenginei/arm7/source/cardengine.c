@@ -200,6 +200,15 @@ fpsa_t sActiveFpsa;
 // static int cardEgnineCommandMutex = 0;
 static int saveMutex = 0;
 
+/* V7.2.8: passive, resident ARM7 execution counters. Counts are only
+ * incremented where the corresponding existing callbacks already execute.
+ * No new interrupt routing, radio startup, SD or save access is added. */
+#ifndef TWLSDK
+volatile u32 walkerVblankCallbackCount = 0;
+volatile u32 walkerBridgeTickCount = 0;
+volatile u32 walkerFifoCallbackCount = 0;
+#endif
+
 bool returnToMenu = false;
 
 #ifdef TWLSDK
@@ -1858,6 +1867,9 @@ void runCardEngineCheckHalt(void) {
 //---------------------------------------------------------------------------------
 void myIrqHandlerFIFO(void) {
 //---------------------------------------------------------------------------------
+#ifndef TWLSDK
+    walkerFifoCallbackCount++;
+#endif
 	#ifdef DEBUG		
 	nocashMessage("myIrqHandlerFIFO");
 	#endif
@@ -1913,6 +1925,7 @@ static void slot2EmuFlush(bool force) {
 
 void myIrqHandlerVBlank(void) {
   #ifndef TWLSDK
+  walkerVblankCallbackCount++;
   if(gen5Active){sharedAddr[11]++;gen5RecordIrqState();}
   #endif
   while (1) {
@@ -2160,6 +2173,7 @@ void myIrqHandlerVBlank(void) {
 	/* V7.1: poll the persistent ARM7 bridge after the checked SD flush.
 	 * With no verified transport backend, its weak Available() returns false
 	 * and nothing is sent. Future backends MUST remain non-blocking in IRQ. */
+	walkerBridgeTickCount++;
 	walkerDirectBridgeTick();
 	#endif
 

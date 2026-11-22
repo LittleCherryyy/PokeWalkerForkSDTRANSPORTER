@@ -67,6 +67,23 @@ int main(int argc, char **argv) {
     Mock m;
     WalkerPushStream s;
 
+    if(argc==3 && strcmp(argv[1],"--android-ack")==0) {
+        /* The reply came from Java DirectSyncProtocol.write(), not from
+         * our native test's hand-built mock header. Re-send the same
+         * synthetic 64KiB payload and verify the true Java OP_OK. */
+        makeAck(&m,session);
+        FILE *reply=fopen(argv[2],"rb");
+        CHECK(reply!=NULL);
+        CHECK(fread(m.ack,1,WALKER_DIRECT_HEADER_SIZE,reply)==WALKER_DIRECT_HEADER_SIZE);
+        CHECK(fgetc(reply)==EOF && !ferror(reply));
+        CHECK(fclose(reply)==0);
+        CHECK(walkerPushBegin(&s,image,42,crc,session,trainer)==0);
+        CHECK(runUntilDone(&s,&m,42)==1);
+        CHECK(s.phase==WALKER_PUSH_DONE);
+        puts("PASS: C sender verified exact Android Java OP_OK ACK");
+        return 0;
+    }
+
     makeAck(&m,session);
     CHECK(walkerPushBegin(&s,image,42,crc,session,trainer)==0);
     /* App returns the registered trainer binding, not the empty string. */

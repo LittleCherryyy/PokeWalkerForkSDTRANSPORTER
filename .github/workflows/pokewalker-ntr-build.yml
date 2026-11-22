@@ -71,23 +71,55 @@ jobs:
         run: |
           set -euo pipefail
           make -C core/bootstrap/retail/bootloaderi
-      - name: Validate NTR component outputs and asset prerequisites
+      - name: Restore missing GPL-3 bootstrap pack data from pinned SD Transporter ancestor
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This fork excludes upstream pack data (e.g. files-mep,
+          # files-dsi, asyncLoadSettings files). Fetch DATA ONLY from a
+          # reproducibly pinned ancestor. Never overwrite fork source.
+          source_root="$RUNNER_TEMP/sd-transporter-ancestor"
+          mkdir -p "$source_root"
+          git -C "$source_root" init -q
+          git -C "$source_root" remote add origin https://github.com/Shinygati/SD-Transporter.git
+          git -C "$source_root" sparse-checkout init --cone
+          git -C "$source_root" sparse-checkout set \
+            bootstrap/retail/preLoadSettings \
+            bootstrap/retail/asyncLoadSettings \
+            bootstrap/retail/dsi2dsSavePatches
+          git -C "$source_root" fetch --depth=1 --filter=blob:none origin \
+            75610fa9905ac252609081287121e8d4c44febed
+          git -C "$source_root" checkout --detach FETCH_HEAD
+          test "$(git -C "$source_root" rev-parse HEAD)" = \
+            75610fa9905ac252609081287121e8d4c44febed
+          for project in preLoadSettings asyncLoadSettings dsi2dsSavePatches; do
+            upstream="$source_root/bootstrap/retail/$project"
+            target="core/bootstrap/retail/$project"
+            for asset in "$upstream"/files*; do
+              [ -e "$asset" ] || continue
+              destination="$target/$(basename "$asset")"
+              if [ ! -e "$destination" ]; then
+                cp -a "$asset" "$destination"
+              fi
+            done
+          done
+          test -d core/bootstrap/retail/preLoadSettings/files-mep
+          test -d core/bootstrap/retail/preLoadSettings/files-dsi
+          echo "Preload data restored from pinned GPL ancestor; no fork code overwritten."
+      - name: Assemble complete DSi nds-bootstrap from native source (do not distribute)
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C core/bootstrap/retail -j2 all \
+            GIT_VER=sdlang2 PYTHON=python3 LZSS=/usr/local/bin/lzss
+      - name: Check full NTR image and compiled original-IR components
         shell: bash
         run: |
           set -euo pipefail
           test -s core/bootstrap/retail/common/include/walker_payload.h
           test -s core/bootstrap/retail/nitrofiles_dec/cardenginei_arm7.bin
           test -s core/bootstrap/retail/nitrofiles_dec/cardenginei_arm9.bin
-          # This fork does not contain the original preload settings
-          # asset directories (files-mep/files-dsi/...). Do NOT synthesize
-          # empty packs, present a partial bootstrap as installable or mark
-          # a whole-image compilation successful when the sources are absent.
-          if [ -d core/bootstrap/retail/preLoadSettings/files-mep ] &&
-             [ -d core/bootstrap/retail/preLoadSettings/files-dsi ]; then
-            make -C core/bootstrap/retail -j2 all \
-              GIT_VER=sdlang2 PYTHON=python3 LZSS=/usr/local/bin/lzss
-            test -s core/bootstrap/retail/bin/nds-bootstrap.nds
-          else
-            echo "::notice::NTR ARM7/ARM9/IR/bootloader linked. Full image blocked by missing upstream preLoadSettings assets in fork."
-          fi
-          echo "Not playable: there is no verified resident Wi-Fi service for HGSS."
+          test -s core/bootstrap/retail/bin/nds-bootstrap.nds
+          stat -c "Full bootstrap: %s bytes (NOT READY for actual Wi-Fi transfer)" \
+            core/bootstrap/retail/bin/nds-bootstrap.nds
+          echo "Compile/link only. In-game resident Wi-Fi is still missing."

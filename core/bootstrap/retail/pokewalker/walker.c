@@ -557,6 +557,11 @@ static void request(WalkerControl *c, u32 len) {
 		answer(c, CMD_NORX_ACK, EXTRA_FROM_WALKER, 0, 0);
 		return;
 	case CMD_CONNECT_COMPLETE:
+		/* A real checkout is eligible for the phone only after HGSS has
+		 * finished the original IR transaction; the SD writer still must
+		 * commit the complete EEPROM before any network push. */
+		if (c->checkoutState == WALKER_CHECKOUT_STARTED)
+			c->checkoutState = WALKER_CHECKOUT_COMPLETE;
 		/* Last exchange of a session: answer, then go idle like the walker.
 		 * A gift link only completes after HGSS has read everything. */
 		if (c->linkMode == 0x60) giftTaken(c);
@@ -566,6 +571,7 @@ static void request(WalkerControl *c, u32 len) {
 		c->cooldown = WALKER_COOLDOWN_READS;
 		return;
 	case CMD_RESET_EVENTS: case CMD_RESET_KEEP_ALL: case CMD_RESET_EVERYTHING:
+		c->checkoutState = WALKER_CHECKOUT_NONE;
 		/* Answer with the walker's pairing identity, then reset. */
 		reliableRead(c, EE_UNIQUE_ID_1, EE_UNIQUE_ID_2, r + 8, EE_UNIQUE_ID_SIZE);
 		answer(c, cmd, EXTRA_FROM_WALKER, EE_UNIQUE_ID_SIZE, 0);
@@ -574,16 +580,22 @@ static void request(WalkerControl *c, u32 len) {
 	case CMD_WALK_START_INIT: case CMD_WALK_START:
 		answer(c, cmd, EXTRA_FROM_WALKER, 0, 0);
 		startWalk(c, cmd == CMD_WALK_START_INIT);
+		c->checkoutState = WALKER_CHECKOUT_STARTED;
 		return;
 	case CMD_WALK_END_REQ:
 		answer(c, CMD_WALK_END_ACK, EXTRA_FROM_WALKER, 0, 0);
 		endWalk(c);
+		c->checkoutState = WALKER_CHECKOUT_NONE;
 		return;
 	case CMD_DISCONNECT:
+		if (c->checkoutState == WALKER_CHECKOUT_STARTED)
+			c->checkoutState = WALKER_CHECKOUT_NONE;
 		c->state = 0;
 		c->cooldown = WALKER_COOLDOWN_READS;
 		return;
 	case 0x36: case 0x44: case 0x56: case 0x64:
+		if (c->checkoutState == WALKER_CHECKOUT_STARTED)
+			c->checkoutState = WALKER_CHECKOUT_NONE;
 		/* "Can't complete": the game is ending the link with a message of
 		 * its own (for example "already registered"). Nothing to answer. */
 		c->state = 0;
@@ -658,6 +670,10 @@ u32 walkerEntry(WalkerControl *c, u32 op, u32 a, u32 b) {
 		return 0;
 	}
 	if (op == WALKER_OP_INIT) {
+		/* An interrupted send is not a completed checkout. Keep completed
+		 * ones until the durability/transport bridge consumes the state. */
+		if (c->checkoutState == WALKER_CHECKOUT_STARTED)
+			c->checkoutState = WALKER_CHECKOUT_NONE;
 		/* Overlay 112 is resident for the whole IR session and builds the
 		 * received Pokemon afterwards; it is reloaded each time, so patch on
 		 * every session start. */

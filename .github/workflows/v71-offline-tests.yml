@@ -39,7 +39,11 @@ jobs:
           javac -d /tmp/v71-interop \
             core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java \
             tools/v7_1/ProtocolInteropTest.java
-          java -cp /tmp/v71-interop io.github.sdtransporter.pokewalker.ProtocolInteropTest /tmp/v71-interop/ping.bin
+          java -cp /tmp/v71-interop io.github.sdtransporter.pokewalker.ProtocolInteropTest /tmp/v71-interop/ping.bin /tmp/v71-interop/android-ok.bin
+          cc -std=c11 -Wall -Wextra -Werror \
+            -Icore/bootstrap/retail/common/include \
+            tools/v7_1/verify_android_ok.c -o /tmp/v71-interop/verify-android-ok
+          /tmp/v71-interop/verify-android-ok /tmp/v71-interop/android-ok.bin
       - name: Compile offline tools
         run: python -m compileall -q tools/v7_1
       - name: Audit resident HGSS networking gates (informational)

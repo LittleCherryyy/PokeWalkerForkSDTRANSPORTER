@@ -389,3 +389,65 @@ Os resultados ajudam a distinguir alterações introduzidas pelo
 próprio menu, mas o bloqueio para o Wi-Fi residente continua: IRQ_WIFI,
 DMA3, TIMER3 e worker cooperativo precisam de um plano de posse e
 encadeamento seguro. **Não** chamar `Wifi_InitDefault()` no IGM.
+
+## Physical V7.2.2 pre-wrapper result and V7.2.3 safety gate
+
+The user photographed the **V7.2.2 ARM9 PRE-WRAPPER** screen on a
+real DSi running HeartGold:
+
+| ARM9 register | Before wrapper critical section | Previous in-menu capture |
+| --- | --- | --- |
+| `TIMER3_CR` | `0x00C1` | `0x00C1` |
+| `REG_IE` | `0x00050049` | `0x00050049` |
+| `REG_IME` | `0x01` | `0x00` |
+
+Thus the wrapper's pause did **not** start timer 3, and the IME transition
+matches `enterCriticalSection()`. The **pre-wrapper sample still occurs in
+IPC interrupt context**, so it is not a measurement from arbitrary normal
+gameplay nor evidence of the handler/function that owns timer 3.
+
+### Decision: ordinary DSWifi startup is NOT authorized
+
+Official DSWifi documentation says it uses a configurable default
+timer on ARM9 and ARM7 (`LIBNDS_DEFAULT_TIMER_WIFI`), plus ARM7 DMA3
+in DS compatibility mode. In libnds documentation, the ARM9 default is
+Timer 3. A different timer configuration would require matching the
+actual DSWifi/libnds build, and **auditing that alternative timer's use on
+both CPUs**. No idle timer should be treated as available without
+proving its owner and service lifecycle.
+
+References:
+- https://blocksds.skylyrac.net/dswifi/index.html
+- https://blocksds.skylyrac.net/dswifi/md_documentation_2internet__mode.html
+- https://blocksds.skylyrac.net/libnds/timers_8h.html
+
+### V7.2.3 guard code, no Wi-Fi driver
+
+Added `core/bootstrap/retail/nettransport/walker_wifi_preflight.h`
+and `.c`, which take a caller-supplied description of the selected
+ARM9 and ARM7 timer control values, ARM7 DMA3 control and independently
+verified ownership assertions for each resource. The function reports
+explicit block reasons if:
+- a hardware capture is missing;
+- either selected timer or DMA3 is **currently enabled**;
+- ownership of either timer, ARM7 DMA3 or IRQ_WIFI chaining is unverified;
+- the resident ARM7 Wi-Fi service or ARM9 cooperative worker is not proven.
+
+The module **never reads or writes hardware registers**, starts a timer,
+calls DSWifi, sends a packet, or touches ROM/save/Walker files. A zero
+result only means that the supplied declarations satisfy the gate; it
+does not establish that the declarations are true. An eventual hardware
+adapter must supply independent evidence rather than fill the ownership
+flags with hardcoded true values.
+
+Offline fixtures in `tests/v72_host/test_wifi_preflight.c` expressly
+**reject the user's measured ARM9 timer 3 (`0x00C1`)**, also reject the
+all-idle-but-unverified state, and check each blocker on synthetic data.
+Run `python3 tests/v72_host/run_preflight.py`; CI also cross-compiles the
+object for ARM7 and ARM9, but does not link it to a runtime.
+
+**No new DSi test binary or Android APK is required for this stage.**
+The V7.2.2 snapshot answered the timer-state question. Next engineering
+work is to identify the Timer3 interrupt handler/ownership and a safe
+ARM7 Wi-Fi IRQ dispatcher, not to repeatedly generate screenshots of
+the same active timer.

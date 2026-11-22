@@ -82,15 +82,22 @@ void walkerDirectArm9Tick(void) {
     cardengineArm9 *local=ce9;
     WalkerControl *c=local && local->walkerControl ?
                      (WalkerControl *)local->walkerControl : 0;
-    if(!c || !committed(c) ||
-       (c->direct.state!=WALKER_DIRECT_PUSH_READY &&
-        c->direct.state!=WALKER_DIRECT_PUSHING)) {
-        if(workerStage!=WORKER_IDLE) retry(owner);
+    /* The cardengine pointer can change on soft reset. Never dereference
+     * an owner from the previous game after control validation fails. */
+    if(!c || c->magic!=WALKER_MAGIC || c->version!=WALKER_VERSION) {
+        if(workerStage!=WORKER_IDLE) disconnect();
         workerBusy=0;
         return;
     }
     if(workerStage!=WORKER_IDLE && owner!=c) {
-        retry(owner);
+        disconnect(); /* old owner may have been unmapped by reset */
+        workerBusy=0;
+        return;
+    }
+    if(!committed(c) ||
+       (c->direct.state!=WALKER_DIRECT_PUSH_READY &&
+        c->direct.state!=WALKER_DIRECT_PUSHING)) {
+        if(workerStage!=WORKER_IDLE) retry(c);
         workerBusy=0;
         return;
     }

@@ -43,15 +43,17 @@ In `core/bootstrap/retail/cardenginei/arm9_igm/source/walker_arm9_wifi_sig.c`,
 5. Reads exactly one 32-bit raw word at that known fixed address and
    returns it to the ARM9 in-game menu without writing any RAM.
 
-In the V8.3 in-game menu, open **Virtual Pokewalker -> R**.
-The screen `V8.3 ARM9 THREAD FLAG` preserves the earlier V7.9
-ROM-read, post-read and deferred-job-stage counters. Additionally:
-- `OS raw:0xXXXXXXXX`: exact code guard passed; this is the
+In the V8.3 in-game menu, open **Virtual Pokewalker -> L**.
+The screen `V8.3 ARM9 OS FLAG` replaces the already-validated V7.7
+CRC view on **L** to fit the strict IGM VRAM allocation. The tested
+V7.9 deferred-job counters remain available on **R**, unchanged.
+
+- `OS raw value:0xXXXXXXXX`: exact code guard passed; this is the
   observed word *while the in-game menu is paused*.
-- `OS guard mismatch`: the game code does not match expected original
-  HGSS USA Rev0; no arbitrary global was read.
-- `Read only, not ABI proof`, `Wi-Fi: NOT ENABLED`: no OS thread
-  was created, no radio initialised and no game/save data modified.
+- `OS opcode guard FAILED`: the game's instruction sequence did not
+  match expected original HGSS USA Rev0; no data global was read.
+- `No thread API called`, `Wi-Fi: NOT ENABLED`: no OSThread or radio
+  initialized and no game/save data modified.
 
 Even a raw word of `1` would only show that the original
 `OS_IsThreadAvailable` implementation would return that value when
@@ -69,8 +71,8 @@ owns the Wi-Fi radio.
    `nds-bootstrap-nightly.nds` and replace that single SD file.
 3. In TWiLight Menu++, select Nightly for the unmodified original
    US HeartGold or SoulSilver.
-4. Open the game's in-game menu -> Virtual Pokewalker -> **R**.
-   Photograph the `V8.3 ARM9 THREAD FLAG` view.
+4. Open the game's in-game menu -> Virtual Pokewalker -> **L**.
+   Photograph the `V8.3 ARM9 OS FLAG` view.
 5. Return to gameplay, enter another map/location normally,
    reopen the same menu and photograph again.
 6. Send the two photographs. A mismatch is a valid, fail-closed

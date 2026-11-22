@@ -8,7 +8,12 @@ if "%~1"=="" (
 )
 set "SCRIPT=%~dp0hgss_wifi_abi_audit.py"
 set "REPORT=%~dp0wifi_abi_report.json"
-py -3 "%SCRIPT%" "%~1" --output "%REPORT%"
+where py >nul 2>nul
+if errorlevel 1 (
+  python "%SCRIPT%" "%~1" --output "%REPORT%"
+) else (
+  py -3 "%SCRIPT%" "%~1" --output "%REPORT%"
+)
 if errorlevel 1 (
   echo FALHA. O arquivo .nds nao foi modificado.
   pause

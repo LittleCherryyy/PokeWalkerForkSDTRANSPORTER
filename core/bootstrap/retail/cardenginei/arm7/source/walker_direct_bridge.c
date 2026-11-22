@@ -21,13 +21,19 @@ static WalkerControl *directControl(void) {
     return c;
 }
 
-static u32 crc32(const u8 *data,u32 size) {
-    u32 crc=0xffffffffu;
-    while(size--) {
-        crc^=*data++;
-        for(unsigned n=0;n<8;n++) crc=(crc>>1)^((0u-(crc&1u))&0xedb88320u);
-    }
-    return ~crc;
+/* Incremental CRC avoids scanning 64 KiB in one VBlank IRQ.
+ * At most 512 EEPROM bytes are read per frame while the game is idle.
+ * The work is discarded if HGSS modifies the EEPROM during the scan. */
+#define WALKER_CRC_BYTES_PER_TICK 512u
+static bool crcPending;
+static u32 crcSeq, crcOffset, crcState;
+
+static bool durableImageStable(const WalkerControl *c,u32 seq) {
+    if(!c || c->magic!=WALKER_MAGIC || c->version!=WALKER_VERSION ||
+       c->direct.magic!=WALKER_DIRECT_BRIDGE_MAGIC || !c->eeprom ||
+       c->state || c->writeSeq!=seq || c->flushedSeq!=seq) return false;
+    for(unsigned i=0;i<WALKER_SECTORS;i++) if(c->dirty[i]) return false;
+    return true;
 }
 
 static char hex(unsigned v){return (char)(v<10?'0'+v:'a'+v-10);}
@@ -49,13 +55,46 @@ void walkerDirectBridgeInit(WalkerControl *c) { if(c) walkerDirectBridgeReset(&c
 
 /* Called immediately after the ARM7 has physically verified all dirty walker
  * sectors on SD. Never advertise RAM that has not been committed first. */
+/* Called after the checked SD writer finishes. Only schedule a CRC here;
+ * the actual scan is bounded and performed later in the VBlank tick. */
 void walkerDirectBridgeCommitted(WalkerControl *c,u32 seq) {
-    if(!c || c->direct.magic!=WALKER_DIRECT_BRIDGE_MAGIC) return;
+    if(!durableImageStable(c,seq)) return;
     c->direct.durableSeq=seq;
-    if(seq==c->direct.offeredSeq || c->state) return;
-    c->direct.crc32=crc32((const u8 *)c->eeprom,WALKER_DIRECT_WALKER_SIZE);
-    makeSession(c,c->direct.crc32,seq);
-    c->direct.offeredSeq=seq;
+    if(seq==c->direct.offeredSeq ||
+       (crcPending && crcSeq==seq)) return;
+    /* A checked-out image must not be replaced by a new offer. */
+    if(c->direct.state!=WALKER_DIRECT_IDLE &&
+       c->direct.state!=WALKER_DIRECT_PUSH_READY) return;
+    crcSeq=seq;
+    crcOffset=0;
+    crcState=0xffffffffu;
+    crcPending=true;
+}
+
+static void walkerDirectSnapshotTick(WalkerControl *c) {
+    if(!crcPending) return;
+    if(!durableImageStable(c,crcSeq) ||
+       (c->direct.state!=WALKER_DIRECT_IDLE &&
+        c->direct.state!=WALKER_DIRECT_PUSH_READY)) {
+        crcPending=false;
+        return;
+    }
+    const u8 *data=(const u8 *)c->eeprom;
+    const u32 remaining=WALKER_DIRECT_WALKER_SIZE-crcOffset;
+    const u32 count=remaining<WALKER_CRC_BYTES_PER_TICK ?
+        remaining : WALKER_CRC_BYTES_PER_TICK;
+    for(u32 i=0;i<count;i++) {
+        crcState^=data[crcOffset+i];
+        for(unsigned bit=0;bit<8;bit++)
+            crcState=(crcState>>1)^((0u-(crcState&1u))&0xedb88320u);
+    }
+    crcOffset+=count;
+    if(crcOffset!=WALKER_DIRECT_WALKER_SIZE) return;
+    crcPending=false;
+    if(!durableImageStable(c,crcSeq)) return;
+    c->direct.crc32=~crcState;
+    makeSession(c,c->direct.crc32,crcSeq);
+    c->direct.offeredSeq=crcSeq;
     c->direct.error=WALKER_DIRECT_ERR_NONE;
     c->direct.attempts=0;
     c->direct.state=WALKER_DIRECT_PUSH_READY;
@@ -66,7 +105,8 @@ void walkerDirectBridgeCommitted(WalkerControl *c,u32 seq) {
  * error. */
 void walkerDirectBridgeTick(void) {
     WalkerControl *c=directControl();
-    if(!c || c->direct.magic!=WALKER_DIRECT_BRIDGE_MAGIC) return;
+    if(!c || c->direct.magic!=WALKER_DIRECT_BRIDGE_MAGIC) {crcPending=false;return;}
+    walkerDirectSnapshotTick(c);
     if(!walkerDirectTransportAvailable()) return;
     int rc=0;
     switch(c->direct.state) {

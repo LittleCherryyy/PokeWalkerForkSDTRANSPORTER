@@ -29,6 +29,18 @@
 
 #define WALKER_MAGIC        0x4B4C5750u /* 'PWLK' */
 #define WALKER_VERSION      1u
+
+/* NTR DSi loader-only boot outcome; zero means not attempted. The two low
+ * bits of SKIPPED are independent flags and may be combined. */
+#define WALKER_BOOT_NOT_ATTEMPTED 0u
+#define WALKER_BOOT_NO_CLUSTER    1u
+#define WALKER_BOOT_NO_BASE       2u
+#define WALKER_BOOT_READ_SIG      0x10u
+#define WALKER_BOOT_WRITE_SIG     0x11u
+#define WALKER_BOOT_STATUS_SIG    0x12u
+#define WALKER_BOOT_INIT_SIG      0x13u
+#define WALKER_BOOT_FILE_READ     0x14u
+#define WALKER_BOOT_INSTALLED     0xFFu
 #define WALKER_EEPROM_SIZE  0x10000u
 #define WALKER_SECTOR       0x1000u
 #define WALKER_SECTORS      16u
@@ -64,6 +76,9 @@
 #define WALKER_CTL_DIRTY    0x20
 
 #ifndef __ASSEMBLER__
+/* Append-only shared state for direct DSi sync. Keep legacy field offsets stable. */
+#include "walker_direct_bridge.h"
+#include "walker_hgss_net.h"
 typedef struct WalkerControl {
 	/* Written once by the bootloader. */
 	unsigned int magic;
@@ -96,11 +111,35 @@ typedef struct WalkerControl {
 	unsigned int cooldown;     /* idle reads left before advertising again after a session */
 	unsigned int wipeStart;    /* game VBlank count when the SELECT + LEFT hold began */
 	unsigned int linkMode;     /* identity command the game sent this link (0x60 = receive a gift) */
+	/* V7.1: shared bridge state, unused by older walker protocol callers. */
+	WalkerDirectBridge direct;
+	WalkerHgssNetApi hgssNet;
 } WalkerControl;
 
 #define WALKER_ASSERT(name, cond) typedef char walker_assert_##name[(cond) ? 1 : -1]
 WALKER_ASSERT(dirty, __builtin_offsetof(WalkerControl, dirty) == WALKER_CTL_DIRTY);
 WALKER_ASSERT(size, sizeof(WalkerControl) <= WALKER_BLOB_OFF - WALKER_CONTROL_OFF);
+/* DS-mode and Slot-1 layouts reserve only the first 0x800 bytes for control. */
+WALKER_ASSERT(ds_and_cart_control_size, sizeof(WalkerControl) <= 0x800u);
+
+/* ARM7-only diagnostics: address ranges are NOT proof of a mapped bus.
+ * V7.1.1 attempted to dereference 0x0Cxxxxxx DSi extended-memory pointers
+ * from the ARM7 in-game menu and could leave the request unacknowledged.
+ * This range can depend on console/SCFG mapping. Classify it, but DO NOT
+ * dereference it from the ARM7 menu unless separately proven safe. */
+static inline int walkerControlAddressIsDsiMirror(unsigned int addr) {
+    const unsigned int bytes = (unsigned int)sizeof(WalkerControl);
+    return (addr & 3u) == 0u &&
+           addr >= 0x0C000000u && addr <= 0x0D000000u - bytes;
+}
+
+/* Only original DS shared main RAM is eligible for ARM7 header inspection.
+ * The pointer still needs its magic/version validated after the range check. */
+static inline int walkerControlAddressReadable(unsigned int addr) {
+    const unsigned int bytes = (unsigned int)sizeof(WalkerControl);
+    return (addr & 3u) == 0u &&
+           addr >= 0x02000000u && addr <= 0x02400000u - bytes;
+}
 #endif
 
 #endif

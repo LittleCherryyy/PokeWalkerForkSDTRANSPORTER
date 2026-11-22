@@ -42,6 +42,7 @@
 #include "cardengine.h"
 #include "slot2_file.h"
 #include "walker_file.h"
+#include "walker_direct_bridge_api.h"
 #include "transfer_probe.h"
 #include "gen5_adapter.h"
 #include "gen5_file.h"
@@ -2155,6 +2156,12 @@ void myIrqHandlerVBlank(void) {
 	}
 	
 	slot2EmuFlush(false);
+	#ifndef TWLSDK
+	/* V7.1: poll the persistent ARM7 bridge after the checked SD flush.
+	 * With no verified transport backend, its weak Available() returns false
+	 * and nothing is sent. Future backends MUST remain non-blocking in IRQ. */
+	walkerDirectBridgeTick();
+	#endif
 
 	if (saveTimer > 0) {
 		saveTimer++;

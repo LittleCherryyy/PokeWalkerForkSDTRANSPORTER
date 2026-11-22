@@ -487,18 +487,111 @@ static void drawMainMenu(MenuItem *menuItems, int menuItemCount) {
 	#endif
 }
 
-/* V7.0: read-only Virtual Pokewalker panel. Never starts Wi-Fi or touches saves.
- * V7.1 must add a resident ARM7/ARM9 network service before offering a real ping.
- * Avoid changing struct IgmText: it has a fixed binary ABI. */
+/* V7.1 read-only diagnostics. Requests a bounded snapshot from the ARM7
+ * coordinator using the existing menu command channel. No Wi-Fi start, no
+ * ROM/save mutation, and no changes to the fixed IgmText layout. */
+#ifndef B4DS
+#define WALKER_DIAG_REQUEST 0x47445057u /* WPDG */
+#define WALKER_DIAG_REPLY   0x4B445057u /* WPDK */
+#define WALKER_DIAG_MENU    0x554E454Du /* MENU */
+#endif
+/* V7.1.3: codes are shared with WALKER_BOOT_* in walker_emu.h. */
+static const unsigned char* walkerBootReason(u32 code) {
+    switch(code) {
+        case 0u:   return (const unsigned char*)"Boot was not attempted";
+        case 1u:   return (const unsigned char*)"No .walker file selected";
+        case 2u:   return (const unsigned char*)"No Walker RAM reserved";
+        case 3u:   return (const unsigned char*)"No file + no RAM area";
+        case 0x10u:return (const unsigned char*)"IR receive pattern missing";
+        case 0x11u:return (const unsigned char*)"IR write pattern missing";
+        case 0x12u:return (const unsigned char*)"IR chip pattern missing";
+        case 0x13u:return (const unsigned char*)"IR init pattern missing";
+        case 0x14u:return (const unsigned char*)"EEPROM read failed";
+        case 0xFFu:return (const unsigned char*)"Hook installed; ptr lost";
+        default:   return (const unsigned char*)"Unknown boot status";
+    }
+}
+
 static void virtualPokewalkerMenu(void) {
+    u32 diag[4]={0,0,0,0};
+    bool answered=false;
+    u32 lastCommand=0;
+    #ifndef B4DS
+    sharedAddr[4]=WALKER_DIAG_REQUEST;
+    /* ARM7's menu loop can restore MENU after processing the previous
+     * command in the same frame as our first WPDG write. A one-shot
+     * request is therefore lossy. Retry only when that *idle* MENU
+     * state is observed; never overwrite other service commands.
+     * WPDK is held by ARM7 until we acknowledge it with MENU. */
+    for(unsigned frames=0;frames<90;frames++) {
+        while (REG_VCOUNT != 191) mySwiDelay(100);
+        while (REG_VCOUNT == 191) mySwiDelay(100);
+        const u32 response=sharedAddr[4];
+        if(response==WALKER_DIAG_REPLY) {
+            for(unsigned i=0;i<4;i++) diag[i]=sharedAddr[i];
+            answered=true;
+            break;
+        }
+        if(response==WALKER_DIAG_MENU) {
+            /* The ARM7 menu is idle, so resubmit the read-only query. */
+            sharedAddr[4]=WALKER_DIAG_REQUEST;
+        } else if(response!=WALKER_DIAG_REQUEST) {
+            /* Unrelated command owns the mailbox. Do not clobber it. */
+            break;
+        }
+    }
+    lastCommand=sharedAddr[4];
+    /* Restore the normal in-game-menu command even after timeout, but never
+     * overwrite a different command issued by another menu component. */
+    if(sharedAddr[4]==WALKER_DIAG_REQUEST ||
+       sharedAddr[4]==WALKER_DIAG_REPLY) sharedAddr[4]=WALKER_DIAG_MENU;
+    #endif
+
     clearScreen(false);
-    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.0", FONT_LIME, false);
+    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.1.5", FONT_LIME, false);
     print(1, 3, (const unsigned char *)"HeartGold / SoulSilver", FONT_WHITE, false);
-    print(1, 5, (const unsigned char *)"Android TCP port: 30821", FONT_WHITE, false);
-    print(1, 7, (const unsigned char *)"Wi-Fi in game: NOT READY", FONT_RED, false);
-    print(1, 8, (const unsigned char *)"Network resolver pending", FONT_WHITE, false);
-    print(1, 10, (const unsigned char *)"Save and ROM unchanged", FONT_LIME, false);
-    print(1, 12, (const unsigned char *)"V7.1: live PING (planned)", FONT_LIGHT_GRAY, false);
+    print(1, 5, (const unsigned char *)"Android TCP: 30821", FONT_WHITE, false);
+    if(!answered) {
+        print(1, 7, (const unsigned char *)"ARM7: no diagnostic reply", FONT_RED, false);
+        print(1, 9, (const unsigned char *)"Last IPC: 0x", FONT_WHITE, false);
+        printHex(14,9,lastCommand,4,FONT_LIGHT_BLUE,false);
+        print(1, 11, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
+    } else if(diag[0]&8u) {
+        /* ARM7 acknowledges the DSi pointer without reading its contents.
+         * Mapping of the 0x0C mirror must be validated separately on ARM9. */
+        print(1, 7, (const unsigned char *)"Walker: DSi RAM unprobed", FONT_WHITE, false);
+        print(1, 9, (const unsigned char *)"Walker ptr: 0x", FONT_WHITE, false);
+        printHex(15,9,diag[2],4,FONT_LIGHT_BLUE,false);
+        print(1, 11, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
+    } else if((diag[0]&1u)==0u) {
+        if((diag[0]&2u)==0u) {
+            print(1, 7, (const unsigned char *)"Walker: hook not published", FONT_RED, false);
+        } else if((diag[0]&4u)==0u) {
+            print(1, 7, (const unsigned char *)"Walker: RAM addr rejected", FONT_RED, false);
+        } else {
+            print(1, 7, (const unsigned char *)"Walker: invalid header", FONT_RED, false);
+        }
+        print(1, 9, (const unsigned char *)"Boot stage: 0x", FONT_WHITE, false);
+        printHex(15,9,diag[3]&0xFFu,1,FONT_LIGHT_BLUE,false);
+        print(1, 11, walkerBootReason(diag[3]), FONT_LIGHT_BLUE, false);
+        print(1, 13, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
+        if(diag[3] == 3u || diag[3] == 1u)
+            print(1, 15, (const unsigned char *)"Check Walker error log", FONT_LIGHT_BLUE, false);
+    } else {
+        print(1, 7, (const unsigned char *)"Missing net APIs: 0x", FONT_WHITE, false);
+        printHex(21,7,diag[1]&0x1FFFu,2,FONT_RED,false);
+        print(1, 9, (const unsigned char *)"Resolver:", FONT_WHITE, false);
+        print(11,9,(const unsigned char *)((diag[0] & (1u<<16)) ?
+            "FLAG SET (unverified)" : "NOT READY"),FONT_RED,false);
+        print(1, 11, (const unsigned char *)"Bridge state:", FONT_WHITE, false);
+        printDec(17,11,(diag[0]>>8)&0xFFu,2,FONT_LIGHT_BLUE,false);
+        print(1, 13, (const unsigned char *)"Write seq:   0x", FONT_WHITE, false);
+        printHex(16,13,diag[2],4,FONT_LIGHT_BLUE,false);
+        print(1, 14, (const unsigned char *)"Flushed seq: 0x", FONT_WHITE, false);
+        printHex(16,14,diag[3],4,FONT_LIGHT_BLUE,false);
+        print(1, 16, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
+    }
+    print(1, 19, (const unsigned char *)"Read-only diagnostics", FONT_LIGHT_GRAY, false);
     print(1, 20, (const unsigned char *)"B: Back to menu", FONT_WHITE, false);
     /* Wait until A has been released to prevent a carried key from closing. */
     do {

@@ -12,6 +12,8 @@
 #include "cardengine.h"
 #include "fpsAdjust.h"
 #include "nds_header.h"
+#include "walker_emu.h"
+#include "walker_hgss_net.h"
 #include "tonccpy.h"
 
 #define sleepMode BIT(17)
@@ -20,9 +22,53 @@
 
 extern u32 valueBits;
 extern s32 mainScreen;
+
+
 extern u8 consoleModel;
 
 extern vu32* volatile sharedAddr;
+
+/* Read-only Virtual Pokewalker diagnostics; the ARM7 owns the live control
+ * address. No network calls and no changes to the walker or save. */
+#ifndef TWLSDK
+extern u32 walkerControl;
+extern u32 walkerBootStatus;
+#define WALKER_DIAG_REQUEST 0x47445057u /* WPDG */
+#define WALKER_DIAG_REPLY   0x4B445057u /* WPDK */
+static void walkerReadOnlyDiagnostics(void) {
+    /* Query result in sharedAddr[0..3]: presence/state/ready, missing mask,
+     * write sequence, flushed sequence (or loader boot outcome if absent).
+     * This menu protocol is temporary:
+     * only used while the in-game menu is active on both processors. */
+    sharedAddr[0] = 0u;
+    sharedAddr[1] = 0x1FFFu; /* 13 missing network functions by default. */
+    sharedAddr[3] = walkerBootStatus; /* Read-only boot status until header valid. */
+    const u32 address=walkerControl;
+    sharedAddr[2] = address; /* Show raw pointer if header is not inspected. */
+    /* Status bits: bit0 valid header, bit1 hook address was published,
+     * bit2 safely inspected in DS RAM, bit3 DSi extended pointer deferred.
+     * V7.1.2 MUST NOT dereference the 0x0C mirror from the ARM7 menu:
+     * the mapping is not proven for this NTR runtime configuration. */
+    if(address) sharedAddr[0] |= 2u;
+    if(walkerControlAddressIsDsiMirror(address)) {
+        sharedAddr[0] |= 8u; /* Pointer published; contents NOT inspected. */
+    } else if(walkerControlAddressReadable(address)) {
+        sharedAddr[0] |= 4u;
+        const WalkerControl *c=(const WalkerControl *)address;
+        if(c->magic==WALKER_MAGIC && c->version==WALKER_VERSION) {
+            const u32 state = c->direct.magic==WALKER_DIRECT_BRIDGE_MAGIC ?
+                (c->direct.state & 0xFFu) : 0u;
+            const u32 ready = c->hgssNet.magic==WALKER_HGSS_NET_MAGIC ?
+                (c->hgssNet.ready & 1u) : 0u;
+            sharedAddr[0] |= 1u | (state << 8) | (ready << 16);
+            sharedAddr[1] = walkerHgssNetMissingMask(&c->hgssNet);
+            sharedAddr[2] = c->writeSeq;
+            sharedAddr[3] = c->flushedSeq;
+        }
+    }
+    sharedAddr[4] = WALKER_DIAG_REPLY;
+}
+#endif
 // extern bool returnToMenu;
 extern int afterSwapTimer;
 
@@ -123,7 +169,10 @@ void inGameMenu(void) {
 			while (REG_VCOUNT != 191) swiDelay(100);
 			while (REG_VCOUNT == 191) swiDelay(100);
 
-			switch (sharedAddr[4]) {
+			/* Snapshot the command actually dispatched this frame. A new
+			 * ARM9 request may arrive between dispatch and the idle reset. */
+			const u32 menuCommandSeen=sharedAddr[4];
+			switch (menuCommandSeen) {
 				/* case 0x54495845: // EXIT
 					exitMenu = true;
 					break; */
@@ -185,6 +234,12 @@ void inGameMenu(void) {
 				case 0x4E414D52: // RMAN
 					restorePreManual();
 					break;
+
+                #ifndef TWLSDK
+                case WALKER_DIAG_REQUEST: // WPDG: read-only diagnostics
+                    walkerReadOnlyDiagnostics();
+                    break;
+                #endif
 				case 0x524D4152: // RAMR
 					u32* dst = (u32*)((u32)sharedAddr[0]);
 					u32* src = (u32*)((u32)sharedAddr[1]);
@@ -225,7 +280,13 @@ void inGameMenu(void) {
 			if (sharedAddr[4] == 0x54495845) { // EXIT
 				// returnToMenu = (sharedAddr[1]);
 				exitMenu = true;
-			} else if (!exitMenu) {
+			} else if (!exitMenu
+                #ifndef TWLSDK
+                && sharedAddr[4] != WALKER_DIAG_REPLY
+                #endif
+                && sharedAddr[4] == menuCommandSeen
+            ) {
+                /* Don't discard a fresh WPDG posted after the switch. */
 				sharedAddr[4] = 0x554E454D; // MENU
 			}
 		}

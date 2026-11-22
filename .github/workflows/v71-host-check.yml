@@ -1,0 +1,145 @@
+name: V7.1 SDK-free network sanity checks
+
+on:
+  push:
+    branches:
+      - dev/v71-network-readiness-diagnostics
+    paths:
+      - '.github/workflows/v71-host-check.yml'
+      - '.github/workflows/v71-dsi-cross-compile.yml'
+      - 'core/bootstrap/retail/arm9/include/walker_prepare.h'
+      - 'core/bootstrap/retail/common/include/walker_emu.h'
+      - 'core/bootstrap/retail/common/include/walker_hgss_net.h'
+      - 'core/bootstrap/retail/common/source/walker_hgss_net.c'
+      - 'core/bootstrap/retail/cardengine/arm9/source/walker_direct_transport.c'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/cardengine.c'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/walker_direct_bridge.c'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/walker_file.c'
+      - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_boot.c'
+      - 'core/bootstrap/retail/common/include/cardengine_header_arm7.h'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
+      - 'tests/v71_host/**'
+      - 'tools/v7_1/identify_hgss_nds.py'
+  pull_request:
+    paths:
+      - '.github/workflows/v71-host-check.yml'
+      - 'core/bootstrap/retail/arm9/include/walker_prepare.h'
+      - 'core/bootstrap/retail/common/include/walker_emu.h'
+      - 'core/bootstrap/retail/common/include/walker_hgss_net.h'
+      - 'core/bootstrap/retail/common/source/walker_hgss_net.c'
+      - 'core/bootstrap/retail/cardengine/arm9/source/walker_direct_transport.c'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/cardengine.c'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/walker_direct_bridge.c'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/walker_file.c'
+      - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_boot.c'
+      - 'core/bootstrap/retail/common/include/cardengine_header_arm7.h'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
+      - 'tests/v71_host/**'
+
+permissions:
+  contents: read
+
+jobs:
+  host-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Compile and execute host checks (no ROM/SDK)
+        run: python3 tests/v71_host/run.py
+      - name: Build portable static LZSS host tool
+        run: |
+          gcc -static -O2 core/bootstrap/lzss.c -o lzss
+          file lzss
+          ldd lzss || true
+      - name: Share static LZSS with legacy cross-build
+        uses: actions/upload-artifact@v4
+        with:
+          name: v71-lzss-host-linux-x86_64
+          path: lzss
+          retention-days: 1
+
+  dsi-cross-compile:
+    needs: host-checks
+    name: DSi ARM7 + IGM legacy toolchain compile (no publish)
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitarm:20241104
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download static host LZSS from successful host job
+        uses: actions/download-artifact@v4
+        with:
+          name: v71-lzss-host-linux-x86_64
+          path: core/bootstrap
+      - name: Compile DSi NTR components
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DEVKITPRO=/opt/devkitpro
+          export COMPILER_DIR=/opt/devkitpro/devkitARM
+          export SDK_DIR=/opt/devkitpro/libnds
+          export PATH="$COMPILER_DIR/bin:$DEVKITPRO/tools/bin:$PATH"
+          arm-none-eabi-gcc --version | head -1
+          test -f "$SDK_DIR/include/nds.h"
+          # Native tool is a static x86_64 binary built on the Ubuntu runner.
+          # The pinned Debian image needs no apt indexes or host C compiler.
+          chmod +x core/bootstrap/lzss
+          test -x core/bootstrap/lzss
+          make -C core/bootstrap/retail -j2 \
+            DEVKITARM="$GITHUB_WORKSPACE/core/bootstrap/portable-ds-rules" \
+            LEGACY_DEVKITARM="$COMPILER_DIR" LEGACY_LIBNDS="$SDK_DIR" LIBDIRS="$SDK_DIR" \
+            PYTHON=python3 GIT_VER=sdlang2 LZSS="$GITHUB_WORKSPACE/core/bootstrap/lzss" \
+            cardenginei_arm7 cardenginei_arm9_igm
+      - name: Rebuild complete nds-bootstrap (no release)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DEVKITPRO=/opt/devkitpro
+          export COMPILER_DIR=/opt/devkitpro/devkitARM
+          export SDK_DIR=/opt/devkitpro/libnds
+          export PATH="$COMPILER_DIR/bin:$DEVKITPRO/tools/bin:$PATH"
+          # The repo already ships compiled preload pack assets, but does not
+          # include preLoadSettings/files-mep. Do not invent missing inputs.
+          # Reuse only if all 13 expected assets exist and are non-empty.
+          cd core/bootstrap/retail
+          for part in MEP DSi DSi-en DSi-fr DSi-de DSi-it DSi-es \
+                      3DS 3DS-en 3DS-fr 3DS-de 3DS-it 3DS-es; do
+            test -s "nitrofiles/preLoadSettings${part}.pck"
+          done
+          # Other archive packers also have missing source directories in
+          # this tree. Only reuse existing, non-empty checked-in packages.
+          for part in apfix mobiclipOffsets dsi2dsSavePatches; do
+            test -s "nitrofiles/${part}.pck"
+          done
+          cat > /tmp/v71-pack-override.mk <<'EOF'
+          .PHONY: preLoadSettings apfix mobiclipOffsets dsi2dsSavePatches
+          preLoadSettings apfix mobiclipOffsets dsi2dsSavePatches:
+          	@echo "Reusing checked-in binary pack assets; sources absent or incomplete"
+          EOF
+          make -f Makefile -f /tmp/v71-pack-override.mk -j2 \
+            DEVKITARM="$GITHUB_WORKSPACE/core/bootstrap/portable-ds-rules" \
+            LEGACY_DEVKITARM="$COMPILER_DIR" LEGACY_LIBNDS="$SDK_DIR" LIBDIRS="$SDK_DIR" \
+            PYTHON=python3 GIT_VER=sdlang2 LZSS="$GITHUB_WORKSPACE/core/bootstrap/lzss" all
+          test -s bin/nds-bootstrap.nds
+          echo "Full build succeeded; experimental menu-only diagnostic build."
+      - name: Create SHA-256 checksum for diagnostic build
+        shell: bash
+        run: |
+          cd core/bootstrap/retail/bin
+          sha256sum nds-bootstrap.nds > nds-bootstrap.nds.sha256
+          cat nds-bootstrap.nds.sha256
+      - name: Upload experimental DSi menu diagnostic artifact (not a release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: v71-5-dsi-prelaunch-logging-test-only
+          path: |
+            core/bootstrap/retail/bin/nds-bootstrap.nds
+            core/bootstrap/retail/bin/nds-bootstrap.nds.sha256
+          if-no-files-found: error
+          retention-days: 7

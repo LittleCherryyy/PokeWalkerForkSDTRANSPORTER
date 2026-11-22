@@ -37,8 +37,17 @@ static void walkerSkip(configuration *conf, const char *reason, const char *path
 	conf->walkerCluster = 0;
 	FILE *log = fopen(WALKER_ERROR_PATH(conf), "w");
 	if (log) {
-		fprintf(log, "Virtual Pokewalker not connected: %s\nWALKER_PATH=%s\nGAME=%s\n",
-			reason, path ? path : "", conf->ndsPath);
+		/* Keep diagnostics self-contained: the INI section is the SHA-1
+		 * of the ROM path, not the visible ROM basename. Avoid requiring
+		 * the user to share saves/ROMs or reverse-engineer the section key. */
+		char key[41] = {0};
+		if (conf->ndsPath) palParkPathKey(conf->ndsPath, key);
+		fprintf(log, "Virtual Pokewalker not connected: %s\nWALKER_PATH=%s\nGAME=%s\n"
+			"INI_PATH=%s\nINI_SECTION=%s\nSAVE=%s\n"
+			"GAME_ON_FLASHCARD=%d\nSAVE_ON_FLASHCARD=%d\nB4DS=%d\n",
+			reason, path ? path : "", conf->ndsPath ? conf->ndsPath : "",
+			WALKER_INI_PATH(conf), key, conf->savPath ? conf->savPath : "",
+			(int)conf->gameOnFlashcard, (int)conf->saveOnFlashcard, (int)conf->b4dsMode);
 		fclose(log);
 	}
 }
@@ -56,15 +65,10 @@ static void walkerPrepare(configuration *conf) {
 	conf->walkerCluster = 0;
     conf->walkerPayloadOffset = conf->walkerPayloadSize = 0;
 	if (!conf->ndsPath || conf->isDSiWare) return;
-    /* Both files must be on the filesystem that the selected cardengine owns. */
-    if (conf->gameOnFlashcard != conf->saveOnFlashcard) return;
-    if (conf->gameOnFlashcard && dsiFeatures() && !conf->b4dsMode) return;
 
-	char key[41];
-	palParkPathKey(conf->ndsPath, key);
-	easysave::ini settings(WALKER_INI_PATH(conf));
-	if (settings.fetch(key, "VIRTUAL_WALKER", "0") != "1") return;
-
+	/* V7.1.5: Read the ROM header first. Only log silent rejection reasons
+	 * for HGSS; do not spam the Walker error file when starting other games.
+	 * This remains read-only and changes no game, save or Walker data. */
 	char code[4] = {0};
 	FILE *rom = fopen(conf->ndsPath, "rb");
 	if (rom) {
@@ -72,8 +76,24 @@ static void walkerPrepare(configuration *conf) {
 		if (fread(code, 1, 3, rom) != 3) code[0] = 0;
 		fclose(rom);
 	}
-	if (strncmp(code, "IPK", 3) && strncmp(code, "IPG", 3)) {
-		walkerSkip(conf, "not HeartGold or SoulSilver", NULL);
+	if (strncmp(code, "IPK", 3) && strncmp(code, "IPG", 3)) return;
+
+	char key[41];
+	palParkPathKey(conf->ndsPath, key);
+	easysave::ini settings(WALKER_INI_PATH(conf));
+	if (settings.fetch(key, "VIRTUAL_WALKER", "0") != "1") {
+		walkerSkip(conf, "VIRTUAL_WALKER is not enabled for the current ROM path", conf->ndsPath);
+		return;
+	}
+
+	/* Both files must be on the filesystem that the selected cardengine owns.
+	 * Record the reason instead of silently returning with walkerCluster=0. */
+	if (conf->gameOnFlashcard != conf->saveOnFlashcard) {
+		walkerSkip(conf, "ROM and save are on different devices", conf->savPath);
+		return;
+	}
+	if (conf->gameOnFlashcard && dsiFeatures() && !conf->b4dsMode) {
+		walkerSkip(conf, "DSi NTR Walker needs ROM and save on DSi SD, not flashcart/R4", conf->ndsPath);
 		return;
 	}
 	if (!conf->savPath || !conf->savPath[0]) {

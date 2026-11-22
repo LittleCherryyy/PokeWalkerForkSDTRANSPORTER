@@ -14,7 +14,7 @@ class BootOutcomeTests(unittest.TestCase):
         header = source("common/include/cardengine_header_arm7.h")
         asm = source("cardenginei/arm7/source/card_engine_header.s")
         self.assertIn("u32 gen5RomSize;\n\t/* V7.1.3:", header)
-        self.assertIn("u32 walkerBootStatus;\n} cardengineArm7;", header)
+        self.assertIn("u32 walkerBootStatus;", header)\n        self.assertIn("u32 walkerIrqTableMethod;\n} cardengineArm7;", header)
         self.assertRegex(asm, r"gen5RomSize: \.word 0\n\.global walkerBootStatus\nwalkerBootStatus: \.word 0")
     def test_fail_closed_boot_stages_are_reported(self):
         code = source("bootloaderi/source/arm7/walker_boot.c")

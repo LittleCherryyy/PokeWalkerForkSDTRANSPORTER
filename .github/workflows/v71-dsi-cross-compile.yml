@@ -1,6 +1,16 @@
 name: V7.1 experimental DSi NTR cross-compile
 
 on:
+  push:
+    branches:
+      - dev/v71-network-readiness-diagnostics
+    paths:
+      - '.github/workflows/v71-dsi-cross-compile.yml'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/**'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/source/**'
+      - 'core/bootstrap/retail/common/include/walker_*.h'
+      - 'core/bootstrap/retail/common/source/walker_hgss_net.c'
+      - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_*.c'
   pull_request:
     paths:
       - '.github/workflows/v71-dsi-cross-compile.yml'

@@ -48,10 +48,10 @@ class Arm9PreWrapperTests(unittest.TestCase):
 
     def test_ui_clear_irq_context_and_fail_closed(self):
         m=self.menu
-        self.assertIn("V8.3 ARM9 THREAD FLAG",m)
+        self.assertIn("V7.9 ARM9 DEFERRED",m)
         self.assertIn("the menu enters from IRQ",m)
         self.assertIn("Post+IME:0x",m)
-        self.assertIn("OS raw:0x",m)
+        self.assertIn("0 idle 1 queued 2 done",m)
         self.assertIn("Task stage:0x",m)
         self.assertIn("Wi-Fi: NOT ENABLED",m)
         self.assertIn("A: ARM9 pre-wrapper view",m)

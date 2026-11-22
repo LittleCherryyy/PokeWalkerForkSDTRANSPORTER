@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/v71-host-check.yml'
       - '.github/workflows/v71-dsi-cross-compile.yml'
+      - 'core/bootstrap/retail/arm9/include/walker_prepare.h'
       - 'core/bootstrap/retail/common/include/walker_emu.h'
       - 'core/bootstrap/retail/common/include/walker_hgss_net.h'
       - 'core/bootstrap/retail/common/source/walker_hgss_net.c'
@@ -24,6 +25,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/v71-host-check.yml'
+      - 'core/bootstrap/retail/arm9/include/walker_prepare.h'
       - 'core/bootstrap/retail/common/include/walker_emu.h'
       - 'core/bootstrap/retail/common/include/walker_hgss_net.h'
       - 'core/bootstrap/retail/common/source/walker_hgss_net.c'
@@ -135,7 +137,7 @@ jobs:
       - name: Upload experimental DSi menu diagnostic artifact (not a release)
         uses: actions/upload-artifact@v4
         with:
-          name: v71-4-dsi-ipc-retry-diagnostic-test-only
+          name: v71-5-dsi-prelaunch-logging-test-only
           path: |
             core/bootstrap/retail/bin/nds-bootstrap.nds
             core/bootstrap/retail/bin/nds-bootstrap.nds.sha256

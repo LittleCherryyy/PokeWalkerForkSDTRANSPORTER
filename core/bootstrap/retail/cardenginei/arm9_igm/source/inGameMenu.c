@@ -512,6 +512,63 @@ static const unsigned char* walkerBootReason(u32 code) {
     }
 }
 
+/* V7.2: a read-only pre-menu snapshot of ARM7 IRQ and timer registers.
+ * This is NOT a Wi-Fi capability probe. IRQ enable masks cannot establish
+ * which function owns the handler, and we never touch radio registers. */
+static void walkerRadioSnapshotMenu(void) {
+    u32 regs[4]={0,0,0,0};
+    bool answered=false;
+#ifndef B4DS
+    sharedAddr[4]=0x44525057u; /* WPRD */
+    for(unsigned frames=0;frames<90;frames++) {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+        const u32 response=sharedAddr[4];
+        if(response==0x4B525057u) { /* WPRK */
+            for(unsigned i=0;i<4;i++)regs[i]=sharedAddr[i];
+            answered=true;
+            break;
+        }
+        if(response==WALKER_DIAG_MENU) {
+            sharedAddr[4]=0x44525057u;
+        } else if(response!=0x44525057u) break;
+    }
+    if(sharedAddr[4]==0x44525057u || sharedAddr[4]==0x4B525057u)
+        sharedAddr[4]=WALKER_DIAG_MENU;
+#endif
+    clearScreen(false);
+    print(1,1,(const unsigned char *)"V7.2 ARM7 IRQ/TIMER SNAPSHOT",FONT_LIME,false);
+    if(!answered) {
+        print(1,4,(const unsigned char *)"ARM7 radio probe: no reply",FONT_RED,false);
+    } else {
+        print(1,4,(const unsigned char *)"REG_IE:  0x",FONT_WHITE,false);
+        printHex(13,4,regs[0],4,FONT_LIGHT_BLUE,false);
+        print(1,6,(const unsigned char *)"REG_IME: 0x",FONT_WHITE,false);
+        printHex(13,6,regs[1],1,FONT_LIGHT_BLUE,false);
+        print(1,8,(const unsigned char *)"TIMER0: 0x",FONT_WHITE,false);
+        printHex(13,8,regs[2]&0xFFFFu,2,FONT_LIGHT_BLUE,false);
+        print(1,9,(const unsigned char *)"TIMER1: 0x",FONT_WHITE,false);
+        printHex(13,9,regs[2]>>16,2,FONT_LIGHT_BLUE,false);
+        print(1,10,(const unsigned char *)"TIMER2: 0x",FONT_WHITE,false);
+        printHex(13,10,regs[3]&0xFFFFu,2,FONT_LIGHT_BLUE,false);
+        print(1,11,(const unsigned char *)"TIMER3: 0x",FONT_WHITE,false);
+        printHex(13,11,regs[3]>>16,2,FONT_LIGHT_BLUE,false);
+    }
+    print(1,14,(const unsigned char *)"Captured before menu pause",FONT_WHITE,false);
+    print(1,16,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,18,(const unsigned char *)"IRQ ownership NOT verified",FONT_LIGHT_GRAY,false);
+    print(1,20,(const unsigned char *)"B: Back to main menu",FONT_WHITE,false);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_X);
+    waitKeys(KEY_B);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_B);
+}
+
 static void virtualPokewalkerMenu(void) {
     u32 diag[4]={0,0,0,0};
     bool answered=false;
@@ -548,7 +605,7 @@ static void virtualPokewalkerMenu(void) {
     #endif
 
     clearScreen(false);
-    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.1.5", FONT_LIME, false);
+    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.2.0", FONT_LIME, false);
     print(1, 3, (const unsigned char *)"HeartGold / SoulSilver", FONT_WHITE, false);
     print(1, 5, (const unsigned char *)"Android TCP: 30821", FONT_WHITE, false);
     if(!answered) {
@@ -591,18 +648,29 @@ static void virtualPokewalkerMenu(void) {
         printHex(16,14,diag[3],4,FONT_LIGHT_BLUE,false);
         print(1, 16, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
     }
+    print(1, 18, (const unsigned char *)"X: ARM7 IRQ/timer snapshot", FONT_WHITE, false);
     print(1, 19, (const unsigned char *)"Read-only diagnostics", FONT_LIGHT_GRAY, false);
     print(1, 20, (const unsigned char *)"B: Back to menu", FONT_WHITE, false);
-    /* Wait until A has been released to prevent a carried key from closing. */
+    /* Wait for initial A release, then accept X (snapshot) or B. */
     do {
-        while (REG_VCOUNT != 191) mySwiDelay(100);
-        while (REG_VCOUNT == 191) mySwiDelay(100);
-    } while (KEYS & KEY_A);
-    waitKeys(KEY_B);
-    do {
-        while (REG_VCOUNT != 191) mySwiDelay(100);
-        while (REG_VCOUNT == 191) mySwiDelay(100);
-    } while (KEYS & KEY_B);
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_A);
+    bool showRadio=false;
+    while(1) {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+        if(KEYS & KEY_B) break;
+        if(KEYS & KEY_X){showRadio=true;break;}
+    }
+    if(showRadio) {
+        walkerRadioSnapshotMenu();
+    } else {
+        do {
+            while(REG_VCOUNT!=191) mySwiDelay(100);
+            while(REG_VCOUNT==191) mySwiDelay(100);
+        } while(KEYS & KEY_B);
+    }
 }
 
 static void optionsMenu(s32 *mainScreen, u32 consoleModel) {

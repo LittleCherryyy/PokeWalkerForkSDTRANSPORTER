@@ -47,6 +47,7 @@ class WifiAbiAuditTests(unittest.TestCase):
             self.assertEqual(ov["count"], 1)
             self.assertEqual(ov["selected"][0]["overlay_id"], 72)
             self.assertEqual(ov["selected"][0]["rom_file_bytes"], 0x100)
+            self.assertEqual(report["arm9_nitro_module_params"]["raw_marker_matches"], 0)
             self.assertFalse(report["network_abi"]["wifi_calls_permitted"])
             self.assertFalse(ov["selected"][0]["resident_during_overworld_verified"])
             self.assertNotIn(str(path), str(report))
@@ -74,6 +75,23 @@ class WifiAbiAuditTests(unittest.TestCase):
             path.write_bytes(data)
             with self.assertRaisesRegex(ValueError, "outside image"):
                 audit.audit_rom(path)
+
+    def test_raw_module_params_marker_is_only_a_candidate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "test.nds"
+            synthetic_rom(path)
+            data = bytearray(path.read_bytes())
+            # module params at file 0x250, marker is 0x1C bytes later.
+            struct.pack_into("<II", data, 0x250 + 0x14, 0x02110000, 0x03000200)
+            data[0x250 + 0x1C:0x250 + 0x24] = bytes.fromhex("2106c0dede c00621")
+            path.write_bytes(data)
+            result = audit.audit_rom(path)
+            params = result["arm9_nitro_module_params"]
+            self.assertEqual(params["raw_marker_matches"], 1)
+            self.assertEqual(params["unique_raw_candidate"]["compressed_static_end_candidate"], "0x02110000")
+            self.assertEqual(params["unique_raw_candidate"]["sdk_version_candidate"], "0x03000200")
+            self.assertFalse(params["runtime_params_validated"])
+            self.assertFalse(result["network_abi"]["wifi_calls_permitted"])
 
     def test_never_overwrites_source_rom_even_if_output_is_same(self):
         with tempfile.TemporaryDirectory() as tmp:

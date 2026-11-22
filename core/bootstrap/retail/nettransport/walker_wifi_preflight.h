@@ -23,6 +23,11 @@ typedef struct {
     uint8_t arm7WifiIrqChainingVerified;
     uint8_t arm7WifiServiceVerified;
     uint8_t arm9CooperativeWorkerVerified;
+    /* A cached IRQ address + a 100-byte RAM span cannot prove a table.
+     * Require independent, fresh table provenance AND dispatch semantics.
+     * Both default to false for the photographed HGSS configuration. */
+    uint8_t arm7IrqTableProvenanceVerified;
+    uint8_t arm7IrqTableSemanticsVerified;
     /* Require a 25-entry in-image table; runtime tables remain unverified. */
     WalkerWifiIrqLayout irqLayout;
 } WalkerWifiPreflight;
@@ -39,6 +44,8 @@ enum {
     WALKER_WIFI_BLOCK_ARM7_SERVICE = (1u << 8),
     WALKER_WIFI_BLOCK_ARM9_WORKER = (1u << 9),
     WALKER_WIFI_BLOCK_IRQ_TABLE_UNVERIFIED = (1u << 10),
+    WALKER_WIFI_BLOCK_IRQ_PROVENANCE = (1u << 11),
+    WALKER_WIFI_BLOCK_IRQ_SEMANTICS = (1u << 12),
     WALKER_WIFI_BLOCK_NO_POLICY = 0xFFFFFFFFu
 };
 

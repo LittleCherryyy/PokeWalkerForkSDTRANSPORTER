@@ -46,7 +46,7 @@ class Arm9TaskContextTests(unittest.TestCase):
         self.assertNotIn('SOC_Connect(', code)
         self.assertNotIn('REG_IE =', code)
         self.assertEqual(source.count(
-            "#if !defined(TWLSDK) && !defined(B4DS) && !defined(DLDI) && !defined(GSDD)"),3)
+            "#if !defined(TWLSDK) && !defined(B4DS) && !defined(DLDI) && !defined(GSDD)"),4)
         self.assertIn("const WalkerArm9Snapshot*)0", source)
         self.assertIn("#if defined(DLDI) || defined(GSDD)", source)
         self.assertIn("#if !defined(TWLSDK) && !defined(DLDI) && !defined(GSDD)", source)

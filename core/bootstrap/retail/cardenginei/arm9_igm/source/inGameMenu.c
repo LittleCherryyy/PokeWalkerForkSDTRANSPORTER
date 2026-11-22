@@ -526,26 +526,33 @@ static const unsigned char* walkerBootReason(u32 code) {
  * for this handoff. Other builds see an unavailable snapshot. */
 static WalkerArm9Snapshot walkerArm9PreWrapper = {0,0,0,0};
 
+/* V7.8: the menu enters from IRQ, so do not mistake its IME for the
+ * earlier ROM callback state. This reports snapshots captured at cardRead
+ * entry before the existing ROM-read code performs critical sections.
+ */
 static void walkerArm9PreWrapperMenu(void) {
     clearScreen(false);
-    print(1,1,(const unsigned char *)"V7.2.2 ARM9 PRE-WRAPPER",FONT_LIME,false);
+    print(1,1,(const unsigned char*)"V7.8 ARM9 ROM TASKS",FONT_LIME,false);
     if(walkerArm9PreWrapper.magic == WALKER_ARM9_SNAPSHOT_MAGIC) {
-        print(1,4,(const unsigned char *)"TIMER3: 0x",FONT_WHITE,false);
-        printHex(13,4,walkerArm9PreWrapper.timer3,2,FONT_LIGHT_BLUE,false);
-        print(1,6,(const unsigned char *)"REG_IE: 0x",FONT_WHITE,false);
-        printHex(13,6,walkerArm9PreWrapper.ie,4,FONT_LIGHT_BLUE,false);
-        print(1,8,(const unsigned char *)"REG_IME:0x",FONT_WHITE,false);
-        printHex(13,8,walkerArm9PreWrapper.ime,1,FONT_LIGHT_BLUE,false);
-        print(1,11,(const unsigned char *)((walkerArm9PreWrapper.timer3 & 0x80u) ?
-            "TIMER3 active before wrapper" : "TIMER3 off before wrapper"),
-            FONT_LIGHT_GRAY,false);
+        print(1,4,(const unsigned char*)"Pre-menu IE:0x",FONT_WHITE,false);
+        printHex(16,4,walkerArm9PreWrapper.ie,4,FONT_LIGHT_BLUE,false);
+        print(1,6,(const unsigned char*)"Pre-menu IME:0x",FONT_WHITE,false);
+        printHex(18,6,walkerArm9PreWrapper.ime,1,FONT_LIGHT_BLUE,false);
+        print(1,8,(const unsigned char*)"ROM read calls:0x",FONT_WHITE,false);
+        printHex(18,8,walkerArm9PreWrapper.romReadCalls,4,FONT_LIGHT_BLUE,false);
+        print(1,10,(const unsigned char*)"Non-IRQ+IME: 0x",FONT_WHITE,false);
+        printHex(18,10,walkerArm9PreWrapper.eligibleReadCalls,4,FONT_LIGHT_BLUE,false);
+        print(1,12,(const unsigned char*)"Last CPSR mode:0x",FONT_WHITE,false);
+        printHex(20,12,walkerArm9PreWrapper.lastReadCpsrMode,1,FONT_LIGHT_BLUE,false);
+        print(1,14,(const unsigned char*)"Last read IME:0x",FONT_WHITE,false);
+        printHex(20,14,walkerArm9PreWrapper.lastReadIme,1,FONT_LIGHT_BLUE,false);
+        print(1,16,(const unsigned char*)"Not a periodic worker",FONT_LIGHT_GRAY,false);
     } else {
-        print(1,4,(const unsigned char *)"Pre-wrapper data unavailable",FONT_RED,false);
+        print(1,6,(const unsigned char*)"ARM9 snapshot unavailable",FONT_RED,false);
     }
-    print(1,14,(const unsigned char *)"Captured in IRQ context",FONT_WHITE,false);
-    print(1,16,(const unsigned char *)"NOT normal gameplay IME",FONT_LIGHT_GRAY,false);
-    print(1,18,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
-    print(1,20,(const unsigned char *)"B: Back to main menu",FONT_WHITE,false);
+    print(1,18,(const unsigned char*)"No Wi-Fi/ABI ownership",FONT_LIGHT_GRAY,false);
+    print(1,19,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,21,(const unsigned char*)"B: Back",FONT_WHITE,false);
     do {
         while(REG_VCOUNT!=191) mySwiDelay(100);
         while(REG_VCOUNT==191) mySwiDelay(100);
@@ -1064,6 +1071,7 @@ static void virtualPokewalkerMenu(void) {
     print(1, 19, (const unsigned char *)"Y: ARM7 boot IRQ table", FONT_WHITE, false);
 #ifndef B4DS
     print(1, 20, (const unsigned char *)"L: ARM9 Wi-Fi code audit", FONT_WHITE, false);
+    print(1, 22, (const unsigned char *)"R: ARM9 task context", FONT_WHITE, false);
 #endif
     print(1, 21, (const unsigned char *)"B: Back to menu", FONT_WHITE, false);
     /* Wait for initial A release, then accept X (snapshot) or B. */
@@ -1074,6 +1082,7 @@ static void virtualPokewalkerMenu(void) {
     bool showRadio=false;
     bool showTable=false;
     bool showWifiCode=false;
+    bool showTaskContext=false;
     while(1) {
         while(REG_VCOUNT!=191) mySwiDelay(100);
         while(REG_VCOUNT==191) mySwiDelay(100);
@@ -1082,6 +1091,7 @@ static void virtualPokewalkerMenu(void) {
         if(KEYS & KEY_Y){showTable=true;break;}
 #ifndef B4DS
         if(KEYS & KEY_L){showWifiCode=true;break;}
+        if(KEYS & KEY_R){showTaskContext=true;break;}
 #endif
     }
     if(showRadio) {
@@ -1091,6 +1101,8 @@ static void virtualPokewalkerMenu(void) {
 #ifndef B4DS
     } else if(showWifiCode) {
         walkerArm9WifiCodeMenu();
+    } else if(showTaskContext) {
+        walkerArm9PreWrapperMenu();
 #endif
     } else {
         do {

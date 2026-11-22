@@ -3,6 +3,10 @@
  * This unit is deliberately independent of the higher-risk ARM7 bridge.
  * GPL-3.0-or-later; preserve attribution to Shinygati and all upstream work.
  */
+/* DLDI and GSDD/TWLSDK variants share the source directory but do not use
+ * the experimental HGSS hotspot path. Their RAM windows are tightly bounded:
+ * do not include any new protocol routines or data in those binaries. */
+#if !defined(DLDI) && !defined(GSDD) && !defined(TWLSDK)
 #include "walker_ping_only.h"
 
 /* Returns number of bytes for the caller to transmit only after a vetted,
@@ -20,3 +24,5 @@ int walkerV71CheckPingOk(const void *frame, unsigned frame_bytes) {
     if (!frame || frame_bytes != WALKER_DIRECT_HEADER_SIZE) return 0;
     return walkerPingAcceptOk((const WalkerDirectHeader *)frame);
 }
+
+#endif /* primary DSi NTR cardengine only */

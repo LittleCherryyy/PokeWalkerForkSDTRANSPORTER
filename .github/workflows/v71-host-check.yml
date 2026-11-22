@@ -13,6 +13,8 @@ on:
       - 'core/bootstrap/retail/cardenginei/arm7/source/walker_direct_bridge.c'
       - 'core/bootstrap/retail/cardenginei/arm7/source/walker_file.c'
       - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_boot.c'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
       - 'tests/v71_host/**'
       - 'tools/v7_1/identify_hgss_nds.py'
   pull_request:
@@ -25,6 +27,8 @@ on:
       - 'core/bootstrap/retail/cardenginei/arm7/source/walker_direct_bridge.c'
       - 'core/bootstrap/retail/cardenginei/arm7/source/walker_file.c'
       - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_boot.c'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
       - 'tests/v71_host/**'
 
 permissions:

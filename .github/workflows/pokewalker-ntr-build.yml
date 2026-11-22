@@ -1,0 +1,62 @@
+name: Pokewalker NTR source build (not a playable transfer)
+
+on:
+  push:
+    branches: ["dev/v72-resident-ping-core"]
+    paths:
+      - "core/bootstrap/**"
+      - ".github/workflows/pokewalker-ntr-build.yml"
+  pull_request:
+    paths:
+      - "core/bootstrap/**"
+      - ".github/workflows/pokewalker-ntr-build.yml"
+  workflow_dispatch:
+
+jobs:
+  native-arm-build:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkitarm:20260610
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare host tools and safe git access
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory '*'
+          if ! command -v gcc >/dev/null 2>&1; then
+            apt-get update
+            apt-get install -y gcc
+          fi
+          gcc -O2 core/bootstrap/lzss.c -o /usr/local/bin/lzss
+          command -v arm-none-eabi-gcc
+          arm-none-eabi-gcc --version | head -1
+      - name: Rebuild injected original-IR ARM9 payload from source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd core/bootstrap/retail
+          make walker_payload
+      - name: Link resident NTR ARM7 (SD and durable lock)
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C core/bootstrap/retail cardenginei_arm7
+      - name: Link resident NTR ARM9 (Pokewalker real PUSH coordinator)
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C core/bootstrap/retail cardenginei_arm9
+      - name: Compile NTR bootloader with patched walker hook
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C core/bootstrap/retail/bootloaderi
+      - name: Check nonempty native outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s core/bootstrap/retail/common/include/walker_payload.h
+          test -s core/bootstrap/retail/nitrofiles_dec/cardenginei_arm7.bin
+          test -s core/bootstrap/retail/nitrofiles_dec/cardenginei_arm9.bin
+          echo "NTR code compiled. This does not establish in-game Wi-Fi."

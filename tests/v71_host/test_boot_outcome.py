@@ -34,7 +34,7 @@ class BootOutcomeTests(unittest.TestCase):
         a9 = source("cardenginei/arm9_igm/source/inGameMenu.c")
         self.assertIn("sharedAddr[3] = walkerBootStatus;", a7)
         self.assertIn("sharedAddr[3] = c->flushedSeq;", a7)
-        self.assertIn("VIRTUAL POKEWALKER V7.1.4", a9)
+        self.assertIn("VIRTUAL POKEWALKER V7.1.5", a9)
         self.assertIn("Boot stage: 0x", a9)
         self.assertIn("walkerBootReason(diag[3])", a9)
         self.assertIn("No .walker file selected", a9)

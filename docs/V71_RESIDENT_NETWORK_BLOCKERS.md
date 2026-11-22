@@ -40,3 +40,11 @@ Derived from [Shinygati/SD-Transporter](https://github.com/Shinygati/SD-Transpor
 - `tools/v7_1/check_shared_layout.c` is compiled in CI with devkitARM; its tests ensure legacy offsets remain unchanged, the appended blocks are contiguous, and the control structure fits within 4 KiB.
 - `.github/workflows/v71-bootstrap-build.yml` attempts compilation of the actual DSi bootloader source, to expose linker/build errors before any hardware test.
 - No new `nds-bootstrap` production binary is promoted in this milestone. A successfully built **standalone** hotspot PING remains a separate executable.
+
+### Full DSi bootloader build compatibility
+
+The first devkitARM CI build of the full `bootloaderi` target stopped in legacy `source/arm7/main.arm7.c`, before it could validate the entire integration, with:
+- `PM_READ_REGISTER` undeclared (line 564)
+- `readFirmware` implicitly declared (line 996)
+
+These are currently **unresolved toolchain/upstream compatibility errors** in the broader build. They do not establish that the appended V7.1 control layout is faulty, but the complete bootloader cannot yet be called build-verified. See the `V7.1 DSi bootstrap integration compile` workflow for exact logs. Do not mask these errors or publish the resulting binary as a testable in-game release.

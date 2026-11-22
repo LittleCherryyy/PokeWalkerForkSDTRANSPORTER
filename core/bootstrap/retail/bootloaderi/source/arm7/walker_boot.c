@@ -59,6 +59,8 @@ void walkerBoot(cardengineArm7 *ce7, const tNDSHeader *ndsHeader) {
 	/* Fail closed across resets and unsuccessful IR-hook detection: never
 	 * leave a stale ARM9 pointer from a previous Pokémon session. */
 	((cardengineArm9 *)CARDENGINEI_ARM9_LOCATION)->walkerControl = 0;
+    ce7->walkerControl=0;
+    ce7->walkerDirectLockCluster=0;
 	/* Persist the exact refusal reason in the resident ARM7 cardengine.
 	 * Zero would mean walkerBoot() was never reached. */
 	ce7->walkerBootStatus = (!walkerCluster ? WALKER_BOOT_NO_CLUSTER : 0u)

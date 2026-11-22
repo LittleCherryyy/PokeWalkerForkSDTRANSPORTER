@@ -35,7 +35,9 @@ class Arm9TaskContextTests(unittest.TestCase):
         card = source.index("void cardRead(u32* cacheStruct")
         end = source.index("enableIPC_SYNC();", card)
         code = source[card:end]
-        self.assertIn('mrs %0, cpsr', code)
+        self.assertIn('walkerArm9GetCpsrMode();', code)
+        self.assertIn('__attribute__((target("arm"),noinline))', source)
+        self.assertIn('mrs %0, cpsr', source)
         self.assertIn('REG_IME & 1u', code)
         self.assertIn('mode == 0x10u || mode == 0x13u || mode == 0x1fu', code)
         self.assertIn('walkerArm9EligibleReadCalls++', code)
@@ -43,7 +45,7 @@ class Arm9TaskContextTests(unittest.TestCase):
         self.assertNotIn('SOC_Connect(', code)
         self.assertNotIn('REG_IE =', code)
         self.assertNotIn('walkerWrite(', code)
-        self.assertLess(code.index('mrs %0, cpsr'), code.index('initialize();'))
+        self.assertLess(code.index('walkerArm9GetCpsrMode();'), code.index('initialize();'))
 
     def test_diagnostic_is_read_only_and_wifi_stays_disabled(self):
         source = MENU.read_text()

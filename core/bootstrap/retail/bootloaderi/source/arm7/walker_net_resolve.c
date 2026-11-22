@@ -13,7 +13,7 @@ void walkerResolveNetworkApi(WalkerControl *c,const tNDSHeader *h){
     /* Scan the decompressed resident image (the same bytes the IR hook sees)
      * only when its range is fully within main DS RAM. Never scan beyond RAM.
      * The resolver is fail-closed and does not call any found functions. */
-    const u32 base=h->arm9destination;
+    const u32 base=(u32)h->arm9destination;
     const u32 bytes=(iUncompressedSize>h->arm9binarySize) ?
         iUncompressedSize : h->arm9binarySize;
     if(base<0x02000000u || base>=0x02400000u ||

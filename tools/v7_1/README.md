@@ -31,3 +31,23 @@ The report lists ARM-mode BL target addresses and their callsites, sorted by fre
 5. Build against toolchain and validate on a DSi using noncritical test saves before enabling any transfer operations.
 
 Credit for SD Transporter belongs to Shinygati and original contributors. See root `ATTRIBUTION.md`, `CREDITS-UPSTREAM.md` and `LICENSE`.
+
+## Revision identity: local NDS header inspector
+
+Before giving an ARM9 scanner a load address, inspect the NDS header locally:
+
+```powershell
+python tools/v7_1/nds_header.py "C:\\private\\my-legal-game-dump.nds" --output "C:\\private\\arm9-identity.json"
+```
+
+This tool reads but **never changes or extracts** the ROM. It reports game code (IPK / IPG candidate), ARM9 ROM offset, entry, RAM address, stored segment size and SHA-256. The hash identifies the **stored** ARM9 bytes, which may be compressed; it is not automatically a hash of the decompressed runtime code. The tool does not check a regional/version whitelist and does not prove that any networking symbol is resident.
+
+Only run `arm9_calls.py` against an **actually decompressed** and verified ARM9 image, using the matching RAM load address. Do not use a raw compressed ARM9 segment as if it were an instruction stream. Do not commit ROMs, decompressed proprietary code or user saves.
+
+Run all synthetic-fixture tests:
+
+```powershell
+python -m unittest discover -s tools/v7_1 -p "test_*.py" -v
+```
+
+The GitHub Actions workflow `.github/workflows/v71-offline-tests.yml` runs these tests in CI; no physical DSi or Android test is performed there.

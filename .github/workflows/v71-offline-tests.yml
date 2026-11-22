@@ -6,6 +6,8 @@ on:
       - "dev/v7.1-*"
     paths:
       - "tools/v7_1/**"
+      - "core/bootstrap/retail/cardenginei/arm9/source/walker_ping_fsm.c"
+      - "core/bootstrap/retail/common/include/walker_ping_fsm.h"
       - ".github/workflows/v71-offline-tests.yml"
   pull_request:
     paths:
@@ -53,5 +55,14 @@ jobs:
             core/bootstrap/retail/cardenginei/arm9/source/walker_ping_diagnostic.c \
             tools/v7_1/test_ping_runtime.c -o /tmp/v71-interop/ping-runtime-test
           /tmp/v71-interop/ping-runtime-test
+      - name: Exercise bounded PING FSM with synthetic nonblocking TCP callbacks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -Wall -Wextra -Werror \
+            -Icore/bootstrap/retail/common/include \
+            core/bootstrap/retail/cardenginei/arm9/source/walker_ping_fsm.c \
+            tools/v7_1/test_ping_fsm.c -o /tmp/v71-interop/test-ping-fsm
+          /tmp/v71-interop/test-ping-fsm
       - name: Unit tests with synthetic binaries only
         run: python -m unittest discover -s tools/v7_1 -p 'test_*.py' -v

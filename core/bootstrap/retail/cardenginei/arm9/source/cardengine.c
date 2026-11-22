@@ -160,6 +160,14 @@ static volatile u32 walkerArm9RomReadCalls;
 static volatile u32 walkerArm9EligibleReadCalls;
 static volatile u32 walkerArm9LastReadCpsrMode;
 static volatile u32 walkerArm9LastReadIme;
+/* ARM946E-S does not support MRS CPSR in Thumb-1. The cardengine is built
+ * in Thumb mode, so this tiny interworked leaf must be ARM-state code. */
+__attribute__((target("arm"),noinline))
+static u32 walkerArm9GetCpsrMode(void) {
+    u32 cpsr;
+    __asm__ volatile ("mrs %0, cpsr" : "=r"(cpsr));
+    return cpsr & 0x1fu;
+}
 #endif
 
 
@@ -794,9 +802,7 @@ void cardRead(u32* cacheStruct, u8* dst0, u32 src0, u32 len0) {
      * System/User/SVC. IME=1 is necessary, not sufficient, for an
      * eligible non-IRQ network callback.
      * Do not run networking here; only count it for a later menu snapshot. */
-    u32 mode;
-    __asm__ volatile ("mrs %0, cpsr" : "=r"(mode));
-    mode &= 0x1fu;
+    const u32 mode=walkerArm9GetCpsrMode();
     const u32 ime=(REG_IME & 1u);
     if(walkerArm9RomReadCalls != 0xffffffffu) walkerArm9RomReadCalls++;
     walkerArm9LastReadCpsrMode=mode;

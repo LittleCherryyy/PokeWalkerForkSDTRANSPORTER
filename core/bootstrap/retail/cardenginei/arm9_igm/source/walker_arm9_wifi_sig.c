@@ -7,6 +7,14 @@
  */
 #include "walker_arm9_wifi_sig.h"
 
+/* V8.8 NTR fixed-IGM memory recovery:
+ * The V7.7 CRC menu was superseded by the V8.3 OS scheduler menu.
+ * Retain this historical scanner and its fixed-vector host tests under
+ * B4DS only; NTR IGM no longer calls either function. Avoid allocating
+ * any additional memory in the original game's fixed IGM VRAM region.
+ * Does not alter V8.3/V8.8 guarded NTR raw-word reads.
+ */
+#ifdef B4DS
 uint32_t walkerCrc32Fixed32(const volatile uint8_t *source) {
     uint32_t crc=0xffffffffu;
     for(unsigned i=0;i<32;i++) {
@@ -50,6 +58,7 @@ uint32_t walkerWifiCheckStaticCode(uint32_t out[WALKER_WIFI_SIG_COUNT]) {
 #endif
 }
 
+#endif /* old CRC menu compiled only for B4DS host regression vectors */
 /* V8.3 HGSS USA Rev0 only; derived from the user's matching V8.2 report.
  *
  * 020D1AC4  LDR r0, [pc,#4]       literal at 020D1AD0

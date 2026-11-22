@@ -17,19 +17,20 @@ resources. These measurements **do not justify invoking WCM/SOC**.
 ## V7.9 implementation
 
 1. **Menu-exit request.** On normal return from the in-game-menu wrapper,
-   after leaving its critical section, queue one dry-run request by
-   setting a private ARM9 word. This is a trivial store; the menu/IRQ
-   path does not perform any deferred work.
+   after leaving its critical section, transition the private ARM9
+   dry-run stage from `0` (idle) to `1` (queued) exactly once per game
+   launch. The menu/IRQ path does not perform any deferred work.
 2. **Post-I/O completion.** At the end of a normal cardRead callback,
    after the game's ROM-read path and its existing post-read hook have
    returned, sample ARM9 CPSR and REG_IME. In User/System/Supervisor
    mode with IME bit 0 set, increment a saturating post-read counter.
-3. **Constant-time dry run.** If a request is queued, clear the flag and
-   increment the completion counter. There are no loops, IPC requests,
-   allocations, game calls, network calls, or SD accesses in this step.
+3. **Constant-time dry run.** If the stage is `1`, transition it to
+   `2` (completed). There are no loops, IPC requests, allocations, game
+   calls, network calls, or SD accesses in this step. It is not rearmed
+   after completion during the same game launch.
 4. **Read-only view.** Under Virtual Pokewalker -> **R**, the compact
    `V7.9 ARM9 DEFERRED` view shows ROM reads, eligible post-read
-   entries, queued dry-runs, and completed dry-runs.
+   entries, and the one-shot stage (0 idle, 1 queued, 2 completed).
 5. **Platform boundaries.** This code is compiled only for NTR DSi
    cardenginei ARM9 (not TWLSDK, DLDI, GSDD or B4DS). Other versions
    receive an unavailable snapshot, retaining their fixed linker sizes.
@@ -45,11 +46,12 @@ If the game never requests ROM data, completion remains pending.
 2. Install V7.9 nds-bootstrap.nds as
    `sd:/_nds/nds-bootstrap-nightly.nds`; enable Nightly for HGSS.
 3. Open HeartGold and visit Virtual Pokewalker -> **R**.
-   Photograph queued/completed counters and leave the in-game menu.
+   Photograph the task stage and post-read counter; then leave the menu.
 4. Walk into a different room/route to ensure ROM data is loaded.
 5. Reopen Virtual Pokewalker -> **R** and photograph again.
-6. Send both photos. The second one should have at least one additional
-   queued/completed dry-run if a normal eligible read occurred.
+6. Send both photos. After an eligible ROM read, the stage should change
+   from `0` before the first menu exit to `2` (completed) on the second
+   observation. A value of `1` means no eligible read happened yet.
 
 This proves the feasibility of *a bounded non-I/O unit of deferred work*
 on a game-triggered ARM9 callback, not a general-purpose network task

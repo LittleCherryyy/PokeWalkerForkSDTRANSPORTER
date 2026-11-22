@@ -50,6 +50,10 @@ jobs:
         run: python3 tests/v72_host/run_irq_live_guard.py
       - name: Check read-only ARM7 IPC and candidate-only UI
         run: python3 -m unittest discover -s tests/v72_host -p 'test_irq_live_integration.py' -v
+      - name: Audit photographed V7.2.6 IRQ words and require IRQ provenance
+        run: |
+          python3 -m unittest discover -s tests/v72_host -p 'test_irq_words_audit.py' -v
+          python3 tools/v7_2/analyze_irq_words.py --table 0x0238ECF4 --image-start 0x02380000 --image-bytes 0x000276D8 --method 1 --slot0 0xCBA77ABC --slot16 0x24285A5F --slot24 0xBA84DFC5
       - name: Verify radio snapshot IPC source is read-only
         run: python3 -m unittest discover -s tests/v72_host -p 'test_radio_snapshot.py' -v
       - name: Verify DMA3/ARM9 read-only resource snapshot

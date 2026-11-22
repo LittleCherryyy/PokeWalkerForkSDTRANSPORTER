@@ -20,13 +20,21 @@ class TransportReadinessTests(unittest.TestCase):
         self.assertEqual(second["vblank"] - second["bridge"], 1)
         self.assertEqual(second["ipc"] - first["ipc"], 29930)
 
-    def test_existing_bridge_polls_only_if_backend_reports_available(self):
+    def test_arm7_bridge_prepares_only_requested_durable_checkout_without_sockets(self):
         code = (SRC / "cardenginei/arm7/source/walker_direct_bridge.c").read_text()
-        self.assertIn("bool walkerDirectTransportAvailable(void) { return false; }", code)
-        self.assertIn("if(!walkerDirectTransportAvailable()) return;", code)
-        self.assertLess(code.index("if(!walkerDirectTransportAvailable()) return;"),
-                        code.index("switch(c->direct.state)"))
-        self.assertIn("if(!durableImageStable(c,crcSeq)) return;", code)
+        worker = (SRC / "cardenginei/arm9/source/walker_direct_worker.c").read_text()
+        self.assertIn("c->direct.lockRequested", code)
+        self.assertIn("c->checkoutState!=WALKER_CHECKOUT_COMPLETE", code)
+        self.assertIn("durableImageStable(c,crcSeq)", code)
+        self.assertIn("WALKER_CRC_BYTES_PER_TICK 512u", code)
+        # Network activity was removed from ARM7's VBlank callback.
+        for forbidden in ("walkerDirectTransportPush(", "walkerDirectTransportPull(",
+                          "walkerDirectTransportAvailable(", "Wifi_Init(", "send(", "recv("):
+            self.assertNotIn(forbidden, code)
+        self.assertIn("walkerDirectRadioBackend()", worker)
+        self.assertIn("c->direct.lockRequested=1", worker)
+        self.assertIn("!c->direct.lockReady", worker)
+        self.assertIn("walkerPushStep(", worker)
 
     def test_unresolved_hgss_wifi_abi_remains_fail_closed(self):
         resolver = (SRC / "common/source/walker_hgss_net.c").read_text()

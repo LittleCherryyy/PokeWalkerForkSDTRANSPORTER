@@ -26,6 +26,10 @@ void walkerPingStart(WalkerPing *p, uint32_t frame, uint32_t timeoutFrames) {
     p->state=WALKER_PING_SENDING;
 }
 
+void walkerPingCancel(WalkerPing *p) {
+    if(p)memset(p,0,sizeof(*p));
+}
+
 static int validOk(const WalkerPing *p) {
     const uint8_t *r=p->rx;
     if (memcmp(r,WALKER_DIRECT_MAGIC,WALKER_DIRECT_MAGIC_SIZE)!=0 ||

@@ -57,7 +57,7 @@ class Arm9PreWrapperTests(unittest.TestCase):
         self.assertIn("walkerArm9PreWrapperMenu();",m)
         self.assertNotIn("Wifi_InitDefault(",m)
         self.assertNotIn("socConnect(",m)
-        self.assertIn("VIRTUAL POKEWALKER V7.2.2",m)
+        self.assertIn("VIRTUAL POKEWALKER V7.2.5",m)
 
 if __name__=="__main__":
     unittest.main()

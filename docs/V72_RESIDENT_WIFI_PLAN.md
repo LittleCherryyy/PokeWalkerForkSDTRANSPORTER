@@ -340,3 +340,52 @@ Only after tracing which code owns timer 3 and whether the chosen
 DSWifi version can use an alternate explicitly negotiated timer should
 we contemplate radio initialization. This V7.2.1 diagnostic does not
 require a new APK or another hardware test at present.
+
+## V7.2.2 — snapshot ARM9 anterior ao wrapper do menu
+
+A foto real do DSi na V7.2.1 mostrou DMA3 do ARM7 em
+`0x00000000` (desabilitado no instante da amostra) e no ARM9
+`TIMER3=0x00C1`, `REG_IE=0x00050049`, `REG_IME=0`, todos estes
+últimos **após** a entrada no menu. A análise do código mostrou
+que o wrapper `cardenginei/arm9/source/cardengine.c::inGameMenu()`
+chama `enterCriticalSection()` antes de executar o binário IGM.
+
+### Implementação de diagnóstico (somente leitura)
+
+- A V7.2.2 captura `TIMER_CR(3)`, `REG_IE` e `REG_IME` no
+  ARM9 *antes* do `enterCriticalSection()` do wrapper.
+- Passa uma pequena estrutura `WalkerArm9Snapshot` para o IGM pelo
+  **quarto argumento do ABI ARM (r3)**. O ponteiro referencia uma estrutura
+  local viva durante toda a chamada; o IGM copia imediatamente o conteúdo.
+  O tipo compartilhado e a assinatura magic estão em
+  `common/include/walker_arm9_snapshot.h`.
+- O mecanismo é restrito ao código NTR do DSi: compila o contrato anterior
+  de três parâmetros para B4DS/TWLSDK, sem alterar o layout binário do
+  cardengine ARM9, a tabela de IRQ ou os índices `sharedAddr[]`.
+- O menu **Virtual Pokéwalker V7.2.2 → X → Y → A** mostra esses valores
+  como *ARM9 PRE-WRAPPER*, além da página DMA3/ARM9 anterior.
+- **Limitação essencial:** a chamada ao wrapper ocorre no handler de
+  interrupção IPC (`myIrqHandlerIPC()`). A captura é anterior à pausa do
+  *wrapper*, mas ainda está em **contexto de interrupção**, portanto não
+  mede o valor geral de `REG_IME` durante o gameplay normal e **não
+  prova a posse do TIMER3**.
+- O código não escreve em timers, IRQ, DMA, memória do Walker, ROM ou save;
+  não liga Wi-Fi e não envia PING pelo HeartGold.
+
+### Teste físico V7.2.2 (somente após CI verde)
+
+1. Backup do `/_nds/nds-bootstrap-nightly.nds` comprovadamente funcional,
+   bem como dos arquivos do Walker e save descartável.
+2. Instalar apenas `nds-bootstrap.nds` do artefato **V7.2.2 read-only**
+   no caminho Nightly; não mudar o jogo nem o APK Android.
+3. Abrir HeartGold; no menu nds-bootstrap abrir `Virtual Pokéwalker`,
+   confirmar o rótulo `V7.2.2`, pressionar **X → Y → A**.
+4. Fotografar `TIMER3`, `REG_IE`, `REG_IME` e eventuais avisos na
+   tela `ARM9 PRE-WRAPPER`. Confirmar que B retorna ao jogo.
+5. Restaurar a V7.1.5 se houver travamentos, regressão de IR ou
+   comportamento inesperado.
+
+Os resultados ajudam a distinguir alterações introduzidas pelo
+próprio menu, mas o bloqueio para o Wi-Fi residente continua: IRQ_WIFI,
+DMA3, TIMER3 e worker cooperativo precisam de um plano de posse e
+encadeamento seguro. **Não** chamar `Wifi_InitDefault()` no IGM.

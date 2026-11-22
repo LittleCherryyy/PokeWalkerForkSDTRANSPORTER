@@ -269,3 +269,74 @@ contains slot 24 (`IRQ_WIFI`) and whether its handler can safely chain,
 then evaluate DMA3 ownership and the ARM7/ARM9 timer service strategy
 before any PING inside HGSS. No release or Wi-Fi claim is justified by
 these snapshots alone.
+
+## Real V7.2.1 DMA3 / ARM9 audit photo — 22 November 2026
+
+The user confirmed the DMA3/ARM9 read-only panel works on a real DSi
+running HeartGold. Photographed values (literal hardware readings):
+
+| Register / view | Observed |
+| --- | --- |
+| ARM7 DMA3_CR | `0x00000000` |
+| ARM7 DMA3_SRC | `0x00000000` |
+| ARM7 DMA3_DST | `0x00000000` |
+| ARM9 TIMER3 (menu) | `0x00C1` |
+| ARM9 REG_IE (menu) | `0x00050049` |
+| ARM9 REG_IME (menu) | `0x00` |
+
+**ARM7 DMA3** was inactive at the pre-menu snapshot, but this does not
+establish exclusive or future DMA3 ownership. No DMA reconfiguration is
+authorized by this result.
+
+**ARM9 TIMER3** was still configured with timer enable + IRQ + divider
+64, even though the in-game menu had disabled the ARM9 interrupt master.
+The ARM9 NTR cardengine source explicitly starts its menu wrapper with
+`int oldIME = enterCriticalSection();`, *before* invoking the separate
+IGM display function. This directly explains the observed
+`ARM9 REG_IME=0`. The actual gameplay IME value was not captured.
+`REG_IE=0x00050049` has enabled mask bits: VBlank (0), timer 0 (3),
+timer 3 (6), IPC sync (16), and IPC receive FIFO (18).
+
+**Critical default DSWifi gate:** the libnds documentation for DSWifi
+identifies ARM9 timer 3 as a Wi-Fi resource; the currently observed
+TIMER3_CR=0x00C1 prevents us from treating a default DSWifi startup as
+safe. We cannot determine from this snapshot which code owns TIMER3,
+or whether it is used for a game timer or some other service. Do not
+overwrite this timer, call `Wifi_InitDefault()` in the menu, or add an
+`IRQ_WIFI` hook without a verified IRQ dispatch/ownership plan.
+
+Relevant source:
+- `core/bootstrap/retail/cardenginei/arm9/source/cardengine.c`:
+  `inGameMenu(s32* exRegisters)` begins with `enterCriticalSection()`
+- `core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c`:
+  reads ARM9 timer/IE/IME after entering IGM
+- `core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c`:
+  reads DMA3 state before the ARM7 menu pauses the game
+- https://blocksds.skylyrac.net/libnds/timers_8h.html
+- https://blocksds.skylyrac.net/dswifi/index.html
+
+### Offline hardware readiness audit
+
+```bash
+python3 tools/v7_2/analyze_arm9_dma_snapshot.py \
+    --dma-cr 0 --dma-src 0 --dma-dst 0 \
+    --arm9-timer3 0x00C1 --arm9-ie 0x00050049 --arm9-ime 0
+```
+
+This command only prints a JSON interpretation of the six provided
+register values. Test fixture `tests/v72_host/test_arm9_dma_audit.py`
+asserts TIMER3 is configured active, that the visible IRQ mask decodes
+correctly, and that **wifi_resident_ready is false** even if DMA3 is idle.
+
+### Recommended next engineering gate
+
+Capture the **ARM9 TIMER3 + REG_IE/REG_IME before** its cardengine
+`inGameMenu()` wrapper calls `enterCriticalSection()`, using a proven
+safe handoff to the IGM (do not repurpose existing shared mailbox slots
+that the loader/Gen5 features use). The baseline screenshot was taken
+after menu pause, so gameplay ownership remains unverified.
+
+Only after tracing which code owns timer 3 and whether the chosen
+DSWifi version can use an alternate explicitly negotiated timer should
+we contemplate radio initialization. This V7.2.1 diagnostic does not
+require a new APK or another hardware test at present.

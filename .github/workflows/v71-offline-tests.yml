@@ -40,5 +40,7 @@ jobs:
           java -cp /tmp/v71-interop io.github.sdtransporter.pokewalker.ProtocolInteropTest /tmp/v71-interop/ping.bin
       - name: Compile offline tools
         run: python -m compileall -q tools/v7_1
+      - name: Audit resident HGSS networking gates (informational)
+        run: python tools/v7_1/resident_audit.py --json
       - name: Unit tests with synthetic binaries only
         run: python -m unittest discover -s tools/v7_1 -p 'test_*.py' -v

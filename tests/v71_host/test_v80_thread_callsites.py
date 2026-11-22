@@ -12,7 +12,9 @@ sp.loader.exec_module(m)
 
 
 def thumb_call(pc,target,arm=False):
-    off=(target-pc-4)&0x7fffff
+    # BLX aligns the ARM destination using (PC+4)&~3.
+    origin=((pc+4)&~3) if arm else (pc+4)
+    off=(target-origin)&0x7fffff
     if off&1:raise ValueError("unaligned")
     return struct.pack("<HH",0xf000|((off>>12)&0x7ff),
                        (0xe800 if arm else 0xf800)|((off>>1)&0x7ff))

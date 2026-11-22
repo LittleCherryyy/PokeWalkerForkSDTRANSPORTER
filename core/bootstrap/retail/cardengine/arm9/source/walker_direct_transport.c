@@ -1,3 +1,7 @@
+/* Resident DSi networking is not usable in B4DS. These experimental
+ * components are not linked or invoked on DS Lite/B4DS; keeping them out
+ * of fixed-size ARM9 cardengines preserves the original memory map. */
+#if !defined(B4DS)
 #include <nds.h>
 #include <string.h>
 #include "walker_emu.h"
@@ -30,3 +34,5 @@ void walkerDirectTransportTickArm9(void){
      * a partially resolved API from corrupting HGSS. */
 }
 void walkerDirectBuildPushHeader(void*dst){WalkerControl*c=control();if(c)buildHeader((WalkerDirectHeader*)dst,WALKER_DIRECT_PUSH_TO_PHONE,c,WALKER_DIRECT_WALKER_SIZE,c->direct.crc32);}
+
+#endif /* !B4DS */

@@ -30,7 +30,10 @@ class BootIrqReport(unittest.TestCase):
                 "walkerIrqImageSize","walkerIrqTableMethod")
         self.assertLess(hdr.index("u32 walkerBootStatus;"),
                         hdr.index("u32 walkerIrqTableAddress;"))
-        self.assertIn("u32 walkerIrqBootInstalledIpc;\n} cardengineArm7;",hdr)
+        self.assertIn("u32 walkerDirectLockCluster;", hdr)
+        self.assertLess(hdr.index("u32 walkerIrqBootInstalledIpc;"),
+                        hdr.index("u32 walkerDirectLockCluster;"))
+        self.assertRegex(hdr, r"u32 walkerDirectLockCluster;\s*}\s*cardengineArm7;")
         self.assertLess(hdr.index("u32 walkerIrqTableMethod;"),
                         hdr.index("u32 walkerIrqBootOriginalVblank;"))
         for name in fields:

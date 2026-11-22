@@ -97,3 +97,13 @@ The historical-r65 pipeline now compiles and links the DSi `bootloaderi` and get
 ## CI: independently validated DSi core modules
 
 The GitHub Actions workflow now compiles three key DSi cardengines independently: `cardenginei_arm7`, `cardenginei_arm9`, and `cardenginei_arm9_igm`, without requiring the missing `preLoadSettings/files-*` packaging inputs. This step **passed** with the historical toolchain in run 44979758489. It proves these modules compile and link, not that resident WCM/SOCL functions can run inside HeartGold/SoulSilver. The full packaging attempt remains separate and may fail due missing compatibility assets; neither result constitutes a released/console-testable HGSS integration.
+
+## 2026-11-22 — HGSS WCM API provenance review
+
+A cross-check against the public `pret/pokeheartgold` decompilation shows that symbols `WCM_Init`, `WCM_StartupAsync`, `WCM_SearchAsync`, `WCM_ConnectAsync`, and `WCM_GetPhase` are referenced in overlay assembly/include files (notably `asm/include/overlay_13_thumb_2.inc`, `asm/include/overlay_70.inc`, `asm/include/overlay_72.inc`, and `lib/NitroDWC/asm/include/overlay_00_arm.inc`). **References do not establish where the function body is located, nor guarantee its memory lifetime.** An overlay can reference a function linked into resident ARM9, or provide code that is later unloaded. A revision-specific symbol map and runtime residency proof are required.
+
+The earlier experimental field `wcmBeginSearchAsync` was aligned to the exported symbol spelling `WCM_SearchAsync` (`wcmSearchAsync`) in the shared API contract. This renames a **dormant** field only; no unverified callable address has been enabled.
+
+**Safety hardening**: `common/source/walker_hgss_net.c` now refuses to fill any WCM/SOCL/gateway addresses based only on BL frequency or `IPKE`/`IPGE` game code. Its resolver always keeps `ready=0`. `tools/v7_1/resident_audit.py --require-fail-closed` checks this guard in CI. This is intentionally conservative until the precise binary revision and verified resident/overlay call lifetimes can be established. The PING diagnostic over the Android hotspot remains unaffected.
+
+Public research reference: https://github.com/pret/pokeheartgold (do not copy commercial ARM9 ROM assets into this repository).

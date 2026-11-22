@@ -72,6 +72,14 @@ public final class ProtocolInteropTest {
             check(cParsed.op == DirectSyncProtocol.OP_PING && cParsed.length == 0,
                   "Android must accept C bridge frame");
         }
+        // The V18 Android service replies to empty PING with exactly this
+        // OP_OK frame. Let the independent C PING-only parser validate bytes
+        // emitted by the real Java protocol implementation, not a C mock.
+        if (args.length >= 2) {
+            byte[] ok = encoded(DirectSyncProtocol.OP_OK, "", "", null);
+            check(ok.length == 88, "Android OP_OK must have an empty body");
+            Files.write(Paths.get(args[1]), ok);
+        }
         System.out.println("ProtocolInteropTest: PASS (Android 88-byte framing, CRC and rejection checks)");
     }
 }

@@ -37,6 +37,7 @@ on:
       - 'tools/v7_6/**'
       - 'tools/v7_7/**'
       - 'tools/v8_0/**'
+      - 'tools/v8_1/**'
   pull_request:
     paths:
       - '.github/workflows/v71-host-check.yml'
@@ -66,6 +67,7 @@ on:
       - 'tools/v7_6/**'
       - 'tools/v7_7/**'
       - 'tools/v8_0/**'
+      - 'tools/v8_1/**'
 
 permissions:
   contents: read
@@ -138,6 +140,21 @@ jobs:
             tools/v8_0/hgss_thread_callsite_audit.py
             tools/v8_0/COMPARAR_THREADS_HGSS.bat
             tools/v8_0/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V8.1 HGSS OS thread ABI and context audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V8_1-OS-Thread-ABI-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_6/hgss_wifi_entry_audit.py
+            tools/v8_0/hgss_thread_callsite_audit.py
+            tools/v8_1/hgss_thread_abi_context.py
+            tools/v8_1/COMPARAR_ABI_THREADS.bat
+            tools/v8_1/README.md
           if-no-files-found: error
           retention-days: 7
       - name: Build portable static LZSS host tool

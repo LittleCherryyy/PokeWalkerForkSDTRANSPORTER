@@ -8,5 +8,5 @@
 void walkerResolveNetworkApi(WalkerControl *c,const tNDSHeader *h){
     if(!c||!h)return;
     memset(&c->hgssNet,0,sizeof(c->hgssNet));
-    walkerResolveHgssNet((const u32 *)h->arm9destination,h->arm9destination,h->arm9binarySize,&c->hgssNet,(const char *)h->gameCode);
+    walkerResolveHgssNet((const u32 *)h->arm9destination,(u32)h->arm9destination,h->arm9binarySize,&c->hgssNet,(const char *)h->gameCode);
 }

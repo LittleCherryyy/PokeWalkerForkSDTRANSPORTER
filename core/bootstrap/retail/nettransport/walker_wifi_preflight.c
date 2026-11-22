@@ -31,6 +31,10 @@ uint32_t walkerWifiPreflight(const WalkerWifiPreflight *s) {
     if (walkerWifiIrqInspect(&s->irqLayout) !=
             WALKER_WIFI_IRQ_INLINE_25_SLOTS_WITHIN_IMAGE)
         blocked |= WALKER_WIFI_BLOCK_IRQ_TABLE_UNVERIFIED;
+    if (!s->arm7IrqTableProvenanceVerified)
+        blocked |= WALKER_WIFI_BLOCK_IRQ_PROVENANCE;
+    if (!s->arm7IrqTableSemanticsVerified)
+        blocked |= WALKER_WIFI_BLOCK_IRQ_SEMANTICS;
     if (!s->arm7WifiServiceVerified)
         blocked |= WALKER_WIFI_BLOCK_ARM7_SERVICE;
     if (!s->arm9CooperativeWorkerVerified)

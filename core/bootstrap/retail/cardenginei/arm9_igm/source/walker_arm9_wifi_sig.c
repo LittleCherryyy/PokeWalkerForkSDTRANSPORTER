@@ -140,3 +140,39 @@ int walkerArm9ThreadHeaderWords(uint32_t out[4]) {
     return 1;
 #endif
 }
+
+/* V8.8: test the SDK 2.x *legacy* layout hypothesis, not Infinity.
+ * The original HGSS build targets NitroSDK 2.0; the public thread.h
+ * only enables SDK_THREAD_INFINITY for SDK_VERSION_MAJOR >= 3.
+ * An original legacy OSThreadInfo at 0x021E169C would place:
+ *   +0 header flags/max_entry  = 0x021E169C (NEW)
+ *   +4 irqDepth/padding        = 0x021E16A0 (reused)
+ *   +8 current                 = 0x021E16A4 (reused)
+ *  +12 list                    = 0x021E16A8 (reused)
+ *  +16 switchCallback          = 0x021E16AC (reused)
+ *  +20 entry[0]                = 0x021E16B0 (NEW)
+ * All values are RAW and never interpreted as pointers by this code.
+ * Reject changed previously observed original HGSS pointer pair:
+ * this is a narrowly scoped diagnostic, not a general-purpose RAM
+ * scanner. Two new fixed aligned NTR memory word reads only.
+ */
+int walkerArm9LegacyThreadInfoWords(uint32_t out[6]) {
+    if (!out) return 0;
+    for (unsigned i=0;i<6;i++) out[i]=0u;
+#if defined(B4DS) || defined(TWLSDK)
+    return 0;
+#else
+    uint32_t middle[4]={0u,0u,0u,0u};
+    if (!walkerArm9ThreadHeaderWords(middle))
+        return 0;
+    if (middle[1]!=0x021E1770u || middle[2]!=0x021E3864u)
+        return 0;
+    out[0]=*(const volatile uint32_t *)(uintptr_t)0x021E169Cu;
+    out[1]=middle[0];
+    out[2]=middle[1];
+    out[3]=middle[2];
+    out[4]=middle[3];
+    out[5]=*(const volatile uint32_t *)(uintptr_t)0x021E16B0u;
+    return 1;
+#endif
+}

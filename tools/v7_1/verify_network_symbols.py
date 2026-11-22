@@ -12,8 +12,9 @@ from pathlib import Path
 EXPECTED = {
     "WCM_Init", "WCM_StartupAsync", "WCM_SearchAsync",
     "WCM_ConnectAsync", "WCM_GetPhase", "WCM_PointApList",
-    "SOCL_Startup", "SOCL_Socket", "SOCL_Connect",
-    "SOCL_Send", "SOCL_Recv", "SOCL_Close",
+    "SOC_Startup", "SOC_Socket", "SOC_Connect",
+    "SOC_Send", "SOC_Recv", "SOC_Close", "SOC_Fcntl",
+    "SOCL_GetHostID",
 }
 
 
@@ -26,7 +27,7 @@ def verify_manifest(path: Path) -> None:
         raise ValueError("Function entries must be a list")
     names = [entry.get("symbol") for entry in entries]
     if len(names) != len(set(names)) or set(names) != EXPECTED:
-        raise ValueError("Incorrect, missing or duplicate WCM/SOCL function names")
+        raise ValueError("Incorrect, missing or duplicate WCM/SOC function names")
     for entry in entries:
         if entry.get("address") is not None or entry.get("residency") != "unverified":
             raise ValueError(

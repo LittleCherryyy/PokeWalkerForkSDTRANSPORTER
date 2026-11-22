@@ -24,8 +24,13 @@ static void test_dsi_control_address_ranges(void) {
      * Prior diagnostics incorrectly rejected this valid region. */
     assert(walkerControlAddressReadable(0x02000000u));
     assert(walkerControlAddressReadable(0x023FF000u));
-    assert(walkerControlAddressReadable(0x0CFDC000u));
-    assert(walkerControlAddressReadable(0x0CFE0000u));
+    /* DSi mirror pointers must never be dereferenced by ARM7 diagnostics. */
+    assert(!walkerControlAddressReadable(0x0CFDC000u));
+    assert(!walkerControlAddressReadable(0x0CFE0000u));
+    assert(walkerControlAddressIsDsiMirror(0x0CFDC000u));
+    assert(walkerControlAddressIsDsiMirror(0x0CFE0000u));
+    assert(!walkerControlAddressIsDsiMirror(0x0CFDC001u));
+    assert(!walkerControlAddressIsDsiMirror(0x02000000u));
     assert(!walkerControlAddressReadable(0u));
     assert(!walkerControlAddressReadable(0x0CFDC001u));
     assert(!walkerControlAddressReadable(0x02400000u));

@@ -498,6 +498,7 @@ static void drawMainMenu(MenuItem *menuItems, int menuItemCount) {
 static void virtualPokewalkerMenu(void) {
     u32 diag[4]={0,0,0,0};
     bool answered=false;
+    u32 lastCommand=0;
     #ifndef B4DS
     sharedAddr[4]=WALKER_DIAG_REQUEST;
     /* ARM7 processes menu commands once per VBlank. Bound this request to
@@ -512,6 +513,7 @@ static void virtualPokewalkerMenu(void) {
         }
         if(sharedAddr[4]!=WALKER_DIAG_REQUEST) break;
     }
+    lastCommand=sharedAddr[4];
     /* Restore the normal in-game-menu command even after timeout, but never
      * overwrite a different command issued by another menu component. */
     if(sharedAddr[4]==WALKER_DIAG_REQUEST ||
@@ -519,12 +521,21 @@ static void virtualPokewalkerMenu(void) {
     #endif
 
     clearScreen(false);
-    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.1.1", FONT_LIME, false);
+    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.1.2", FONT_LIME, false);
     print(1, 3, (const unsigned char *)"HeartGold / SoulSilver", FONT_WHITE, false);
     print(1, 5, (const unsigned char *)"Android TCP: 30821", FONT_WHITE, false);
     if(!answered) {
         print(1, 7, (const unsigned char *)"ARM7: no diagnostic reply", FONT_RED, false);
-        print(1, 9, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
+        print(1, 9, (const unsigned char *)"Last IPC: 0x", FONT_WHITE, false);
+        printHex(14,9,lastCommand,4,FONT_LIGHT_BLUE,false);
+        print(1, 11, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
+    } else if(diag[0]&8u) {
+        /* ARM7 acknowledges the DSi pointer without reading its contents.
+         * Mapping of the 0x0C mirror must be validated separately on ARM9. */
+        print(1, 7, (const unsigned char *)"Walker: DSi RAM unprobed", FONT_WHITE, false);
+        print(1, 9, (const unsigned char *)"Walker ptr: 0x", FONT_WHITE, false);
+        printHex(15,9,diag[2],4,FONT_LIGHT_BLUE,false);
+        print(1, 11, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
     } else if((diag[0]&1u)==0u) {
         if((diag[0]&2u)==0u) {
             print(1, 7, (const unsigned char *)"Walker: hook not published", FONT_RED, false);

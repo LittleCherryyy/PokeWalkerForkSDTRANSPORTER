@@ -1,0 +1,31 @@
+name: V7.1 SDK-free network sanity checks
+
+on:
+  push:
+    branches:
+      - dev/v71-network-readiness-diagnostics
+    paths:
+      - '.github/workflows/v71-host-check.yml'
+      - 'core/bootstrap/retail/common/include/walker_emu.h'
+      - 'core/bootstrap/retail/common/include/walker_hgss_net.h'
+      - 'core/bootstrap/retail/common/source/walker_hgss_net.c'
+      - 'tests/v71_host/**'
+  pull_request:
+    paths:
+      - '.github/workflows/v71-host-check.yml'
+      - 'core/bootstrap/retail/common/include/walker_emu.h'
+      - 'core/bootstrap/retail/common/include/walker_hgss_net.h'
+      - 'core/bootstrap/retail/common/source/walker_hgss_net.c'
+      - 'tests/v71_host/**'
+
+permissions:
+  contents: read
+
+jobs:
+  host-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Compile and execute host checks (no ROM/SDK)
+        run: python3 tests/v71_host/run.py

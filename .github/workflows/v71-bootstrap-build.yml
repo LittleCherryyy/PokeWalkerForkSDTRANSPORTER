@@ -77,7 +77,33 @@ jobs:
             LIBDIRS="/opt/devkitpro/libnds" \
             PYTHON=python3 GIT_VER=sdlang2 LZSS=/tmp/lzss \
             cardenginei_arm7 cardenginei_arm9 cardenginei_arm9_igm
+      - name: Check availability of upstream compatibility inputs
+        id: compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=core/bootstrap/retail/preLoadSettings
+          missing=0
+          for dir in files-mep files-dsi files-dsi-en files-dsi-fr \
+                     files-dsi-de files-dsi-it files-dsi-es files-3ds \
+                     files-3ds-en files-3ds-fr files-3ds-de \
+                     files-3ds-it files-3ds-es; do
+            if test ! -d "$base/$dir"; then
+              echo "Missing upstream compatibility input: $base/$dir"
+              missing=1
+            fi
+          done
+          if test "$missing" -eq 0; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "### Full packaging intentionally skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "Required preLoadSettings input directories are absent from this Git checkout." >> "$GITHUB_STEP_SUMMARY"
+            echo "Only the DSi bootloader and ARM7/ARM9 core module builds are verified." >> "$GITHUB_STEP_SUMMARY"
+            echo "Do not publish an nds-bootstrap .nds from this run." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Attempt complete modified nds-bootstrap build (not a release)
+        if: steps.compatibility.outputs.available == 'true'
         shell: bash
         env:
           DEVKITPRO: /opt/devkitpro

@@ -123,6 +123,12 @@ void walkerBoot(cardengineArm7 *ce7, const tNDSHeader *ndsHeader) {
 	 * this assignment ce9->walkerControl remains zero, so no ARM9 direct
 	 * transport can ever see a pending real Pokémon checkout. */
 	ce7->walkerControl = (u32)c;
+    /* NTR reuses a loader slot unused without a DS Lite bundled payload.
+     * The launcher guarantees the 512-byte directlock exists and is
+     * PREPARED, and that the runtime can address its allocated FAT cluster. */
+    extern u32 walkerPayloadOffset, walkerPayloadSize;
+    ce7->walkerDirectLockCluster = (!walkerPayloadSize && walkerPayloadOffset) ?
+                                   walkerPayloadOffset : 0u;
 	((cardengineArm9 *)CARDENGINEI_ARM9_LOCATION)->walkerControl = (u32)c;
 	ce7->walkerBootStatus = WALKER_BOOT_INSTALLED;
 }

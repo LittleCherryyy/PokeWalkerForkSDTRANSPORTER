@@ -12,6 +12,7 @@
 #include "igm_text.h"
 #include "locations.h"
 #include "cardengine_header_arm9.h"
+#include "walker_arm9_snapshot.h"
 #include "nds_header.h"
 #include "tonccpy.h"
 
@@ -519,6 +520,42 @@ static const unsigned char* walkerBootReason(u32 code) {
 /* V7.2.1: ARM7 DMA3 values sampled before the game was paused,
  * whereas ARM9 values are observed in the menu context only.
  * Neither observation establishes ownership or permits DSWifi startup. */
+/* ARM9 NTR IGM receives these values via r3 from the resident cardengine,
+ * with a pointer to a live stack record. Never touch ARM7 IPC mailbox slots
+ * for this handoff. Other builds see an unavailable snapshot. */
+static WalkerArm9Snapshot walkerArm9PreWrapper = {0,0,0,0};
+
+static void walkerArm9PreWrapperMenu(void) {
+    clearScreen(false);
+    print(1,1,(const unsigned char *)"V7.2.2 ARM9 PRE-WRAPPER",FONT_LIME,false);
+    if(walkerArm9PreWrapper.magic == WALKER_ARM9_SNAPSHOT_MAGIC) {
+        print(1,4,(const unsigned char *)"TIMER3: 0x",FONT_WHITE,false);
+        printHex(13,4,walkerArm9PreWrapper.timer3,2,FONT_LIGHT_BLUE,false);
+        print(1,6,(const unsigned char *)"REG_IE: 0x",FONT_WHITE,false);
+        printHex(13,6,walkerArm9PreWrapper.ie,4,FONT_LIGHT_BLUE,false);
+        print(1,8,(const unsigned char *)"REG_IME:0x",FONT_WHITE,false);
+        printHex(13,8,walkerArm9PreWrapper.ime,1,FONT_LIGHT_BLUE,false);
+        print(1,11,(const unsigned char *)((walkerArm9PreWrapper.timer3 & 0x80u) ?
+            "TIMER3 active before wrapper" : "TIMER3 off before wrapper"),
+            FONT_LIGHT_GRAY,false);
+    } else {
+        print(1,4,(const unsigned char *)"Pre-wrapper data unavailable",FONT_RED,false);
+    }
+    print(1,14,(const unsigned char *)"Captured in IRQ context",FONT_WHITE,false);
+    print(1,16,(const unsigned char *)"NOT normal gameplay IME",FONT_LIGHT_GRAY,false);
+    print(1,18,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,20,(const unsigned char *)"B: Back to main menu",FONT_WHITE,false);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_A);
+    waitKeys(KEY_B);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_B);
+}
+
 static void walkerRadioResourcesMenu(void) {
     u32 dma[4]={0,0,0,0};
     bool answered=false;
@@ -546,7 +583,7 @@ static void walkerRadioResourcesMenu(void) {
         sharedAddr[4]=WALKER_DIAG_MENU;
 #endif
     clearScreen(false);
-    print(1,1,(const unsigned char *)"V7.2.1 DMA3 / ARM9 AUDIT",FONT_LIME,false);
+    print(1,1,(const unsigned char *)"V7.2.2 DMA3 / ARM9 AUDIT",FONT_LIME,false);
     if(!answered) {
         print(1,4,(const unsigned char *)"ARM7 DMA3: no IPC reply",FONT_RED,false);
     } else {
@@ -568,16 +605,21 @@ static void walkerRadioResourcesMenu(void) {
     printHex(20,16,arm9ImeAtMenu,1,FONT_LIGHT_BLUE,false);
     print(1,18,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
     print(1,19,(const unsigned char *)"No IRQ/DMA ownership proof",FONT_LIGHT_GRAY,false);
+    print(1,20,(const unsigned char *)"A: ARM9 pre-wrapper view",FONT_WHITE,false);
     print(1,21,(const unsigned char *)"B: Back to main menu",FONT_WHITE,false);
     do {
         while(REG_VCOUNT!=191) mySwiDelay(100);
         while(REG_VCOUNT==191) mySwiDelay(100);
     } while(KEYS & KEY_Y);
-    waitKeys(KEY_B);
-    do {
-        while(REG_VCOUNT!=191) mySwiDelay(100);
-        while(REG_VCOUNT==191) mySwiDelay(100);
-    } while(KEYS & KEY_B);
+    waitKeys(KEY_A | KEY_B);
+    if(KEYS & KEY_A) {
+        walkerArm9PreWrapperMenu();
+    } else {
+        do {
+            while(REG_VCOUNT!=191) mySwiDelay(100);
+            while(REG_VCOUNT==191) mySwiDelay(100);
+        } while(KEYS & KEY_B);
+    }
 }
 
 static void walkerRadioSnapshotMenu(void) {
@@ -681,7 +723,7 @@ static void virtualPokewalkerMenu(void) {
     #endif
 
     clearScreen(false);
-    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.2.1", FONT_LIME, false);
+    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.2.2", FONT_LIME, false);
     print(1, 3, (const unsigned char *)"HeartGold / SoulSilver", FONT_WHITE, false);
     print(1, 5, (const unsigned char *)"Android TCP: 30821", FONT_WHITE, false);
     if(!answered) {
@@ -1111,7 +1153,17 @@ static void ramViewer(void) {
 	(*revertMpu)();
 }
 
+#if !defined(B4DS) && !defined(TWLSDK)
+u32 inGameMenu(s32 *mainScreen, u32 consoleModel, s32 *exceptionRegisters,
+               const WalkerArm9Snapshot *preMenu9) {
+    if(preMenu9 && preMenu9->magic == WALKER_ARM9_SNAPSHOT_MAGIC)
+        walkerArm9PreWrapper = *preMenu9;
+    else
+        walkerArm9PreWrapper.magic=0u;
+#else
 u32 inGameMenu(s32 *mainScreen, u32 consoleModel, s32 *exceptionRegisters) {
+    walkerArm9PreWrapper.magic=0u;
+#endif
 	// If we were given exception registers, then we're handling an exception
 	bool exception = (exceptionRegisters != 0);
 

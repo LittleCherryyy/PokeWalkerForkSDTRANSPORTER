@@ -22,6 +22,9 @@
 
 extern u32 walkerBase, walkerCluster;
 extern u32 iUncompressedSize;
+/* Experimental V7.1 resolver; currently cannot resolve WCM/SOCL.
+ * It only writes metadata to the previously zero-initialized control page. */
+void walkerResolveNetworkApi(WalkerControl *c, const tNDSHeader *h);
 
 #define ARM_PUSH_READRANGE  0xE92D47F0 /* stmdb sp!, {r4-r10, lr} */
 #define ARM_PUSH_WRITERANGE 0xE92D43F8 /* stmdb sp!, {r3-r9, lr} */
@@ -83,6 +86,12 @@ void walkerBoot(cardengineArm7 *ce7, const tNDSHeader *ndsHeader) {
 	c->cluster = walkerCluster;
 	c->eeprom = walkerBase + WALKER_EEPROM_OFF;
 	c->magic = WALKER_MAGIC;
+
+    /* Initialize the dormant bridge and collect safe resident metadata.
+     * All networking is still fail-closed: no verified callable WCM/SOC
+     * pointers, no active transport or push/pull operations. */
+    walkerDirectBridgeReset(&c->direct, c->flushedSeq);
+    walkerResolveNetworkApi(c, ndsHeader);
 
 	/* Receive: the stub itself, over the original routine. */
 	tonccpy(readRange, walkerStub, sizeof(walkerStub));

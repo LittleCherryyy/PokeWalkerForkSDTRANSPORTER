@@ -9,6 +9,7 @@ on:
       - "diagnostics/dsi_ping_v6/**"
       - ".github/workflows/v71-dsi-lan-build.yml"
       - "core/bootstrap/retail/common/include/walker_*.h"
+      - "core/bootstrap/retail/cardenginei/arm9/source/walker_ping_fsm.c"
       - "tools/v7_1/check_shared_layout.c"
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - "diagnostics/dsi_ping_v6/**"
       - ".github/workflows/v71-dsi-lan-build.yml"
       - "core/bootstrap/retail/common/include/walker_*.h"
+      - "core/bootstrap/retail/cardenginei/arm9/source/walker_ping_fsm.c"
       - "tools/v7_1/check_shared_layout.c"
   workflow_dispatch:
 
@@ -48,6 +50,16 @@ jobs:
             -ffreestanding -Wall -Wextra -Werror -fsyntax-only \
             -Icore/bootstrap/retail/common/include \
             tools/v7_1/ping_only_arm_compile.c
+      - name: Cross-compile experimental nonblocking PING FSM (not linked in game)
+        shell: bash
+        run: |
+          set -euo pipefail
+          /opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc \
+            -std=gnu11 -mcpu=arm946e-s -mthumb \
+            -DWALKER_PING_FSM_EXPERIMENT \
+            -ffreestanding -Wall -Wextra -Werror -fsyntax-only \
+            -Icore/bootstrap/retail/common/include \
+            core/bootstrap/retail/cardenginei/arm9/source/walker_ping_fsm.c
       - name: Compile virtual walker payload with new shared ABI (syntax only)
         shell: bash
         run: |

@@ -36,6 +36,8 @@ jobs:
         run: python3 -m unittest discover -s tests/v72_host -p 'test_radio_snapshot.py' -v
       - name: Verify DMA3/ARM9 read-only resource snapshot
         run: python3 -m unittest discover -s tests/v72_host -p 'test_dma3_snapshot.py' -v
+      - name: Verify pre-wrapper ARM9 register handoff and fail-closed UI
+        run: python3 -m unittest discover -s tests/v72_host -p 'test_arm9_prewrapper.py' -v
       - name: Decode real DSi ARM7 IRQ/timer snapshot and assert safe readiness gates
         run: |
           python3 -m unittest discover -s tests/v72_host -p 'test_irq_audit.py' -v

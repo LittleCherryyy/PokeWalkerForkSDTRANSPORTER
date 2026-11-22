@@ -107,3 +107,13 @@ The earlier experimental field `wcmBeginSearchAsync` was aligned to the exported
 **Safety hardening**: `common/source/walker_hgss_net.c` now refuses to fill any WCM/SOCL/gateway addresses based only on BL frequency or `IPKE`/`IPGE` game code. Its resolver always keeps `ready=0`. `tools/v7_1/resident_audit.py --require-fail-closed` checks this guard in CI. This is intentionally conservative until the precise binary revision and verified resident/overlay call lifetimes can be established. The PING diagnostic over the Android hotspot remains unaffected.
 
 Public research reference: https://github.com/pret/pokeheartgold (do not copy commercial ARM9 ROM assets into this repository).
+
+## Socket API naming and hardware boundary
+
+A review of `pret/pokeheartgold`'s public `asm/include/overlay_13_thumb_2.inc` and `lib/NitroDWC/asm/include/overlay_00_arm.inc` confirms that the socket functions referenced by HGSS are primarily `SOC_Startup`, `SOC_Socket`, `SOC_Connect`, `SOC_Send`, `SOC_Recv`, `SOC_Close` and `SOC_Fcntl`. `SOCL_GetHostID` is separately referenced. The former experimental field `soclStartup` has therefore been renamed to `socStartup` to match the observed symbol, without changing the 20-field shared ABI size. The `network_symbols.json` manifest now lists source-supported names and **no callable addresses**.
+
+This does **not** prove that HGSS has these functions available when Pokéwalker IR communication is active, that the relevant overlays are loaded, or that the library startup is safe to invoke from the injected resident cardengine. Any future backend also needs a verified method to obtain **the Android hotspot DHCP gateway**, not merely the console's own IP.
+
+The host-tested nonblocking PING FSM lives behind `WALKER_PING_FSM_EXPERIMENT` because adding it to the tiny resident cardengine without a working backend exceeded fixed VRAM by 592 bytes. No memory limits were increased. One callback per tick, partial I/O and timeouts are verified by `test_ping_fsm.c`, and the module cross-compiles for ARM. Its interface explicitly requires an independently verified network owner and genuine nonblocking I/O operations; this is not a functioning in-game connection.
+
+Finally, the Java V18 `DirectSyncProtocol.write` implementation now emits a real `OP_OK` frame as an offline test fixture. `verify_android_ok.c` validates that frame using the same strict C decoder as the experimental DSi protocol, including a negative test for forbidden transfer opcodes. The existing opposite-direction C→Java test remains in place.

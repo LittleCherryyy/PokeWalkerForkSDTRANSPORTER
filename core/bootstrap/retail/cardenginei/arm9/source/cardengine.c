@@ -151,6 +151,17 @@ static bool driveInitialized = false;
 static bool region0FixNeeded = false;
 #endif */
 bool igmReset = false;
+/* V7.8 low-overhead ARM9 execution-context evidence.
+ * A ROM read is a normal game callback, but not automatically a safe
+ * network scheduling site. No radio, IRQ handler or save access here.
+ * Keep only four scalar counters; no IPC mailbox or ce9-layout change. */
+#if !defined(TWLSDK) && !defined(B4DS)
+static volatile u32 walkerArm9RomReadCalls;
+static volatile u32 walkerArm9EligibleReadCalls;
+static volatile u32 walkerArm9LastReadCpsrMode;
+static volatile u32 walkerArm9LastReadIme;
+#endif
+
 
 extern bool isDma;
 
@@ -777,6 +788,23 @@ extern void slot2EmuCheck(u32 entry, u32 valueBits);
 #endif
 
 void cardRead(u32* cacheStruct, u8* dst0, u32 src0, u32 len0) {
+#if !defined(TWLSDK) && !defined(B4DS)
+    /* Sample at the existing cardRead entry, before any SDK or bootstrap
+     * critical section. ARM CPSR M[4:0] distinguishes IRQ=0x12 from
+     * System/User/SVC. IME=1 is necessary, not sufficient, for an
+     * eligible non-IRQ network callback.
+     * Do not run networking here; only count it for a later menu snapshot. */
+    u32 mode;
+    __asm__ volatile ("mrs %0, cpsr" : "=r"(mode));
+    mode &= 0x1fu;
+    const u32 ime=(REG_IME & 1u);
+    if(walkerArm9RomReadCalls != 0xffffffffu) walkerArm9RomReadCalls++;
+    walkerArm9LastReadCpsrMode=mode;
+    walkerArm9LastReadIme=ime;
+    if((mode == 0x10u || mode == 0x13u || mode == 0x1fu) && ime &&
+       walkerArm9EligibleReadCalls != 0xffffffffu)
+        walkerArm9EligibleReadCalls++;
+#endif
 	//nocashMessage("\narm9 cardRead\n");
 	#ifdef TWLSDK
 	u32 src = src0;
@@ -1561,7 +1589,11 @@ void inGameMenu(s32* exRegisters) {
         WALKER_ARM9_SNAPSHOT_MAGIC,
         (u32)TIMER_CR(3),
         REG_IE,
-        REG_IME
+        REG_IME,
+        walkerArm9RomReadCalls,
+        walkerArm9EligibleReadCalls,
+        walkerArm9LastReadCpsrMode,
+        walkerArm9LastReadIme
     };
 #endif
 	int oldIME = enterCriticalSection();

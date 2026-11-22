@@ -8,6 +8,11 @@ on:
       - '.github/workflows/v72-ping-core.yml'
       - 'core/bootstrap/retail/nettransport/**'
       - 'core/bootstrap/retail/common/include/walker_directsync.h'
+      - 'core/bootstrap/retail/bootloaderi/source/arm7/hook_arm7.c'
+      - 'core/bootstrap/retail/common/include/cardengine_header_arm7.h'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
       - 'tests/v72_host/**'
       - 'tools/v7_2/**'
       - 'core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java'
@@ -16,6 +21,11 @@ on:
       - '.github/workflows/v72-ping-core.yml'
       - 'core/bootstrap/retail/nettransport/**'
       - 'core/bootstrap/retail/common/include/walker_directsync.h'
+      - 'core/bootstrap/retail/bootloaderi/source/arm7/hook_arm7.c'
+      - 'core/bootstrap/retail/common/include/cardengine_header_arm7.h'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
       - 'tests/v72_host/**'
       - 'tools/v7_2/**'
       - 'core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java'
@@ -42,6 +52,8 @@ jobs:
         run: python3 -m unittest discover -s tests/v72_host -p 'test_dma3_snapshot.py' -v
       - name: Verify pre-wrapper ARM9 register handoff and fail-closed UI
         run: python3 -m unittest discover -s tests/v72_host -p 'test_arm9_prewrapper.py' -v
+      - name: Verify actual HGSS NTR ARM7 IRQ table boot metadata and IPC
+        run: python3 -m unittest discover -s tests/v72_host -p 'test_bootloader_irq_map.py' -v
       - name: Decode real DSi ARM7 IRQ/timer snapshot and assert safe readiness gates
         run: |
           python3 -m unittest discover -s tests/v72_host -p 'test_irq_audit.py' -v

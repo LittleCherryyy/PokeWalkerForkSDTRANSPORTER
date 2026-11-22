@@ -33,6 +33,14 @@ int main(void) {
     if(walkerArm9ThreadAvailabilityRaw(NULL)!=0) {
         fprintf(stderr,"NULL scheduler probe output must fail closed\\n");return 7;
     }
-    puts("PASS: V7.7 CRC32 vectors and V8.3 disabled B4DS scheduler probe");
+    uint32_t aliasWords[2]={0xffffffffu,0xffffffffu};
+    if(walkerArm9ThreadAliasWords(aliasWords)!=0 ||
+        aliasWords[0]!=0u || aliasWords[1]!=0u) {
+        fprintf(stderr,"B4DS must not sample HGSS ARM9 alias RAM\\n");return 8;
+    }
+    if(walkerArm9ThreadAliasWords(NULL)!=0) {
+        fprintf(stderr,"NULL alias output must fail closed\\n");return 9;
+    }
+    puts("PASS: V7.7 CRC32, V8.3 guarded OS flag and V8.6 disabled B4DS alias words");
     return 0;
 }

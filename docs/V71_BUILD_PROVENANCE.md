@@ -66,3 +66,21 @@ The previous `v71-bootstrap-build.yml` edit had accidentally duplicated sections
 In GitHub Actions [run 44983036243](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/44983036243), the **actual primary DSi ARM9 ELF** was checked with `arm-none-eabi-nm`, and both `walkerV71MakePing` and `walkerV71CheckPingOk` were present. The independent ARM7/ARM9/IGM modules passed. The **complete experimental nds-bootstrap build step also passed**.
 
 These symbols currently encode/validate packets **only**; they do not open sockets or perform any resident Wi-Fi handshake. No HGSS hardware PING or Pokémon transfer has been verified. No modified bootstrap from this experiment should be promoted as a functional in-game direct-sync release until the resident runtime is independently tested with disposable saves.
+
+## V7.1 — Bounded hotspot PING state machine (experimental)
+
+New implementation:
+- `common/include/walker_ping_fsm.h` defines a small reusable nonblocking I/O callback interface: `connect_gateway(30821)`, `send_some`, `recv_some`, `close_connection`. The intended destination is **only the connected Android hotspot DHCP gateway**; no IP entry, home router, or separate DSi homebrew is part of the final workflow.
+- `cardenginei/arm9/source/walker_ping_fsm.c` implements PING → OP_OK using a **maximum of one callback per step**, a bounded tick budget (default 300 invocations), partial sends/receives, no retries of completed state and strict 88-byte response validation. This is entirely independent of EEPROM and save data. It is **not** a working Wi-Fi backend: the caller must supply proven, genuinely nonblocking socket functions and their lifecycle.
+- `tools/v7_1/test_ping_fsm.c` drives the actual C code with fake sockets and checks port, framing, partial I/O, deliberate failures, malformed replies, timeout and non-reentrant one-operation-per-step behavior. GitHub Actions also cross-compiles the code for ARM using a new `-fsyntax-only` check.
+- DSi NTR game still links the earlier `walkerV71MakePing` / `walkerV71CheckPingOk` low-level framing helpers only.
+
+**Memory budget finding:** linking the additional FSM straight into `cardenginei_arm9` (without a working backend or caller) caused a real fixed-VRAM linker overflow of **592 bytes** in GitHub Actions run `44983413107`. We did not expand the memory region. The module was placed behind compile flag `WALKER_PING_FSM_EXPERIMENT`, so it is checked on host and by cross-compiler but omitted from game binaries. An explicitly reviewed resident memory/overlay placement strategy is required before enabling the FSM or any WCM/SOCL call sites. These changes do not justify deploying a test build for HGSS yet.
+
+Hardware-dependent questions remaining:
+- Can nds-bootstrap safely retain a nonblocking Wi-Fi driver across HGSS boot in DS mode, given ARM7 ownership and HGSS's own wireless libraries?
+- Are the relevant WCM/SOCL functions actually resident for the exact HGSS revision and available during the Pokéwalker menu, rather than only referenced in overlays?
+- Where will the PING FSM reside without exceeding fixed cardengine memory, and how can frame-paced polling avoid interrupt latency and SD save operations?
+- Android hotspot network configuration must be compatible with the DS-mode Wi-Fi radio (as previously tested on the standalone diagnostic).
+
+All original SD-Transporter, nds-bootstrap and dependency copyright/licensing notices remain intact. Android widget development, skins, and Premier Ball corrections remain a separate tracked workstream.

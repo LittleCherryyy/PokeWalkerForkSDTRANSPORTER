@@ -3,6 +3,7 @@
  */
 #include <assert.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include "walker_emu.h"
@@ -39,7 +40,7 @@ static void test_dsi_control_address_ranges(void) {
 }
 
 static void test_invalid_inputs(void) {
-    u32 arm9[1024] = {0};
+    uint32_t arm9[1024] = {0};
     WalkerHgssNetApi n;
     assert(!walkerResolveHgssNet(arm9, 0x02000000u, sizeof(arm9), 0, "IPKE"));
     memset(&n, 0xff, sizeof(n));
@@ -59,7 +60,7 @@ static void test_invalid_inputs(void) {
 }
 
 static void test_title_gates(void) {
-    u32 arm9[1024] = {0};
+    uint32_t arm9[1024] = {0};
     WalkerHgssNetApi n;
     assert(walkerResolveHgssNet(arm9, 0x02000000u, sizeof(arm9), &n, "IPKE"));
     assert(n.soclGatewayPtr == 0x021D464Cu);

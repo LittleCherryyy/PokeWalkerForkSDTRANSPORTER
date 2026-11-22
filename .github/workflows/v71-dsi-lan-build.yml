@@ -1,0 +1,41 @@
+name: Build V7.1 DSi LAN diagnostic
+
+on:
+  push:
+    branches:
+      - "dev/v7.1-*"
+    paths:
+      - "diagnostics/dsi_lan_ping_v71/**"
+      - "diagnostics/dsi_ping_v6/**"
+      - ".github/workflows/v71-dsi-lan-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dsi-nds:
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitarm:20260610
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build safe DSi diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a diagnostics/dsi_ping_v6 /tmp/pokewalker-v71-dsi
+          cp diagnostics/dsi_lan_ping_v71/source/main.c /tmp/pokewalker-v71-dsi/source/main.c
+          cd /tmp/pokewalker-v71-dsi
+          export DEVKITPRO=/opt/devkitpro
+          export DEVKITARM=/opt/devkitpro/devkitARM
+          make -j2
+          test -s PokeWalker_DSi_V6_Direct_PING.nds
+          cp PokeWalker_DSi_V6_Direct_PING.nds "${GITHUB_WORKSPACE}/PokeWalker_V71_LAN_PING.nds"
+      - name: Upload test .nds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PokeWalker-V71-LAN-PING
+          path: PokeWalker_V71_LAN_PING.nds
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,74 @@
+# V7.2 — resident Wi-Fi bridge after HGSS virtual IR hardware validation
+
+## Established baseline (22 November 2026)
+
+The DSi tests showed the HGSS Pokéwalker hook being installed, and the original
+game reported that Rocky (Onix Lv. 5) was sent successfully **after a retry**.
+The user subsequently reported the local virtual Pokéwalker workflow is
+working. Preserve the **working V7.1.5** installation and do not modify its
+ROM, save, or Android APK for this milestone.
+
+The Android app's existing **DirectSyncService** listens on TCP **30821**
+and handles OP_PING (4) with a 88-byte OP_OK (0x80) response; the DSi V6.7
+standalone homebrew already exercises this protocol. Neither observation
+proves that a radio service can be safely started from inside a commercial
+HGSS session under nds-bootstrap.
+
+## V7.2 code that exists today
+
+`core/bootstrap/retail/nettransport/walker_ping_engine.{h,c}` is a standalone
+C11 PING-only packet/state-machine component. The engine:
+- Generates a zero-payload 88-byte `PWDSI001` / version 1 / OP_PING frame.
+- Accepts only the zero-payload OP_OK response with matching magic/version,
+  zero flags, zero CRC, and zeroed session/trainer.
+- Handles partial writes, partial reads, would-block, socket errors, a
+  monotonic frame deadline, and 32-bit counter wrap.
+- Performs **at most one I/O callback per step** (zero sleeps/spins), so an
+  eventual adapter can call it from a cooperative ARM9 worker *outside IRQ*.
+- Does **not** access SD, 64 KiB Walker EEPROM, game saves, sockets, or radio.
+- Is **not wired to the V7.1.5 ARM7 bridge** yet. Both ARM CPUs receive
+  cross-compile-only object checks; neither object is linked into the ROM or
+  nds-bootstrap. The engine therefore cannot PING the phone until the next
+  hardware-aware stage.
+
+`tests/v72_host/test_ping.c` uses synthetic callbacks to check fragmented
+I/O, would-block, reply validation, timeout, unsigned counter wrap, and
+a one-I/O-call-per-step budget. Run using:
+
+```sh
+python3 tests/v72_host/run.py
+```
+
+CI: `.github/workflows/v72-ping-core.yml` executes the host and ARM7/ARM9
+object cross-compilation. The checks do not require user files.
+
+## Hardware integration acceptance gates
+
+1. **Prove radio ownership and interrupt compatibility first.** DSWifi's
+   `Wifi_InitDefault` requires matching ARM7 support and uses ARM7 Wi-Fi
+   timers/interrupt services. The standalone DSi homebrew has these services;
+   retail HGSS+nds-bootstrap does **not** automatically gain them.
+   Calling `Wifi_InitDefault` inside the IGM or VBlank is unsafe without
+   a resident ARM7 service designed around the game's existing timer, IPC,
+   audio and file servicing.
+2. **Prove a cooperative ARM9 execution context.** A worker must run outside
+   VBlank/IRQ, with bounded memory/stack, cancellable startup and error
+   handling, leaving HGSS's game state intact.
+3. **Prove DS-mode hotspot association.** HGSS is a DS-mode program on DSi;
+   a 2.4 GHz OPEN (or WEP) phone hotspot is needed for the classic DS
+   Wi-Fi interface. WPA2 is not automatically available merely because
+   the DSi console has WPA2 support in its system menu.
+4. **Test only PING/OP_OK first**, no session/lease changes, EEPROM transfer,
+   `PUSH` or `PULL`. Preserve the V7.1.5 binary and disposable saves.
+5. Only after a reproducible in-HGSS PING and graceful radio shutdown
+   consider wire transport of the durable Walker image and session/lease
+   protocol. No hypothetical test should be presented as hardware proof.
+
+## Compatibility note
+
+The user's existing `DirectSyncService` may answer repeated PINGs on one TCP
+session. V7.2 intentionally models **one PING exchange per engine instance**.
+Persistent socket connection/close policy remains an adapter decision.
+The earlier standalone DSi V6.7 diagnostic noted a blocking `close()`
+behavior on its DSWifi build; do not import its blocking network calls into
+an interrupt handler.

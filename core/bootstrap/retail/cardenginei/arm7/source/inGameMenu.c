@@ -49,10 +49,15 @@ extern u32 walkerBootStatus;
 #define WALKER_PEEK_REPLY       0x4B4B5057u /* WPKK */
 #define WALKER_BOOT_SNAPSHOT_REQUEST 0x51435057u /* WPCQ */
 #define WALKER_BOOT_SNAPSHOT_REPLY   0x4B435057u /* WPCK */
+#define WALKER_HEARTBEAT_REQUEST 0x51485057u /* WPHQ */
+#define WALKER_HEARTBEAT_REPLY   0x4B485057u /* WPHK */
 extern u32 walkerIrqBootOriginalVblank;
 extern u32 walkerIrqBootOriginalIpc;
 extern u32 walkerIrqBootInstalledVblank;
 extern u32 walkerIrqBootInstalledIpc;
+extern volatile u32 walkerVblankCallbackCount;
+extern volatile u32 walkerBridgeTickCount;
+extern volatile u32 walkerFifoCallbackCount;
 extern u32 walkerIrqTableAddress;
 extern u32 walkerIrqImageStart;
 extern u32 walkerIrqImageSize;
@@ -65,6 +70,15 @@ static void walkerBootSnapshotReadOnlyDiagnostics(void) {
     sharedAddr[2] = walkerIrqBootInstalledVblank;
     sharedAddr[3] = walkerIrqBootInstalledIpc;
     sharedAddr[4] = WALKER_BOOT_SNAPSHOT_REPLY;
+}
+
+/* V7.2.8: counters are observed only; no callback is run by this command. */
+static void walkerHeartbeatReadOnlyDiagnostics(void) {
+    sharedAddr[0] = walkerVblankCallbackCount;
+    sharedAddr[1] = walkerBridgeTickCount;
+    sharedAddr[2] = walkerFifoCallbackCount;
+    sharedAddr[3] = walkerControl ? 1u : 0u;
+    sharedAddr[4] = WALKER_HEARTBEAT_REPLY;
 }
 
 static void walkerIrqTableReadOnlyDiagnostics(void) {
@@ -347,6 +361,9 @@ void inGameMenu(void) {
                 case WALKER_BOOT_SNAPSHOT_REQUEST: // WPCQ: boot-captured hook words
                     walkerBootSnapshotReadOnlyDiagnostics();
                     break;
+                case WALKER_HEARTBEAT_REQUEST: // WPHQ: read-only callback counters
+                    walkerHeartbeatReadOnlyDiagnostics();
+                    break;
                 #endif
 				case 0x524D4152: // RAMR
 					u32* dst = (u32*)((u32)sharedAddr[0]);
@@ -395,6 +412,8 @@ void inGameMenu(void) {
                 && sharedAddr[4] != WALKER_RESOURCE_REPLY
                 && sharedAddr[4] != WALKER_TABLE_REPLY
                 && sharedAddr[4] != WALKER_PEEK_REPLY
+                && sharedAddr[4] != WALKER_BOOT_SNAPSHOT_REPLY
+                && sharedAddr[4] != WALKER_HEARTBEAT_REPLY
                 #endif
                 && sharedAddr[4] == menuCommandSeen
             ) {

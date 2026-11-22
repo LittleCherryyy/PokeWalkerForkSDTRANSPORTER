@@ -109,7 +109,7 @@ jobs:
           cat > /tmp/v71-preload-override.mk <<'EOF'
           .PHONY: preLoadSettings
           preLoadSettings:
-          \t@echo "Reusing 13 verified prepacked preload assets (missing source directories)"
+          	@echo "Reusing 13 verified prepacked preload assets (missing source directories)"
           EOF
           make -f Makefile -f /tmp/v71-preload-override.mk -j2 \
             DEVKITARM="$GITHUB_WORKSPACE/core/bootstrap/portable-ds-rules" \

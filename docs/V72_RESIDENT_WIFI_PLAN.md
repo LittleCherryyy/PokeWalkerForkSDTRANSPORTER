@@ -76,3 +76,16 @@ an interrupt handler.
 The adapter must translate a POSIX `recv()==0` (peer EOF) into an engine
 error (negative callback return); a callback return of zero is **would-block**,
 not a successful empty socket read. The adapter owns all socket cleanup.
+
+## Cross-language compatibility check
+
+`tests/v72_host/run_interop.py` compiles the standalone C engine and the
+**actual** `core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java`
+on a desktop JDK. The C engine emits its 88-byte OP_PING to a temporary
+file; the real Android Java parser decodes that request and generates OP_OK;
+the same C engine then receives/validates those exact Java response bytes.
+
+Run `python3 tests/v72_host/run_interop.py` on a PC with a C compiler
+and JDK 17+. All intermediate bytes are synthetic and temporary. This
+proves agreement on wire format across C and Android Java, **not** real
+network connection, Wi-Fi initialization, or an HGSS resident socket.

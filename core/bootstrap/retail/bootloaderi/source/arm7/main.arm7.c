@@ -53,6 +53,10 @@ extern unsigned int gen5RomCluster;
 #include <nds/arm7/i2c.h>
 #include <nds/ipc.h>
 
+/* Preserve the historical SPI opcode/argument contract in this bootloader.
+ * Modern Calico exposes a different writePowerManagement interface. */
+int walkerLegacyWritePowerManagement(int reg, int command);
+
 /* Preserve original loader I2C semantics; symbols are private to avoid
  * conflicts with the newer Calico inline register accessors. */
 u8 walkerLegacyI2cWriteRegister(u8 device, u8 reg, u8 data);
@@ -584,8 +588,8 @@ static void NDSTouchscreenMode(void) {
 	walkerLegacyCdcWriteReg(0xFF, 0x05, 0x00); //writeTSC(0x00, 0xFF);
 
 	// Power management
-	writePowerManagement(PM_READ_REGISTER, 0x00); //*(unsigned char*)0x40001C2 = 0x80, 0x00; // read PWR[0]   ;<-- also part of TSC !
-	writePowerManagement(PM_CONTROL_REG, 0x0D); //*(unsigned char*)0x40001C2 = 0x00, 0x0D; // PWR[0]=0Dh    ;<-- also part of TSC !
+	walkerLegacyWritePowerManagement(PM_READ_REGISTER, 0x00); //*(unsigned char*)0x40001C2 = 0x80, 0x00; // read PWR[0]   ;<-- also part of TSC !
+	walkerLegacyWritePowerManagement(PM_CONTROL_REG, 0x0D); //*(unsigned char*)0x40001C2 = 0x00, 0x0D; // PWR[0]=0Dh    ;<-- also part of TSC !
 }
 
 static void DSiTouchscreenMode(void) {
@@ -1939,7 +1943,7 @@ __attribute__((optimize("Os"))) int arm7_main(void) {
 			NDSTouchscreenMode();
 			if (macroMode) {
 				u32 temp = readPowerManagement(PM_CONTROL_REG) & (~(PM_BACKLIGHT_TOP & 0xFFFF));
-				writePowerManagement(PM_CONTROL_REG, temp);
+				walkerLegacyWritePowerManagement(PM_CONTROL_REG, temp);
 			}
 		}
 		*(vu16*)0x4000500 = 0x807F;
@@ -2276,7 +2280,7 @@ __attribute__((optimize("Os"))) int arm7_main(void) {
 		}
 		if (macroMode) {
 			u32 temp = readPowerManagement(PM_CONTROL_REG) & (~(PM_BACKLIGHT_TOP & 0xFFFF));
-			writePowerManagement(PM_CONTROL_REG, temp);
+			walkerLegacyWritePowerManagement(PM_CONTROL_REG, temp);
 		}
 
 		if (dsiModeConfirmed && ROMsupportsDsiMode(&dsiHeaderTemp.ndshdr)) {

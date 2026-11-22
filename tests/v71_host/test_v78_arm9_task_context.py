@@ -20,7 +20,8 @@ class Arm9TaskContextTests(unittest.TestCase):
         self.assertEqual(fields[:4], ["magic", "timer3", "ie", "ime"])
         self.assertEqual(fields[4:], [
             "romReadCalls", "eligibleReadCalls", "lastReadCpsrMode",
-            "lastReadIme"])
+            "lastReadIme", "postReadEligibleCalls", "dryRunQueued",
+            "dryRunDone", "dryRunPending"])
         arm9 = ARM9.read_text()
         self.assertIn("walkerArm9RomReadCalls,", arm9)
         self.assertIn("walkerArm9EligibleReadCalls,", arm9)
@@ -45,7 +46,7 @@ class Arm9TaskContextTests(unittest.TestCase):
         self.assertNotIn('SOC_Connect(', code)
         self.assertNotIn('REG_IE =', code)
         self.assertEqual(source.count(
-            "#if !defined(TWLSDK) && !defined(B4DS) && !defined(DLDI) && !defined(GSDD)"),2)
+            "#if !defined(TWLSDK) && !defined(B4DS) && !defined(DLDI) && !defined(GSDD)"),3)
         self.assertIn("const WalkerArm9Snapshot*)0", source)
         self.assertIn("#if defined(DLDI) || defined(GSDD)", source)
         self.assertIn("#if !defined(TWLSDK) && !defined(DLDI) && !defined(GSDD)", source)
@@ -60,10 +61,10 @@ class Arm9TaskContextTests(unittest.TestCase):
             source.index("static void walkerRadioResourcesMenu(void)")
         ]
         self.assertIn("romReadCalls", menu)
-        self.assertIn("eligibleReadCalls", menu)
-        self.assertIn("lastReadCpsrMode", menu)
-        self.assertIn("lastReadIme", menu)
-        self.assertIn("Not a periodic worker", menu)
+        self.assertIn("postReadEligibleCalls", menu)
+        self.assertIn("dryRunQueued", menu)
+        self.assertIn("dryRunDone", menu)
+        self.assertIn("Dry run: no network I/O", menu)
         self.assertIn("Wi-Fi: NOT ENABLED", menu)
         self.assertNotIn("WCM_Init(", menu)
         self.assertNotIn("REG_IE =", menu)

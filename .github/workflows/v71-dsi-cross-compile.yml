@@ -48,7 +48,10 @@ jobs:
           command -v ndstool
           # The pinned devkitARM container has the ARM cross compiler, but
           # does not ship the native cc needed to build the host-side LZSS tool.
-          apt-get update -qq
+          # The old container ships cached bullseye indexes whose security
+          # package revisions may have disappeared from the live mirror.
+          rm -rf /var/lib/apt/lists/*
+          apt-get -o Acquire::http::No-Cache=true update -qq
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential
           gcc core/bootstrap/lzss.c -O2 -o core/bootstrap/lzss
           make -C core/bootstrap/retail -j2 \

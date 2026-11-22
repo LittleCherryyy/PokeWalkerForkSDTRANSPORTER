@@ -124,6 +124,9 @@ romMap:
 	.word	0x00000000
 	.word	0x00000000
 	.word	0x00000000 @ slot2EmuEntry
+.global walkerControl
+walkerControl:
+    .word 0x00000000 @ append-only NTR shared real Pokewalker control
 #endif
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

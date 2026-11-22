@@ -117,6 +117,44 @@ a deployable direct-to-phone DSi build**:
   `.github/workflows/directsync-wire.yml`. These validate framing
   logic, **not** console networking or game-save behavior.
 
+### Resident ARM9 checkout integration (same work session)
+
+- `retail/bootloaderi/source/arm7/walker_boot.c` now **clears** an old
+  `ce9->walkerControl` pointer on boot and sets it, together with the ARM7
+  pointer, only when the virtual IR hook is installed successfully. Previously
+  the transport-side ARM9 cardengine field was not populated by the virtual
+  walker install path.
+- `retail/cardenginei/arm9/source/walker_direct_worker.c` now owns a
+  guarded, bounded outbound transaction. It consumes the ARM7's verified
+  `PUSH_READY` snapshot, opens a nonblocking connection to the phone via
+  `WalkerDirectRadioOps`, sends the 88+65536 byte frame, waits for a
+  correctly session-bound `OP_OK`, and marks `PHONE_OWNS` **only after**
+  that ACK. It preserves the SD image on failures, rejects changed EEPROMs,
+  avoids calls from the virtual-IR critical section and avoids stale pointers
+  on reset. A radio backend **is required**; none is falsely enabled.
+- `retail/cardenginei/arm9/source/cardengine.c` invokes one step of that
+  worker only after the game finishes a card-read callback and its mode/IME
+  checks pass. The NTR ARM9 Makefile includes the portable stream source.
+  This site has not been validated as a sufficiently frequent scheduler
+  during the HGSS Pokéwalker menu. Non-IRQ+IME checks are a minimum gate,
+  **not** full runtime safety validation.
+- `retail/common/include/walker_direct_radio.h` defines a strict backend
+  contract: connect to the phone hotspot gateway's TCP port 30821, then
+  bounded nonblocking reads/writes and close. The weak default deliberately
+  returns NULL. No current Wii/DS/NitroWFC library pointer is assumed safe.
+
+**Blocking issue remains:** Under the current resolver,
+`walkerResolveHgssNet` does not resolve executable WCM/SOCL/SOC function
+entrypoints or validate their ABI, and there is no independently verified
+resident ARM7 Wi-Fi service behind the worker. Thus this is an integrated
+*transfer coordinator*, NOT a runnable radio transfer. A later exact build
+must regenerate `common/include/walker_payload.h` by executing
+`python bootstrap/build_walker.py` with legacy devkitARM after changing
+`pokewalker/walker.c`. Neither blob regeneration nor full bootstrap
+linker/real-device validation was performed in this source-only session.
+Do not copy the existing generated bootstrap onto the DSi expecting
+network operation.
+
 **Before any DSi test:** implement and link a verified resident Wi-Fi
 association/TCP backend for physical DSi DS-mode HGSS, identify a safe
 regular non-IRQ ARM9 worker, wire its socket write/read to

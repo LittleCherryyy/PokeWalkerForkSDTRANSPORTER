@@ -145,6 +145,11 @@ typedef struct cardengineArm7 {
 	u32 gen5RomSize;
 	/* V7.1.3: append-only boot outcome for read-only in-game diagnostics. */
 	u32 walkerBootStatus;
+	/* V7.2.5: bootloaderi NTR IRQ-table location metadata, append-only. */
+	u32 walkerIrqTableAddress;
+	u32 walkerIrqImageStart;
+	u32 walkerIrqImageSize;
+	u32 walkerIrqTableMethod;
 } cardengineArm7;
 
 //

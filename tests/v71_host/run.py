@@ -27,7 +27,7 @@ with tempfile.TemporaryDirectory(prefix="walker_v71_") as tmp:
     print("Compiling V7.1 SDK-free host checks...", flush=True)
     subprocess.run(cmd, check=True)
     subprocess.run([str(exe)], check=True)
-    print("Compiling and executing V7.7 fixed-window SHA256 host vectors...", flush=True)
+    print("Compiling and executing V7.7 fixed-window CRC32 host vectors...", flush=True)
     sigdir = root / "core/bootstrap/retail/cardenginei/arm9_igm"
     shaexe = Path(tmp) / ("v77_sha.exe" if os.name == "nt" else "v77_sha")
     subprocess.run([cc, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-DB4DS",

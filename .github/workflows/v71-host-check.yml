@@ -1,9 +1,10 @@
-name: V7.1 SDK-free network sanity checks
+name: V7.2 DSi full bootstrap diagnostic build
 
 on:
   push:
     branches:
       - dev/v71-network-readiness-diagnostics
+      - dev/v72-resident-ping-core
     paths:
       - '.github/workflows/v71-host-check.yml'
       - '.github/workflows/v71-dsi-cross-compile.yml'
@@ -20,7 +21,9 @@ on:
       - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
       - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
       - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
+      - 'core/bootstrap/retail/nettransport/**'
       - 'tests/v71_host/**'
+      - 'tests/v72_host/**'
       - 'tools/v7_1/identify_hgss_nds.py'
   pull_request:
     paths:
@@ -59,7 +62,7 @@ jobs:
       - name: Share static LZSS with legacy cross-build
         uses: actions/upload-artifact@v4
         with:
-          name: v71-lzss-host-linux-x86_64
+          name: v72-lzss-host-linux-x86_64
           path: lzss
           retention-days: 1
 
@@ -127,7 +130,12 @@ jobs:
             LEGACY_DEVKITARM="$COMPILER_DIR" LEGACY_LIBNDS="$SDK_DIR" LIBDIRS="$SDK_DIR" \
             PYTHON=python3 GIT_VER=sdlang2 LZSS="$GITHUB_WORKSPACE/core/bootstrap/lzss" all
           test -s bin/nds-bootstrap.nds
-          echo "Full build succeeded; experimental menu-only diagnostic build."
+          echo "Full build succeeded; V7.2 READ-ONLY IRQ/timer snapshot only. No Wi-Fi."
+          # Verify no accidental radio library linked into this retail image.
+          if arm-none-eabi-nm cardenginei/arm7/build/cardenginei_arm7.elf 2>/dev/null | grep -E "Wifi_Init|socConnect|walkerPingStep"; then
+            echo "ERROR: unexpected V7.2 radio/PING symbol linked into ARM7" >&2
+            exit 1
+          fi
       - name: Create SHA-256 checksum for diagnostic build
         shell: bash
         run: |
@@ -137,7 +145,7 @@ jobs:
       - name: Upload experimental DSi menu diagnostic artifact (not a release)
         uses: actions/upload-artifact@v4
         with:
-          name: v71-5-dsi-prelaunch-logging-test-only
+          name: v72-irq-timer-snapshot-test-only
           path: |
             core/bootstrap/retail/bin/nds-bootstrap.nds
             core/bootstrap/retail/bin/nds-bootstrap.nds.sha256

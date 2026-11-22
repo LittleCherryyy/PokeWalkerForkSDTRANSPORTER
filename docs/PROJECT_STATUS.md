@@ -164,6 +164,41 @@ Before enabling a real radio backend, validate normal-MPU accessibility,
 cross-CPU cache coherency and, if necessary, create a safe bounded staging
 path. Do NOT turn on the backend by guessing Wi-Fi API addresses.
 
+### Radio backend research and implementation (2026-11-22)
+
+- Checked the user-provided `wifi_v95_full_rom_index.json` overlay table:
+  `OVY_0` (networking) = `0x021E5900..0x0221BA00`;
+  `OVY_112` (Pokéwalker) = `0x021E5900..0x021FFCA0`.
+  The shared address range means the game cannot use both overlays
+  *unrelocated* at the same time. See
+  `docs/research/hgss_ntr_wifi_overlay_conflict.md`.
+- Added `retail/transport/walker_dswifi_radio.c`, containing an actual
+  nonblocking POSIX/DSWifi TCP client to the Android hotspot's DHCP
+  gateway, supporting connect/partial send/partial receive. It checks
+  `Wifi_CheckInit` and `Wifi_AssocStatus`. Because the standalone DSi
+  V6.x diagnostic observed a DSWifi `close()` hang, this first-pass
+  backend retires after one connection and does not call close.
+  **This is not an in-game driver yet.** It is excluded unless explicitly
+  compiled with `WALKER_RESIDENT_DSWIFI_ARM7_VERIFIED`, and that macro
+  MUST NOT be enabled until an actual resident, game-compatible DSWifi
+  ARM7 service + FIFO/IRQ/timer ownership and memory mapping are
+  implemented and verified. Calling `Wifi_InitDefault` by itself will
+  not create the required ARM7 core in retail HGSS.
+- The retail Makefile now automatically invokes
+  `bootstrap/build_walker.py` before building the injected walker
+  loader. Without regeneration, edits to `walker.c` would be lost
+  because the loader uses a pre-generated binary header.
+
+**Current result:** real outbound protocol framing, Android receiver,
+ARM9 send coordinator, and an opt-in TCP socket adapter exist in
+source. **No end-to-end DSi Wi-Fi transport has been compiled or tested.**
+This is not a build for the console. The blocked component is
+the wireless service coexisting with the retail game's ARM7 runtime,
+not the basic TCP client code. Research sources:
+- https://blocksds.skylyrac.net/dswifi/md_documentation_2library__design.html
+- https://blocksds.skylyrac.net/dswifi/md_documentation_2internet__mode.html
+- https://github.com/pret/pokeheartgold/blob/master/main.lsf
+
 **Before any DSi test:** implement and link a verified resident Wi-Fi
 association/TCP backend for physical DSi DS-mode HGSS, identify a safe
 regular non-IRQ ARM9 worker, wire its socket write/read to

@@ -70,7 +70,7 @@ class V89SchedulerFieldsTests(unittest.TestCase):
         self.assertIsNone(m.decode_arm_immediate_halfword(0xE19010B2,0))
         self.assertIsNone(m.decode_arm_immediate_halfword(0xE0D010B2,0))
         self.assertIsNone(m.decode_arm_immediate_halfword(0xE1D010D2,0))
-        self.assertIsNone(m.decode_arm_immediate_halfword(0xE1D011B2,0))
+        self.assertIsNone(m.decode_arm_immediate_halfword(0xE1D018B2,0))
 
     def test_strict_original_rom_guard_and_one_step_access(self):
         image,meta=fixture()

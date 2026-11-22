@@ -17,6 +17,7 @@ int main(int argc, char **argv) {
     walkerDirectPut32(ping.payloadLengthBE, 0);
     walkerDirectPut32(ping.crc32BE, 0);
     if (sizeof(ping) != 88 || WALKER_DIRECT_PORT != 30821 ||
+        walkerDirectBe16(ping.flagsBE) != 0 ||
         walkerDirectBe32(ping.payloadLengthBE) != 0 ||
         walkerDirectBe32(ping.crc32BE) != 0) return 3;
     FILE *output=fopen(argv[1], "wb");

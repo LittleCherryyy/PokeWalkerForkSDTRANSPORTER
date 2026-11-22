@@ -944,18 +944,18 @@ static void walkerIrqTableMenu(void) {
  * and prior test builds remain preserved in source/history.
  * No scheduler/WM call, no IRQ writes, no save/ROM modifications. */
 static void walkerArm9WifiCodeMenu(void) {
-    u32 words[4]={0u,0u,0u,0u};
-    const bool ok=walkerArm9ThreadHeaderWords(words)!=0;
+    u32 words[6]={0u,0u,0u,0u,0u,0u};
+    const bool ok=walkerArm9LegacyThreadInfoWords(words)!=0;
     clearScreen(false);
-    print(1,1,(const unsigned char*)"V8.7 ARM9 OS HEADER",FONT_LIME,false);
+    print(1,1,(const unsigned char*)"V8.8 OS LAYOUT 2.X",FONT_LIME,false);
     if (ok) {
-        static const unsigned char labels[4][9]={
-            "A0+0:0x","A0+4:0x","A0+8:0x","A0+C:0x"
+        static const unsigned char labels[6][6]={
+            "9C:0x","A0:0x","A4:0x","A8:0x","AC:0x","B0:0x"
         };
-        for (unsigned i=0;i<4;i++) {
-            const u32 y=4+3*i;
+        for (unsigned i=0;i<6;i++) {
+            const u32 y=3+2*i;
             print(1,y,labels[i],FONT_WHITE,false);
-            printHex(9,y,words[i],4,FONT_LIGHT_BLUE,false);
+            printHex(7,y,words[i],4,FONT_LIGHT_BLUE,false);
         }
     } else {
         print(1,5,(const unsigned char*)"OS gate FAILED",FONT_RED,false);

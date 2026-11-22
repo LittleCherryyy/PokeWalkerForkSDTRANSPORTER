@@ -68,5 +68,31 @@ jobs:
             core/bootstrap/retail/cardenginei/arm9/source/walker_ping_fsm.c \
             tools/v7_1/test_ping_fsm.c -o /tmp/v71-interop/test-ping-fsm
           /tmp/v71-interop/test-ping-fsm
+      - name: Real loopback TCP with actual Java Android protocol and C PING FSM
+        shell: bash
+        run: |
+          set -euo pipefail
+          javac -d /tmp/v71-interop \
+            core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java \
+            tools/v7_1/LocalPingServerTest.java
+          cc -std=c11 -Wall -Wextra -Werror -DWALKER_PING_FSM_EXPERIMENT \
+            -Icore/bootstrap/retail/common/include \
+            core/bootstrap/retail/cardenginei/arm9/source/walker_ping_fsm.c \
+            tools/v7_1/test_ping_tcp_loopback.c -o /tmp/v71-interop/test-ping-tcp
+          portfile=/tmp/v71-interop/tcp-server.port
+          java -cp /tmp/v71-interop \
+            io.github.sdtransporter.pokewalker.LocalPingServerTest "$portfile" \
+            > /tmp/v71-interop/tcp-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 100); do
+            test -s "$portfile" && break
+            sleep 0.05
+          done
+          test -s "$portfile"
+          timeout 15s /tmp/v71-interop/test-ping-tcp "$(cat "$portfile")"
+          wait "$server_pid"
+          cat /tmp/v71-interop/tcp-server.log
+          trap - EXIT
       - name: Unit tests with synthetic binaries only
         run: python -m unittest discover -s tools/v7_1 -p 'test_*.py' -v

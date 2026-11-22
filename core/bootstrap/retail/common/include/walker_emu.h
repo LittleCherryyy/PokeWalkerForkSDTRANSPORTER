@@ -29,6 +29,18 @@
 
 #define WALKER_MAGIC        0x4B4C5750u /* 'PWLK' */
 #define WALKER_VERSION      1u
+
+/* NTR DSi loader-only boot outcome; zero means not attempted. The two low
+ * bits of SKIPPED are independent flags and may be combined. */
+#define WALKER_BOOT_NOT_ATTEMPTED 0u
+#define WALKER_BOOT_NO_CLUSTER    1u
+#define WALKER_BOOT_NO_BASE       2u
+#define WALKER_BOOT_READ_SIG      0x10u
+#define WALKER_BOOT_WRITE_SIG     0x11u
+#define WALKER_BOOT_STATUS_SIG    0x12u
+#define WALKER_BOOT_INIT_SIG      0x13u
+#define WALKER_BOOT_FILE_READ     0x14u
+#define WALKER_BOOT_INSTALLED     0xFFu
 #define WALKER_EEPROM_SIZE  0x10000u
 #define WALKER_SECTOR       0x1000u
 #define WALKER_SECTORS      16u

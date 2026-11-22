@@ -103,6 +103,21 @@ void walkerDirectArm9Tick(void) {
         workerBusy=0;
         return;
     }
+    /* The ARM7 must not scan the EEPROM merely because HGSS finished an
+     * IR session. Request a durable CRC snapshot ONLY when a verified
+     * radio backend is presently ready, then return while ARM7 processes
+     * 512 EEPROM bytes per VBlank and writes the pre-send phone fence. */
+    if(workerStage==WORKER_IDLE &&
+       c->direct.magic==WALKER_DIRECT_BRIDGE_MAGIC &&
+       c->checkoutState==WALKER_CHECKOUT_COMPLETE &&
+       c->direct.state==WALKER_DIRECT_IDLE) {
+        const WalkerDirectRadioOps *api=walkerDirectRadioBackend();
+        if(api && api->available && api->connect && api->write &&
+           api->read && api->close && api->available()>0)
+            c->direct.lockRequested=1;
+        workerBusy=0;
+        return;
+    }
     if(!committed(c) || 
        (workerStage!=WORKER_IDLE && !c->direct.lockReady) ||
        (c->direct.state!=WALKER_DIRECT_PUSH_READY &&

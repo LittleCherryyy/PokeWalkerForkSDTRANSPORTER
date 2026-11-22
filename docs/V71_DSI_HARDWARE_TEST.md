@@ -312,3 +312,39 @@ prova qual operação específica limpou o bloqueio.
 O Wi-Fi residente nds-bootstrap → Android TCP 30821 **ainda não foi
 implementado**. A conexão IR virtual local, mesmo que funcione,
 não comprova transporte para o celular.
+
+## Video test 2026-11-22 — original HGSS virtual IR send succeeds after retry
+
+The user supplied a ~46-second real-DSi video of the existing V7.1.5
+experimental nds-bootstrap on HeartGold. Observed directly:
+
+1. In the game's Pokéwalker workflow the player selects **Rocky**, a male
+   **Onix Lv. 5**, chooses a stroll course (Refreshing Field is visible),
+   and enters the Nintendo DS-to-Pokéwalker connection screen.
+2. A first connection attempt reports **"Connection was disrupted. Please
+   try your connection again."**
+3. The connection is retried within the game. A later frame displays
+   **"Rocky went to the Pokéwalker!"**
+
+This is concrete hardware evidence that the original HGSS game executed
+the hooked Pokéwalker exchange sufficiently far to report successful
+sending on the retry. It advances the project beyond mere publication of
+`WalkerControl` at `0x0CFDC000`.
+
+**Not verified by this video:** durable write of the 64 KiB `.walker`
+EEPROM on SD, companion reading correct Pokémon data, subsequent return
+to HGSS, integrity under interrupted power, Android TCP 30821 or resident
+HGSS Wi-Fi. An initial communication interruption was observed: success
+on retry should not be described as first-attempt reliability.
+
+### Safe next verification (no new build)
+- Let HGSS finish its save/connection sequence before exiting or removing SD.
+- Back up the save and all .walker-related files before examining them.
+- Close HGSS and open the Walker in the existing DSi companion **without
+  transferring it to the phone**, to inspect whether Rocky appears as the
+  current partner; use a disposable test save only.
+- If the partner appears, test the game's ordinary *return from stroll*
+  with the same test save (after backup); confirm HGSS receives Rocky and
+  that the game save finishes. If any error appears, retain the files/logs.
+- Do not manually delete `.walker`, `.lease` or `.phone` artifacts.
+- The nds-bootstrap-resident Wi-Fi bridge to Android remains unavailable.

@@ -155,7 +155,7 @@ bool igmReset = false;
  * A ROM read is a normal game callback, but not automatically a safe
  * network scheduling site. No radio, IRQ handler or save access here.
  * Keep only four scalar counters; no IPC mailbox or ce9-layout change. */
-#if !defined(TWLSDK) && !defined(B4DS)
+#if !defined(TWLSDK) && !defined(B4DS) && !defined(DLDI) && !defined(GSDD)
 static volatile u32 walkerArm9RomReadCalls;
 static volatile u32 walkerArm9EligibleReadCalls;
 static volatile u32 walkerArm9LastReadCpsrMode;
@@ -796,7 +796,7 @@ extern void slot2EmuCheck(u32 entry, u32 valueBits);
 #endif
 
 void cardRead(u32* cacheStruct, u8* dst0, u32 src0, u32 len0) {
-#if !defined(TWLSDK) && !defined(B4DS)
+#if !defined(TWLSDK) && !defined(B4DS) && !defined(DLDI) && !defined(GSDD)
     /* Sample at the existing cardRead entry, before any SDK or bootstrap
      * critical section. ARM CPSR M[4:0] distinguishes IRQ=0x12 from
      * System/User/SVC. IME=1 is necessary, not sufficient, for an
@@ -1596,10 +1596,14 @@ void inGameMenu(s32* exRegisters) {
         (u32)TIMER_CR(3),
         REG_IE,
         REG_IME,
+#if !defined(DLDI) && !defined(GSDD)
         walkerArm9RomReadCalls,
         walkerArm9EligibleReadCalls,
         walkerArm9LastReadCpsrMode,
         walkerArm9LastReadIme
+#else
+        0u, 0u, 0u, 0u
+#endif
     };
 #endif
 	int oldIME = enterCriticalSection();

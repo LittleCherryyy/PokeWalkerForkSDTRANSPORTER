@@ -103,8 +103,11 @@ jobs:
             src="$tmp/retail/$project"
             dst="core/bootstrap/retail/$project"
             for name in files files-bugged; do
-              if test -d "$src/$name" && test ! -e "$dst/$name"; then
-                cp -a "$src/$name" "$dst/$name"
+              if test -d "$src/$name"; then
+                mkdir -p "$dst/$name"
+                # Keep tracked fork patches intact; restore only missing
+                # upstream files/subdirectories such as apfix/files/cht.
+                cp -a -n "$src/$name/." "$dst/$name/"
               fi
             done
           done

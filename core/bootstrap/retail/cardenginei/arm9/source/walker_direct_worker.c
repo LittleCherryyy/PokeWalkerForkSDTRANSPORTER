@@ -30,6 +30,19 @@ static unsigned workerBusy;
 static WalkerPushStream stream;
 static const WalkerDirectRadioOps *radio;
 static WalkerControl *owner;
+#define WALKER_CONNECT_TIMEOUT_FRAMES 600u  /* about 10 seconds */
+#define WALKER_IO_TIMEOUT_FRAMES      1200u /* about 20 seconds */
+#define WALKER_MAX_AUTO_ATTEMPTS      3u
+
+static u32 workerVblankNow(void) {
+    /* ARM9 normal shared memory: already used by the original HGSS
+     * virtual-IR code for cooldown timing. Not a Wi-Fi/scheduler proof. */
+    return *(volatile u32 *)WALKER_VBLANK_COUNT;
+}
+static bool workerTimedOut(u32 now,u32 previous,u32 frames) {
+    /* Unsigned subtraction remains correct across a 32-bit frame wrap. */
+    return (u32)(now-previous)>frames;
+}
 
 static int ioWrite(void *unused, const unsigned char *buf,unsigned size) {
     (void)unused;
@@ -127,7 +140,10 @@ void walkerDirectArm9Tick(void) {
         return;
     }
     if(workerStage==WORKER_IDLE) {
-        if(c->direct.state!=WALKER_DIRECT_PUSH_READY) {
+        if(c->direct.state!=WALKER_DIRECT_PUSH_READY ||
+           c->direct.attempts>=WALKER_MAX_AUTO_ATTEMPTS) {
+            /* Preserve PENDING and the SD recovery image. No automatic
+             * infinite reconnect loop if the phone/hotspot is unreachable. */
             workerBusy=0;
             return;
         }
@@ -157,16 +173,27 @@ void walkerDirectArm9Tick(void) {
         owner=c;
         radio=api;
         workerStage=WORKER_CONNECTING;
+        c->direct.lastProgress=workerVblankNow();
         c->direct.state=WALKER_DIRECT_PUSHING;
     }
 
     if(workerStage==WORKER_CONNECTING) {
         const int status=radio->connect(WALKER_DIRECT_PORT);
-        if(status<0) retry(c);
-        else if(status>0) workerStage=WORKER_SENDING;
+        if(status<0 ||
+           (status==0 && workerTimedOut(workerVblankNow(),
+                   c->direct.lastProgress,WALKER_CONNECT_TIMEOUT_FRAMES)))
+            retry(c);
+        else if(status>0) {
+            c->direct.lastProgress=workerVblankNow();
+            workerStage=WORKER_SENDING;
+        }
     } else if(workerStage==WORKER_SENDING) {
+        const u32 before=stream.sentHeader+stream.sentData+stream.receivedAck;
         const int result=walkerPushStep(&stream,&io,0,c->writeSeq);
-        if(result<0) retry(c);
+        const u32 after=stream.sentHeader+stream.sentData+stream.receivedAck;
+        if(after!=before) c->direct.lastProgress=workerVblankNow();
+        if(result<0 || (result==0 && workerTimedOut(workerVblankNow(),
+                 c->direct.lastProgress,WALKER_IO_TIMEOUT_FRAMES))) retry(c);
         else if(result>0) {
             /* Commit PHONE_OWNS ONLY after a complete, session-bound
              * Android OP_OK for the entire 64 KiB payload. */

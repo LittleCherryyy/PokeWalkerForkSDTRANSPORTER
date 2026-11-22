@@ -86,6 +86,7 @@ jobs:
             tools/v7_4/arm9_runtime_reconstruction.py
             tools/v7_5/hgss_wifi_call_targets.py
             tools/v7_5/TESTAR_CALLS_WIFI.bat
+            tools/v7_5/COMPARAR_HGSS_WIFI.bat
             tools/v7_5/README.md
           if-no-files-found: error
           retention-days: 7

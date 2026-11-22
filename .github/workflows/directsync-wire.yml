@@ -5,11 +5,17 @@ on:
     paths:
       - 'core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java'
       - 'core/tools/DirectSyncWireContractTest.java'
+      - 'core/bootstrap/retail/transport/**'
+      - 'core/bootstrap/retail/common/include/walker_directsync.h'
+      - 'core/tools/test_walker_push_stream.c'
       - '.github/workflows/directsync-wire.yml'
   pull_request:
     paths:
       - 'core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java'
       - 'core/tools/DirectSyncWireContractTest.java'
+      - 'core/bootstrap/retail/transport/**'
+      - 'core/bootstrap/retail/common/include/walker_directsync.h'
+      - 'core/tools/test_walker_push_stream.c'
       - '.github/workflows/directsync-wire.yml'
   workflow_dispatch:
 
@@ -31,3 +37,13 @@ jobs:
             core/tools/DirectSyncWireContractTest.java
           java -cp "$RUNNER_TEMP/pw-wire" \
             io.github.sdtransporter.pokewalker.DirectSyncWireContractTest
+      - name: Validate bounded C checkout sender against partial TCP I/O
+        shell: bash
+        run: |
+          gcc -std=c99 -O2 -Wall -Wextra -Werror -Wno-unused-function \
+            -I core/bootstrap/retail/common/include \
+            -I core/bootstrap/retail/transport \
+            core/bootstrap/retail/transport/walker_push_stream.c \
+            core/tools/test_walker_push_stream.c \
+            -o "$RUNNER_TEMP/pw-push-stream-test"
+          "$RUNNER_TEMP/pw-push-stream-test"

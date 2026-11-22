@@ -53,6 +53,11 @@ extern unsigned int gen5RomCluster;
 #include <nds/arm7/i2c.h>
 #include <nds/ipc.h>
 
+/* Preserve original loader I2C semantics; symbols are private to avoid
+ * conflicts with the newer Calico inline register accessors. */
+u8 walkerLegacyI2cWriteRegister(u8 device, u8 reg, u8 data);
+u8 walkerLegacyI2cReadRegister(u8 device, u8 reg);
+
 /* Legacy fincs codec SPI implementation lives in source/arm7/libnds/codec.c.
  * Keep its private signatures separate from modern Calico cdcReadReg/
  * cdcWriteReg ABI. Calls preserve legacy bank values and return behavior. */
@@ -1537,8 +1542,8 @@ static void setMemoryAddress(const tNDSHeader* ndsHeader, const module_params_t*
 		*(u32*)0x03FFFFC4 = *(u32*)0x2FFFD08;
 		*(u32*)0x03FFFFC8 = 0xF884;
 
-		i2cWriteRegister(I2C_PM, I2CREGPM_MMCPWR, 1);		// Have IRQ check for power button press
-		i2cWriteRegister(I2C_PM, I2CREGPM_RESETFLAG, 1);		// SDK 5 --> Bootflag = Warmboot/SkipHealthSafety
+		walkerLegacyI2cWriteRegister(I2C_PM, I2CREGPM_MMCPWR, 1);		// Have IRQ check for power button press
+		walkerLegacyI2cWriteRegister(I2C_PM, I2CREGPM_RESETFLAG, 1);		// SDK 5 --> Bootflag = Warmboot/SkipHealthSafety
 	} else if (isSdk5(moduleParams)) {
 		toncset((u32*)0x02FFFD60, 0, 0xA0);
 	}
@@ -1649,7 +1654,7 @@ __attribute__((optimize("Os"))) int arm7_main(void) {
 	nocashMessage("Getting ARM7 to clear RAM...\n");
 	resetMemory_ARM7();
 
-	wifiLedState = i2cReadRegister(0x4A, 0x30);
+	wifiLedState = walkerLegacyI2cReadRegister(0x4A, 0x30);
 
 	// Init card
 	if (dsiSD) {
@@ -1680,7 +1685,7 @@ __attribute__((optimize("Os"))) int arm7_main(void) {
 	dbg_printf("\n\n");
 
 	{
-		const u8 i2cVer = i2cReadRegister(0x4A, 0);
+		const u8 i2cVer = walkerLegacyI2cReadRegister(0x4A, 0);
 		i2cBricked = (i2cVer == 0 || i2cVer == 0xFF);
 	}
 	const bool dsiEnhancedMbk = (*(u32*)0x02FFE1A0 == 0x00403000 && ((REG_SCFG_EXT == 0) || (strncmp((const char*)0x04FFFA00, "no$gba", 6) == 0)));
@@ -2593,7 +2598,7 @@ __attribute__((optimize("Os"))) int arm7_main(void) {
 
 		if (!ce9DldiBinary && !ROMinRAM && (romRead_LED==1 || dmaRomRead_LED==1)) {
 			// Turn WiFi LED off
-			i2cWriteRegister(0x4A, 0x30, 0x12);
+			walkerLegacyI2cWriteRegister(0x4A, 0x30, 0x12);
 		}
 	}
 
@@ -2609,7 +2614,7 @@ __attribute__((optimize("Os"))) int arm7_main(void) {
 	toncset16((u32*)IMAGES_LOCATION, 0, (256*192)*3);	// Clear nds-bootstrap images
 	clearScreen();
 
-	i2cReadRegister(0x4A, 0x10);	// Clear accidential POWER button press
+	walkerLegacyI2cReadRegister(0x4A, 0x10);	// Clear accidential POWER button press
 
 	arm9_stateFlag = ARM9_SETSCFG;
 	while (arm9_stateFlag != ARM9_READY) {};

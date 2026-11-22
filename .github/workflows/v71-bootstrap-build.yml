@@ -88,7 +88,7 @@ jobs:
           git init -q "$tmp"
           git -C "$tmp" remote add origin https://github.com/DS-Homebrew/nds-bootstrap.git
           git -C "$tmp" sparse-checkout init --cone
-          git -C "$tmp" sparse-checkout set retail/preLoadSettings
+          git -C "$tmp" sparse-checkout set retail/preLoadSettings retail/apfix retail/mobiclipOffsets retail/dsi2dsSavePatches
           git -C "$tmp" fetch --depth 1 --filter=blob:none origin "$UPSTREAM_COMMIT"
           git -C "$tmp" checkout --detach FETCH_HEAD
           test "$(git -C "$tmp" rev-parse HEAD)" = "$UPSTREAM_COMMIT"
@@ -99,7 +99,19 @@ jobs:
               cp -a "$dir" "$target/$name"
             fi
           done
-          echo "Preload data pinned to upstream commit $UPSTREAM_COMMIT" >> "$GITHUB_STEP_SUMMARY"
+          for project in apfix mobiclipOffsets dsi2dsSavePatches; do
+            src="$tmp/retail/$project"
+            dst="core/bootstrap/retail/$project"
+            for name in files files-bugged; do
+              if test -d "$src/$name" && test ! -e "$dst/$name"; then
+                cp -a "$src/$name" "$dst/$name"
+              fi
+            done
+          done
+          # The fork's apfix Makefile needs this locale directory as an
+          # explicit input. Never synthesize it if the official source lacks it.
+          test -d core/bootstrap/retail/apfix/files/cht
+          echo "Compatibility data pinned to upstream commit $UPSTREAM_COMMIT" >> "$GITHUB_STEP_SUMMARY"
           echo "Upstream authorship: https://github.com/DS-Homebrew/nds-bootstrap" >> "$GITHUB_STEP_SUMMARY"
       - name: Check availability of upstream compatibility inputs
         id: compatibility

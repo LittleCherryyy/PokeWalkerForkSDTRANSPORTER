@@ -531,8 +531,10 @@ static WalkerArm9Snapshot walkerArm9PreWrapper = {0,0,0,0};
  * entry before the existing ROM-read code performs critical sections.
  */
 static void walkerArm9PreWrapperMenu(void) {
+    u32 schedulerWord=0u;
+    const bool guarded=walkerArm9ThreadAvailabilityRaw(&schedulerWord)!=0;
     clearScreen(false);
-    print(1,1,(const unsigned char*)"V7.9 ARM9 DEFERRED",FONT_LIME,false);
+    print(1,1,(const unsigned char*)"V8.3 ARM9 THREAD FLAG",FONT_LIME,false);
     if(walkerArm9PreWrapper.magic == WALKER_ARM9_SNAPSHOT_MAGIC) {
         print(1,4,(const unsigned char*)"ROM reads:0x",FONT_WHITE,false);
         printHex(13,4,walkerArm9PreWrapper.romReadCalls,4,FONT_LIGHT_BLUE,false);
@@ -543,7 +545,13 @@ static void walkerArm9PreWrapperMenu(void) {
     } else {
         print(1,6,(const unsigned char*)"ARM9 snapshot unavailable",FONT_RED,false);
     }
-    print(1,17,(const unsigned char*)"0 idle 1 queued 2 done",FONT_LIGHT_GRAY,false);
+    if (guarded) {
+        print(1,13,(const unsigned char*)"OS raw:0x",FONT_WHITE,false);
+        printHex(10,13,schedulerWord,4,FONT_LIGHT_BLUE,false);
+    } else {
+        print(1,13,(const unsigned char*)"OS guard mismatch",FONT_RED,false);
+    }
+    print(1,17,(const unsigned char*)"Read only, not ABI proof",FONT_LIGHT_GRAY,false);
     print(1,19,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);
     print(1,21,(const unsigned char*)"B: Back",FONT_WHITE,false);
     waitKeys(KEY_B);

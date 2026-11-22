@@ -1,4 +1,4 @@
-# V7.1.2 — teste limitado do painel de diagnóstico no Nintendo DSi
+# V7.1.3 — teste limitado do painel de diagnóstico no Nintendo DSi
 
 **Este pacote NÃO transfere Pokémon por Wi-Fi.** O servidor Android, a ROM e
 os arquivos de Pokémon não devem ser alterados para este teste. As funções
@@ -15,7 +15,7 @@ em um DSi real.
 2. No SD do DSi, copie o arquivo antigo
    `/_nds/nds-bootstrap-nightly.nds` para o computador como backup.
    Não altere o `nds-bootstrap-release.nds` nem sua ROM.
-3. Baixe o artefato **v71-2-dsi-safe-ipc-diagnostic-test-only** na execução
+3. Baixe o artefato **v71-3-dsi-boot-hook-status-diagnostic-test-only** na execução
    **Actions** do PR #4, extraia o `nds-bootstrap.nds` e confira o SHA-256
    com `nds-bootstrap.nds.sha256`. Este pacote é um artefato de teste,
    não uma release estável.
@@ -113,3 +113,41 @@ de Wi-Fi do HGSS é realizada.
 V7.1.2, fotografar todas as mensagens e pressionar B para retornar ao
 jogo. Não testar PUSH/PULL nem usar saves principais. Mantenha a cópia
 de `/_nds/nds-bootstrap-nightly.nds` anterior para recuperação.
+
+## Foto real V7.1.2 e novo diagnóstico V7.1.3
+
+O DSi confirmou `VIRTUAL POKEWALKER V7.1.2`, `Walker: hook not published`
+e `Wi-Fi: NOT ENABLED`, ao lado do menu original do jogo. O painel
+recebeu a resposta do ARM7; agora o problema está *antes* da publicação
+do ponteiro do Walker. A presença do comando de menu
+`Connect to Pokéwalker` no HGSS não prova que o hook foi instalado.
+
+A V7.1.3 cria um campo **append-only** `walkerBootStatus` no cabeçalho
+compartilhado do cardengine ARM7 e registra a primeira causa de falha
+observada no procedimento de instalação. Os códigos são:
+
+| Código hexadecimal | Significado |
+| --- | --- |
+| 00 | `walkerBoot()` não foi chamado |
+| 01 | Arquivo/cluster `.walker` não selecionado |
+| 02 | Memória para o Walker não reservada |
+| 03 | Falta seleção e falta memória |
+| 10 | Assinatura da rotina IR de leitura não encontrada/ambígua |
+| 11 | Assinatura da rotina IR de escrita ausente ou stub sem espaço |
+| 12 | Assinatura da rotina de status do chip IR ausente |
+| 13 | Assinatura da inicialização IR ausente |
+| 14 | Falha ao ler os 64 KiB da EEPROM virtual |
+| FF | O carregador publicou o hook, mas o painel não recebeu o endereço |
+
+Na tela, `Boot stage: 0x..` e um texto curto aparecem apenas quando o
+Walker não está validado. Não tente usar o código como evidência de Wi-Fi
+ou transferência. Continue apenas com o save descartável e o backup do
+`nds-bootstrap-nightly.nds`; caso não seja `FF`, o código aponta qual
+subetapa investigar.
+
+Como verificação adicional no SD, procure
+`/_nds/nds-bootstrap/pokewalker-error.txt`. Algumas opções que impedem
+a seleção do Walker retornam silenciosamente; por exemplo, no atual
+caminho NTR do DSi o código `walkerWanted()` exige ROM no SD, não
+iniciada diretamente de um flashcart/R4. A opção **On** no menu não é,
+por si só, evidência de uma sessão pronta.

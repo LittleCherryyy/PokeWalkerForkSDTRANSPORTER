@@ -209,6 +209,9 @@ walkerIrqBootOriginalVblank: .word 0
 walkerIrqBootOriginalIpc: .word 0
 walkerIrqBootInstalledVblank: .word 0
 walkerIrqBootInstalledIpc: .word 0
+@ Append-only durable direct checkout fence.
+.global walkerDirectLockCluster
+walkerDirectLockCluster: .word 0
 .align 4
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

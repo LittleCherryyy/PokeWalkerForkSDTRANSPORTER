@@ -46,6 +46,10 @@ jobs:
         run: python3 tests/v72_host/run_preflight.py
       - name: Verify IRQ_WIFI slot-24 footprint without touching game IRQ handlers
         run: python3 tests/v72_host/run_irq_audit.py
+      - name: Test 4MB RAM and loaded image bounds for IRQ word reads
+        run: python3 tests/v72_host/run_irq_live_guard.py
+      - name: Check read-only ARM7 IPC and candidate-only UI
+        run: python3 -m unittest discover -s tests/v72_host -p 'test_irq_live_integration.py' -v
       - name: Verify radio snapshot IPC source is read-only
         run: python3 -m unittest discover -s tests/v72_host -p 'test_radio_snapshot.py' -v
       - name: Verify DMA3/ARM9 read-only resource snapshot
@@ -94,4 +98,13 @@ jobs:
           "$ARM_CC" -std=c11 -O2 -Wall -Wextra -Werror \
             -march=armv4t -mthumb -I "$ENGINE" -c "$IRQ_AUDIT" -o /tmp/walker-irq-audit-arm7.o
           test -s /tmp/walker-irq-audit-arm7.o
+          "$ARM_CC" -std=c11 -O2 -Wall -Wextra -Werror \
+            -march=armv4t -mthumb -I core/bootstrap/retail/common/include \
+            -xc -c -o /tmp/walker-irq-live-guard-arm7.o - <<'WALKER_C'
+          #include "walker_irq_live_guard.h"
+          int walker_guard_compile(void) {
+            return walkerIrqReadOnlyRangeOk(0x0238ECF4u,0x02380000u,0x000276D8u,1u);
+          }
+          WALKER_C
+          test -s /tmp/walker-irq-live-guard-arm7.o
           echo "Both CPU PING/gate objects compile; neither is linked into nds-bootstrap."

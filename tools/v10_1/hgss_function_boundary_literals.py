@@ -59,6 +59,7 @@ def return_candidate(word,pc):
         return {"pc":hx(pc),
                 "kind":"BX_LR" if rm==14 else "BX_register",
                 "unconditional":unconditional,
+                "condition_code":cond,
                 "register":f"r{rm}" if rm<13 else ("sp" if rm==13 else
                            "lr" if rm==14 else "pc"),
                 "definite_return_without_dynamic_values":False}
@@ -66,11 +67,13 @@ def return_candidate(word,pc):
     if (word>>25)&7==4 and (word&(1<<20)) and (word&(1<<15)):
         return {"pc":hx(pc),"kind":"LDM_loading_PC",
                 "unconditional":unconditional,
+                "condition_code":cond,
                 "definite_return_without_dynamic_values":False}
     # MOV PC,LR direct (no shift), possible return sequence.
     if (word & 0x0fffffff)==0x01a0f00e:
         return {"pc":hx(pc),"kind":"MOV_PC_LR",
                 "unconditional":unconditional,
+                "condition_code":cond,
                 "definite_return_without_dynamic_values":False}
     return None
 
@@ -130,10 +133,15 @@ def site_report(image,base,label,site,edge_index):
     for pc in range(old,source,4):
         ret=return_candidate(w32(image,base,pc),pc)
         if ret: exits.append(ret)
+    # V10.0 tagged BX/LDM syntax but did not prove that the CPSR
+    # condition was AL. A mismatched hypothesis is evidence to REPORT,
+    # not a reason to abort reading the user's original ROMs.
+    expected_ret=return_candidate(w32(image,base,expected),expected)
     qualifying=[ret for ret in exits if ret["unconditional"] and
                 ret["kind"] in ("BX_LR","MOV_PC_LR","LDM_loading_PC")]
-    if not any(int(row["pc"],16)==expected for row in qualifying):
-        raise ValueError(f"{label}: expected original return barrier absent at {hx(expected)}")
+    expected_kind_found=bool(expected_ret is not None and
+                             expected_ret["kind"] in
+                             ("BX_LR","MOV_PC_LR","LDM_loading_PC"))
     low=max(base,source-INBOUND_BEFORE)
     high=min(base+len(image)-4,store+INBOUND_AFTER)
     incoming=[]
@@ -147,8 +155,12 @@ def site_report(image,base,label,site,edge_index):
                             "direct_BL":sum(x["kind"]=="BL" for x in rows),
                             "direct_B":sum(x["kind"]=="B" for x in rows)})
     incoming.sort(key=lambda x:(x["to_pc"],x["from_pc"]))
-    # If the nearest unconditional return is immediately followed by
-    # source, it is strong syntactic boundary evidence (not absolute proof).
+    # A conditional return candidate may or may not execute. Do not label
+    # it an unconditional boundary. Keep both views in the report.
+    immediate_any=any(
+        int(row["pc"],16)==source-4 and
+        row["kind"] in ("BX_LR","MOV_PC_LR","LDM_loading_PC")
+        for row in exits)
     immediate_boundary=any(
         int(row["pc"],16)==source-4 and row["unconditional"] and
         row["kind"] in ("BX_LR","MOV_PC_LR","LDM_loading_PC")
@@ -164,6 +176,13 @@ def site_report(image,base,label,site,edge_index):
         "original_store_pc":hx(store),
         "old_entry_to_source_unconditional_returns":qualifying,
         "all_syntactic_exit_candidates":exits,
+        "expected_return_pc_from_v100":hx(expected),
+        "expected_return_syntax_observed":expected_kind_found,
+        "expected_return_observation":expected_ret,
+        "expected_return_condition_confirmed_unconditional":bool(
+            expected_kind_found and expected_ret["unconditional"]),
+        "expected_return_hypothesis_mismatch":not expected_kind_found,
+        "immediately_preceded_by_any_return_candidate":immediate_any,
         "immediately_preceded_by_unconditional_return_candidate":
             immediate_boundary,
         "incoming_target_summary_near_source_and_store":targets,
@@ -239,6 +258,19 @@ def compare(hg,ss):
 
 def self_test():
     assert return_candidate(0xe12fff1e,0x02000000)["kind"]=="BX_LR"
+    assert return_candidate(0x112fff1e,0x02000000)["unconditional"] is False
+    assert return_candidate(0xe12fff1e,0x02000000)["unconditional"] is True
+    # Regression: previous V10.1 incorrectly raised for a conditional BX LR.
+    synthetic=struct.pack("<16I",0xe1a00000,0x112fff1e,0xe1a00000,
+                          *([0]*13))
+    simulated=site_report(synthetic,0x02000000,"TEST",{
+        "old_candidate_entry":0x02000000,
+        "source":0x02000008,"store":0x0200000C,
+        "expected_last_return":0x02000004},defaultdict(list))
+    assert simulated["expected_return_syntax_observed"] is True
+    assert simulated["expected_return_condition_confirmed_unconditional"] is False
+    assert simulated["immediately_preceded_by_any_return_candidate"] is True
+    assert simulated["immediately_preceded_by_unconditional_return_candidate"] is False
     assert return_candidate(0xe8bd81f0,0x02000004)["kind"]=="LDM_loading_PC"
     assert return_candidate(0x08bd81f0,0x02000004)["unconditional"] is False
     assert return_candidate(0xe1a0f00e,0x02000008)["kind"]=="MOV_PC_LR"
@@ -293,9 +325,12 @@ def main(argv=None):
             args.output.write_text(payload,encoding="utf-8")
             print("V10.1 boundary and literal report:",args.output)
             for label,row in report["heartgold"]["regions"].items():
-                print(label,"returns:",len(row["old_entry_to_source_unconditional_returns"]),
-                      "immediately_before_source:",
-                      row["immediately_preceded_by_unconditional_return_candidate"])
+                print(label,"unconditional_return_candidates:",
+                      len(row["old_entry_to_source_unconditional_returns"]),
+                      "expected_syntax_observed:",
+                      row["expected_return_syntax_observed"],
+                      "expected_unconditional:",
+                      row["expected_return_condition_confirmed_unconditional"])
         else:
             print(payload,end="")
         return 0

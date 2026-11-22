@@ -13,6 +13,7 @@
 #include "locations.h"
 #include "cardengine_header_arm9.h"
 #include "walker_arm9_snapshot.h"
+#include "walker_arm9_wifi_sig.h"
 #include "nds_header.h"
 #include "tonccpy.h"
 
@@ -936,6 +937,57 @@ static void walkerIrqTableMenu(void) {
     }
 }
 
+/* V7.7 NTR ARM9 live-code audit: the five 32-byte code windows came
+ * from the user's exact HGSS USA Rev0 V7.6 report. Neither the scanner
+ * nor the menu calls an API, touches Wi-Fi/IRQ registers, or writes save.
+ * A matching signature only proves the bytes are present in ARM9 RAM
+ * while the in-game menu has paused HGSS; not that WCM/SOC are usable.
+ */
+#ifndef B4DS
+static void walkerArm9WifiCodeMenu(void) {
+    const u32 mask = walkerWifiCheckStaticCode();
+    const unsigned char* names[WALKER_WIFI_SIG_COUNT] = {
+        (const unsigned char*)"WCM_Init",
+        (const unsigned char*)"WCM_Startup",
+        (const unsigned char*)"WCM_GetPhase",
+        (const unsigned char*)"SOC_Socket",
+        (const unsigned char*)"SOC_Connect"
+    };
+    const u32 address[WALKER_WIFI_SIG_COUNT] = {
+        0x020AD850u, 0x020AD9C0u, 0x020AE420u,
+        0x020A2EACu, 0x020A2F04u
+    };
+    clearScreen(false);
+    print(1,1,(const unsigned char*)"V7.7 ARM9 WIFI CODE",FONT_LIME,false);
+    unsigned good=0;
+    for (unsigned i=0; i<WALKER_WIFI_SIG_COUNT; i++) {
+        const int row = 4 + 2 * i;
+        print(1,row,names[i],FONT_WHITE,false);
+        print(14,row,(const unsigned char*)"0x",FONT_LIGHT_GRAY,false);
+        printHex(16,row,address[i],4,FONT_LIGHT_GRAY,false);
+        if (mask & (1u<<i)) good++;
+        print(26,row,(const unsigned char*)((mask & (1u<<i)) ?
+              "OK" : "DIFF"),(mask & (1u<<i))?FONT_LIME:FONT_RED,false);
+    }
+    print(1,15,(const unsigned char*)"Signatures: ",FONT_WHITE,false);
+    printDec(13,15,good,1,FONT_LIGHT_BLUE,false);
+    print(14,15,(const unsigned char*)"/5",FONT_LIGHT_BLUE,false);
+    print(1,17,(const unsigned char*)"ARM9 memory, menu paused",FONT_LIGHT_GRAY,false);
+    print(1,18,(const unsigned char*)"Not network/ABI proof",FONT_LIGHT_GRAY,false);
+    print(1,20,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,22,(const unsigned char*)"B: Back",FONT_WHITE,false);
+    do {
+        while(REG_VCOUNT != 191) mySwiDelay(100);
+        while(REG_VCOUNT == 191) mySwiDelay(100);
+    } while(KEYS & KEY_L);
+    waitKeys(KEY_B);
+    do {
+        while(REG_VCOUNT != 191) mySwiDelay(100);
+        while(REG_VCOUNT == 191) mySwiDelay(100);
+    } while(KEYS & KEY_B);
+}
+#endif
+
 static void virtualPokewalkerMenu(void) {
     u32 diag[4]={0,0,0,0};
     bool answered=false;
@@ -1017,6 +1069,9 @@ static void virtualPokewalkerMenu(void) {
     }
     print(1, 18, (const unsigned char *)"X: ARM7 IRQ/timer snapshot", FONT_WHITE, false);
     print(1, 19, (const unsigned char *)"Y: ARM7 boot IRQ table", FONT_WHITE, false);
+#ifndef B4DS
+    print(1, 20, (const unsigned char *)"L: ARM9 Wi-Fi code audit", FONT_WHITE, false);
+#endif
     print(1, 21, (const unsigned char *)"B: Back to menu", FONT_WHITE, false);
     /* Wait for initial A release, then accept X (snapshot) or B. */
     do {
@@ -1025,17 +1080,25 @@ static void virtualPokewalkerMenu(void) {
     } while(KEYS & KEY_A);
     bool showRadio=false;
     bool showTable=false;
+    bool showWifiCode=false;
     while(1) {
         while(REG_VCOUNT!=191) mySwiDelay(100);
         while(REG_VCOUNT==191) mySwiDelay(100);
         if(KEYS & KEY_B) break;
         if(KEYS & KEY_X){showRadio=true;break;}
         if(KEYS & KEY_Y){showTable=true;break;}
+#ifndef B4DS
+        if(KEYS & KEY_L){showWifiCode=true;break;}
+#endif
     }
     if(showRadio) {
         walkerRadioSnapshotMenu();
     } else if(showTable) {
         walkerIrqTableMenu();
+#ifndef B4DS
+    } else if(showWifiCode) {
+        walkerArm9WifiCodeMenu();
+#endif
     } else {
         do {
             while(REG_VCOUNT!=191) mySwiDelay(100);

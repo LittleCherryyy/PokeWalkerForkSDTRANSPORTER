@@ -269,3 +269,46 @@ ou flashcart foi de fato utilizado.
 
 O fluxo de testes continua com backup, save descartável
 e **sem sincronização com o aplicativo Android**.
+
+## Evidência física posterior: WalkerControl publicado após devolução do telefone
+
+Uma foto fornecida pelo usuário após devolver o Walker de teste ao DSi
+mostra o painel **V7.1.5** com:
+- `Walker: DSi RAM unprobed`
+- `Walker ptr: 0x0CFDC000`
+- `Wi-Fi: NOT ENABLED`
+
+Isso substitui o erro anterior `Boot stage: 0x03`: o carregador agora
+publica um ponteiro de controle. Em
+`bootloaderi/source/arm7/walker_boot.c`, `ce7->walkerControl` é
+preenchido **somente depois** que os patches em memória das funções de IR
+foram escritos, e logo antes de marcar
+`WALKER_BOOT_INSTALLED`. Logo, a evidência apoia fortemente que o hook
+foi instalado pelo carregador. **Não comprova** que o HGSS tenha
+executado o stub, que a EEPROM tenha respondido ou que um Pokémon tenha
+sido transferido com sucesso. O menu ARM7 deliberadamente não lê a
+estrutura na janela estendida DSi `0x0C...`, por segurança.
+
+O desaparecimento do bloqueio de preparação após a devolução do Walker
+é consistente com a liberação do `.walker.lease`; a foto isolada não
+prova qual operação específica limpou o bloqueio.
+
+### Próximo teste físico, sem nova build e com save descartável
+- Backup de `.sav` e `.walker`; conferir que o console não está
+  segurando uma sessão externa de sincronização.
+- Sair do menu do nds-bootstrap e abrir
+  `CONNECT TO POKéWALKER` no menu original do HGSS.
+- Na tela de busca/conexão original do jogo, **pressionar SELECT uma vez**,
+  sem segurar e **sem pressionar LEFT**. O código do emulador usa SELECT
+  como botão de ativação do Walker. Segurar SELECT+LEFT por cerca de
+  dois segundos nessa tela **reinicializa o Walker** e não deve fazer
+  parte de um teste normal.
+- Registrar apenas se o jogo reconhece a conexão e quais mensagens
+  aparecem. Não iniciar uma transferência com Pokémon/saves importantes.
+- Depois da tentativa, deixar o jogo salvar/concluir o estado antes
+  de desligar. Se falhar, registrar tela e `pokewalker-error.txt`,
+  sem apagar arquivos manualmente.
+
+O Wi-Fi residente nds-bootstrap → Android TCP 30821 **ainda não foi
+implementado**. A conexão IR virtual local, mesmo que funcione,
+não comprova transporte para o celular.

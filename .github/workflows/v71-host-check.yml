@@ -31,6 +31,7 @@ on:
       - 'tools/v7_3/**'
       - 'tools/v7_4/**'
       - 'tools/v7_5/**'
+      - 'tools/v7_6/**'
   pull_request:
     paths:
       - '.github/workflows/v71-host-check.yml'
@@ -54,6 +55,7 @@ on:
       - 'tools/v7_3/**'
       - 'tools/v7_4/**'
       - 'tools/v7_5/**'
+      - 'tools/v7_6/**'
 
 permissions:
   contents: read
@@ -88,6 +90,19 @@ jobs:
             tools/v7_5/TESTAR_CALLS_WIFI.bat
             tools/v7_5/COMPARAR_HGSS_WIFI.bat
             tools/v7_5/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V7.6 ARM9 WCM-SOC veneer auditor
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V7_6-ARM9-WiFi-Entry-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_6/hgss_wifi_entry_audit.py
+            tools/v7_6/COMPARAR_ENTRADAS_WIFI.bat
+            tools/v7_6/README.md
           if-no-files-found: error
           retention-days: 7
       - name: Build portable static LZSS host tool

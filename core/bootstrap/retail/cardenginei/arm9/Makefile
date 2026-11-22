@@ -33,7 +33,7 @@ DATA		:=	data
 #---------------------------------------------------------------------------------
 ARCH	:=	-mthumb -march=armv5te -mtune=arm946e-s
 
-CFLAGS	:=	-g -Wall -Os\
+CFLAGS	:=	-g -Wall -Oz\
  			-march=armv5te -mtune=arm946e-s -fomit-frame-pointer\
 			-ffast-math \
 			$(ARCH)

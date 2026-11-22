@@ -43,6 +43,10 @@
 #include "slot2_file.h"
 #include "walker_file.h"
 #include "walker_direct_bridge_api.h"
+#ifndef TWLSDK
+extern bool walkerDirectLockDue(void);
+extern void walkerDirectLockWrite(void);
+#endif
 #include "transfer_probe.h"
 #include "gen5_adapter.h"
 #include "gen5_file.h"
@@ -1918,8 +1922,24 @@ static void slot2EmuWriteLocked(void) {
 
 static void slot2EmuFlush(bool force) {
 	const bool slot2 = slot2EmuDue(force), walker = walkerDue(force);
+#ifndef TWLSDK
+    /* Reserve durable phone ownership only when an ARM9 Wi-Fi backend
+     * explicitly requests it for a fully committed real Pokémon. */
+    const bool directLock = walkerDirectLockDue();
+    if ((!slot2 && !walker && !directLock) || !tryLockMutex(&saveMutex)) return;
+#else
 	if ((!slot2 && !walker) || !tryLockMutex(&saveMutex)) return;
+#endif
 	virtualFilesWriteLocked(slot2, walker, force);
+#ifndef TWLSDK
+    if(directLock && (valueBits & b_dsiSD) && !isSdEjected()) {
+        driveInitialize();
+        sdmmc_set_ndma_slot(4);
+        saveTimer=1;
+        walkerDirectLockWrite();
+        sdmmc_set_ndma_slot(0);
+    }
+#endif
 	unlockMutex(&saveMutex);
 }
 

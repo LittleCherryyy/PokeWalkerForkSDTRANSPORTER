@@ -53,13 +53,14 @@ static void makeSession(WalkerControl *c,u32 crc,u32 seq) {
 
 void walkerDirectBridgeInit(WalkerControl *c) { if(c) walkerDirectBridgeReset(&c->direct,c->flushedSeq); }
 
-/* Called immediately after the ARM7 has physically verified all dirty walker
- * sectors on SD. Never advertise RAM that has not been committed first. */
-/* Called after the checked SD writer finishes. Only schedule a CRC here;
- * the actual scan is bounded and performed later in the VBlank tick. */
+/* Called after the ARM7 verified the complete EEPROM on SD. Merely
+ * registering a walker, receiving a gift or altering steps is NOT a
+ * Pokémon checkout. The original HGSS stroll must also have completed.
+ * The CRC scan remains incremental rather than blocking the VBlank IRQ. */
 void walkerDirectBridgeCommitted(WalkerControl *c,u32 seq) {
     if(!durableImageStable(c,seq)) return;
     c->direct.durableSeq=seq;
+    if(c->checkoutState!=WALKER_CHECKOUT_COMPLETE) return;
     if(seq==c->direct.offeredSeq ||
        (crcPending && crcSeq==seq)) return;
     /* A checked-out image must not be replaced by a new offer. */
@@ -73,7 +74,8 @@ void walkerDirectBridgeCommitted(WalkerControl *c,u32 seq) {
 
 static void walkerDirectSnapshotTick(WalkerControl *c) {
     if(!crcPending) return;
-    if(!durableImageStable(c,crcSeq) ||
+    if(c->checkoutState!=WALKER_CHECKOUT_COMPLETE ||
+       !durableImageStable(c,crcSeq) ||
        (c->direct.state!=WALKER_DIRECT_IDLE &&
         c->direct.state!=WALKER_DIRECT_PUSH_READY)) {
         crcPending=false;
@@ -106,6 +108,15 @@ static void walkerDirectSnapshotTick(WalkerControl *c) {
 void walkerDirectBridgeTick(void) {
     WalkerControl *c=directControl();
     if(!c || c->direct.magic!=WALKER_DIRECT_BRIDGE_MAGIC) {crcPending=false;return;}
+    /* HGSS may finish its last IR command after the SD flusher already
+     * committed the last dirty sector. Pick up that completed stroll here
+     * even when there are no further writes to trigger the commit callback.
+     * This is safe only if all sectors are clean and flushedSeq matches. */
+    if(c->checkoutState==WALKER_CHECKOUT_COMPLETE && !crcPending &&
+       c->direct.state==WALKER_DIRECT_IDLE &&
+       c->writeSeq!=c->direct.offeredSeq &&
+       durableImageStable(c,c->writeSeq))
+        walkerDirectBridgeCommitted(c,c->writeSeq);
     walkerDirectSnapshotTick(c);
     if(!walkerDirectTransportAvailable()) return;
     int rc=0;

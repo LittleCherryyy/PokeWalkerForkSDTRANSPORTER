@@ -82,7 +82,7 @@ typedef struct WalkerHgssNetApi {
     unsigned int wcmGetPhase;
     unsigned int wcmCountApList;
     unsigned int wcmPointApList;
-    unsigned int soclStartup;
+    unsigned int socStartup;
     unsigned int socSocket;
     unsigned int socConnect;
     unsigned int socRecv;

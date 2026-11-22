@@ -9,6 +9,7 @@ on:
       - 'core/bootstrap/retail/nettransport/**'
       - 'core/bootstrap/retail/common/include/walker_directsync.h'
       - 'tests/v72_host/**'
+      - 'tools/v7_2/**'
       - 'core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java'
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - 'core/bootstrap/retail/nettransport/**'
       - 'core/bootstrap/retail/common/include/walker_directsync.h'
       - 'tests/v72_host/**'
+      - 'tools/v7_2/**'
       - 'core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java'
 
 permissions:
@@ -32,6 +34,10 @@ jobs:
         run: python3 tests/v72_host/run_interop.py
       - name: Verify radio snapshot IPC source is read-only
         run: python3 -m unittest discover -s tests/v72_host -p 'test_radio_snapshot.py' -v
+      - name: Decode real DSi ARM7 IRQ/timer snapshot and assert safe readiness gates
+        run: |
+          python3 -m unittest discover -s tests/v72_host -p 'test_irq_audit.py' -v
+          python3 tools/v7_2/analyze_irq_snapshot.py --ie 0x00050019 --ime 0x01 --timer0 0x00C1 --timer1 0x00C1 --timer2 0x0000 --timer3 0x0000
 
   arm-cross-check:
     runs-on: ubuntu-latest

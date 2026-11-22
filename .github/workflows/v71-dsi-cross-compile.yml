@@ -1,0 +1,49 @@
+name: V7.1 experimental DSi NTR cross-compile
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v71-dsi-cross-compile.yml'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/**'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/source/**'
+      - 'core/bootstrap/retail/common/include/walker_*.h'
+      - 'core/bootstrap/retail/common/source/walker_hgss_net.c'
+      - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_*.c'
+
+permissions:
+  contents: read
+
+jobs:
+  dsi-cross-compile:
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitarm:20241104
+    timeout-minutes: 25
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Verify pinned toolchain, build host LZSS, compile DSi NTR components
+        shell: bash
+        run: |
+          set -euxo pipefail
+          export DEVKITPRO=/opt/devkitpro
+          export COMPILER_DIR=/opt/devkitpro/devkitARM
+          export SDK_DIR=/opt/devkitpro/libnds
+          export PATH="$COMPILER_DIR/bin:$DEVKITPRO/tools/bin:$PATH"
+          arm-none-eabi-gcc --version | head -1
+          test -f "$SDK_DIR/include/nds.h"
+          command -v make
+          command -v python3
+          command -v bin2s
+          command -v ndstool
+          cc core/bootstrap/lzss.c -O2 -o core/bootstrap/lzss
+          make -C core/bootstrap/retail -j2 \
+            DEVKITARM="$GITHUB_WORKSPACE/core/bootstrap/portable-ds-rules" \
+            LEGACY_DEVKITARM="$COMPILER_DIR" \
+            LEGACY_LIBNDS="$SDK_DIR" \
+            LIBDIRS="$SDK_DIR" \
+            PYTHON=python3 GIT_VER=sdlang2 \
+            LZSS="$GITHUB_WORKSPACE/core/bootstrap/lzss" \
+            cardenginei_arm7 cardenginei_arm9_igm
+      - name: Do not distribute unvalidated artifacts
+        run: echo "Compilation check only: no nds-bootstrap file is published or approved for DSi."

@@ -1,4 +1,4 @@
-# V7.1.4 — teste limitado do painel de diagnóstico no Nintendo DSi
+# V7.1.5 — teste limitado do painel de diagnóstico no Nintendo DSi
 
 **Este pacote NÃO transfere Pokémon por Wi-Fi.** O servidor Android, a ROM e
 os arquivos de Pokémon não devem ser alterados para este teste. As funções
@@ -15,7 +15,7 @@ em um DSi real.
 2. No SD do DSi, copie o arquivo antigo
    `/_nds/nds-bootstrap-nightly.nds` para o computador como backup.
    Não altere o `nds-bootstrap-release.nds` nem sua ROM.
-3. Baixe o artefato **v71-4-dsi-ipc-retry-diagnostic-test-only** na execução
+3. Baixe o artefato **v71-5-dsi-prelaunch-logging-test-only** na execução
    **Actions** do PR #4, extraia o `nds-bootstrap.nds` e confira o SHA-256
    com `nds-bootstrap.nds.sha256`. Este pacote é um artefato de teste,
    não uma release estável.
@@ -229,3 +229,43 @@ movimentação e não use o save principal.
 A arquitetura continua sem ROM patch e sem Wi-Fi residente funcional.
 O próximo teste depende da preparação do `.walker` pelo launcher, não
 de uma nova compilação do nds-bootstrap.
+
+## Nova foto da V7.1.4 e diagnóstico de pré-lançamento V7.1.5
+
+A foto mais recente ainda mostra `Boot stage: 0x03` e
+`No file + no RAM area`, mesmo após a indicação para lançar a
+ROM diretamente do SD. Ela **não confirma por si só** onde estão
+os arquivos nem qual condição de seleção foi recusada.
+
+`walkerBase` depende de `walkerWanted()`, que por sua vez depende
+de `walkerCluster`. Assim, a ausência da seleção do arquivo pode
+explicar ambos os bits. A etapa a examinar é `walkerPrepare()`
+no launcher ARM9, antes de executar o jogo.
+
+Até a V7.1.4, os retornos por opção não habilitada, ROM/save
+em dispositivos diferentes e ROM no flashcart do DSi podiam
+acontecer **sem criar um arquivo de erro**. Na V7.1.5,
+esses motivos passam a ser registrados para HGSS no
+`pokewalker-error.txt`, com o caminho do jogo, caminho do save,
+arquivo INI efetivamente consultado, seção SHA-1 esperada e
+indicadores de flashcart/B4DS. Não altera a seleção, não pula
+bloqueios, não cria transporte Wi-Fi. Na preparação bem-sucedida,
+o fluxo existente continua removendo o log antigo.
+
+Quando a V7.1.5 estiver compilada e disponível, teste com save
+descartável e confira imediatamente após o lançamento:
+
+- Para ROM no **SD do DSi**: `sd:/_nds/nds-bootstrap/pokewalker-error.txt`
+- Para ROM no **flashcart/R4**: `fat:/_nds/nds-bootstrap/pokewalker-error.txt`
+- No menu: `VIRTUAL POKEWALKER V7.1.5`, `Boot stage` e
+  `Check Walker error log` se a seleção continuar faltando.
+
+O arquivo de erro é diagnóstico; pode conter o caminho da ROM
+e do save, mas **não contém o conteúdo do save nem da ROM**.
+É mais informativo do que continuar trocando builds sem
+ver o motivo recusado. Se o arquivo não existir, verificar
+se o launcher customizado está sendo executado e qual SD
+ou flashcart foi de fato utilizado.
+
+O fluxo de testes continua com backup, save descartável
+e **sem sincronização com o aplicativo Android**.

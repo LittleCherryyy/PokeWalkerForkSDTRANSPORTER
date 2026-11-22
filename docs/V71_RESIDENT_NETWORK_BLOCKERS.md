@@ -67,3 +67,9 @@ The experimental branch now preserves the old ARM7 peripheral access logic while
 - Restored the documented ARM9 DSi `SCFG_RST` 16-bit register alias at `0x04004006` when the toolchain does not declare it.
 
 All changes are confined to the non-main experimental branch and retain upstream authors' headers. They aim to preserve old behavior instead of silently adapting parameters to a different Calico ABI. **Compile success, console boot stability, and runtime correctness require separate verification; never infer HGSS Wi-Fi functionality from these fixes.**
+
+### FAT API compatibility remains unresolved
+
+The expanded devkitARM build now gets beyond the former legacy codec, I²C, SPI and `REG_SCFG_RST` errors. It next fails in `common/include_fat/my_disc_io.h` because modern installed SDK headers no longer provide the legacy `sec_t` type and therefore its `FN_MEDIUM_*SECTOR*` callback typedefs cannot be formed. This causes secondary "called object is not a function" errors from `common/include_fat/card.h`.
+
+This is a storage-interface compatibility issue, **not** evidence of a broken Pokéwalker save. The correct solution requires examining the historical libnds/libfat API and selecting a matching, reproducible toolchain or carefully defining a compatible adapter with correct sector widths and callback ABIs. Do not invent disk function signatures, substitute new callbacks silently, or deploy an unverified bootstrap to real saves.

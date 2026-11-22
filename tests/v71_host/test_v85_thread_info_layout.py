@@ -92,8 +92,10 @@ class V85LayoutTests(unittest.TestCase):
             m.audit_static_image(image,BASE,metadata)
 
     def test_compare_never_approves_thread_or_wifi(self):
-        a=m.audit_static_image(*make_game("IPKE"))
-        b=m.audit_static_image(*make_game("IPGE"))
+        image_a,meta_a=make_game("IPKE")
+        image_b,meta_b=make_game("IPGE")
+        a=m.audit_static_image(image_a,BASE,meta_a)
+        b=m.audit_static_image(image_b,BASE,meta_b)
         res=m.compare(a,b)
         self.assertEqual(res["shared_first_following_instruction_matches"],3)
         self.assertEqual(res["only_hg_matches"],0)

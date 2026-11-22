@@ -54,8 +54,8 @@ class V86LiveAlias(unittest.TestCase):
         a=M.index("static void walkerArm9WifiCodeMenu(void) {")
         b=M.index("\n#endif\n\nstatic void virtualPokewalkerMenu(void) {",a)
         view=M[a:b]
-        for s in ("V8.7 ARM9 OS HEADER","walkerArm9ThreadHeaderWords(words)",
-                  "A0+0:0x","A0+4:0x","A0+8:0x","A0+C:0x",
+        for s in ("V8.8 OS LAYOUT 2.X","walkerArm9LegacyThreadInfoWords(words)",
+                  "9C:0x","A0:0x","A4:0x","A8:0x","AC:0x","B0:0x",
                   "Wi-Fi: NOT ENABLED","B: Back"):
             self.assertIn(s,view)
         self.assertIn("V7.9 ARM9 DEFERRED",M)

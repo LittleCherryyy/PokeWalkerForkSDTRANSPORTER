@@ -86,6 +86,11 @@ void walkerBoot(cardengineArm7 *ce7, const tNDSHeader *ndsHeader) {
 	c->eeprom = walkerBase + WALKER_EEPROM_OFF;
 	c->magic = WALKER_MAGIC;
 
+	/* Prepare safe state and examine the ARM9 image BEFORE rewriting IR
+	 * call sites. Future binary fingerprints must see unhooked bytes. */
+	walkerDirectBridgeReset(&c->direct, c->flushedSeq);
+	walkerResolveNetworkApi(c, ndsHeader);
+
 	/* Receive: the stub itself, over the original routine. */
 	tonccpy(readRange, walkerStub, sizeof(walkerStub));
 	*(u32 *)((u8 *)readRange + WALKER_STUB_CONTROL_OFF) = (u32)c;
@@ -100,9 +105,6 @@ void walkerBoot(cardengineArm7 *ce7, const tNDSHeader *ndsHeader) {
 	getStatus[0] = 0xE3A000AA;
 	getStatus[1] = 0xE12FFF1E;
 
-	/* Initialize optional Direct Sync state only after the IR hook was
-	 * successfully installed. The unresolved Wi-Fi API stays disabled. */
-	walkerDirectBridgeReset(&c->direct, c->flushedSeq);
-	walkerResolveNetworkApi(c, ndsHeader);
+	/* Expose the control block only when the IR hook has been installed. */
 	ce7->walkerControl = (u32)c;
 }

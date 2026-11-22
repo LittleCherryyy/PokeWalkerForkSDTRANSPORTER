@@ -165,6 +165,9 @@ static volatile u32 walkerArm9LastReadIme;
 static volatile u32 walkerArm9PostEligibleCalls;
 /* One-shot: 0 idle, 1 pending, 2 completed in a normal callback. */
 static volatile u32 walkerArm9DryRunStage;
+/* Outside-game-IRQ, bounded 64 KiB checkout coordinator. Actual radio
+ * remains fail-closed until a verified backend is linked. */
+extern void walkerDirectArm9Tick(void);
 /* ARM946E-S does not support MRS CPSR in Thumb-1. The cardengine is built
  * in Thumb mode, so this tiny interworked leaf must be ARM-state code. */
 __attribute__((target("arm"),noinline))
@@ -1027,6 +1030,10 @@ void cardRead(u32* cacheStruct, u8* dst0, u32 src0, u32 len0) {
             walkerArm9PostEligibleCalls++;
         if (walkerArm9DryRunStage==1u)
             walkerArm9DryRunStage=2u;
+        /* One bounded nonblocking step, never inside the virtual IR stub,
+         * ARM7 VBlank, or the game's IRQ mode. The radio backend itself
+         * must be independently verified safe before enabling sockets. */
+        walkerDirectArm9Tick();
     }
 #endif
 }

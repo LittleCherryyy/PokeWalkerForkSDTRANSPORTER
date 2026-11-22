@@ -532,20 +532,20 @@ static WalkerArm9Snapshot walkerArm9PreWrapper = {0,0,0,0};
  */
 static void walkerArm9PreWrapperMenu(void) {
     clearScreen(false);
-    print(1,1,(const unsigned char*)"V7.8 ARM9 ROM TASKS",FONT_LIME,false);
+    print(1,1,(const unsigned char*)"V7.9 ARM9 DEFERRED",FONT_LIME,false);
     if(walkerArm9PreWrapper.magic == WALKER_ARM9_SNAPSHOT_MAGIC) {
-        print(1,4,(const unsigned char*)"ROM reads: 0x",FONT_WHITE,false);
-        printHex(14,4,walkerArm9PreWrapper.romReadCalls,4,FONT_LIGHT_BLUE,false);
-        print(1,7,(const unsigned char*)"NonIRQ+IME:0x",FONT_WHITE,false);
-        printHex(14,7,walkerArm9PreWrapper.eligibleReadCalls,4,FONT_LIGHT_BLUE,false);
-        print(1,10,(const unsigned char*)"Last CPSR: 0x",FONT_WHITE,false);
-        printHex(15,10,walkerArm9PreWrapper.lastReadCpsrMode,1,FONT_LIGHT_BLUE,false);
-        print(1,13,(const unsigned char*)"Read IME: 0x",FONT_WHITE,false);
-        printHex(15,13,walkerArm9PreWrapper.lastReadIme,1,FONT_LIGHT_BLUE,false);
+        print(1,4,(const unsigned char*)"ROM reads:0x",FONT_WHITE,false);
+        printHex(13,4,walkerArm9PreWrapper.romReadCalls,4,FONT_LIGHT_BLUE,false);
+        print(1,7,(const unsigned char*)"Post+IME:0x",FONT_WHITE,false);
+        printHex(13,7,walkerArm9PreWrapper.postReadEligibleCalls,4,FONT_LIGHT_BLUE,false);
+        print(1,10,(const unsigned char*)"Queued:   0x",FONT_WHITE,false);
+        printHex(13,10,walkerArm9PreWrapper.dryRunQueued,4,FONT_LIGHT_BLUE,false);
+        print(1,13,(const unsigned char*)"Done:     0x",FONT_WHITE,false);
+        printHex(13,13,walkerArm9PreWrapper.dryRunDone,4,FONT_LIGHT_BLUE,false);
     } else {
         print(1,6,(const unsigned char*)"ARM9 snapshot unavailable",FONT_RED,false);
     }
-    print(1,17,(const unsigned char*)"Not a periodic worker",FONT_LIGHT_GRAY,false);
+    print(1,17,(const unsigned char*)"Dry run: no network I/O",FONT_LIGHT_GRAY,false);
     print(1,19,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);
     print(1,21,(const unsigned char*)"B: Back",FONT_WHITE,false);
     waitKeys(KEY_B);

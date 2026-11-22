@@ -8,11 +8,15 @@ on:
       - "diagnostics/dsi_lan_ping_v71/**"
       - "diagnostics/dsi_ping_v6/**"
       - ".github/workflows/v71-dsi-lan-build.yml"
+      - "core/bootstrap/retail/common/include/walker_*.h"
+      - "tools/v7_1/check_shared_layout.c"
   pull_request:
     paths:
       - "diagnostics/dsi_lan_ping_v71/**"
       - "diagnostics/dsi_ping_v6/**"
       - ".github/workflows/v71-dsi-lan-build.yml"
+      - "core/bootstrap/retail/common/include/walker_*.h"
+      - "tools/v7_1/check_shared_layout.c"
   workflow_dispatch:
 
 permissions:
@@ -25,6 +29,16 @@ jobs:
       image: devkitpro/devkitarm:20260610
     steps:
       - uses: actions/checkout@v4
+      - name: Verify shared ARM7/ARM9 control layout (compile only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          /opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc \
+            -std=gnu11 -mcpu=arm946e-s -marm \
+            -ffreestanding -Wall -Wextra -Werror -fsyntax-only \
+            -Icore/bootstrap/retail/common/include \
+            -I/opt/devkitpro/libnds/include \
+            tools/v7_1/check_shared_layout.c
       - name: Build safe DSi diagnostic
         shell: bash
         run: |

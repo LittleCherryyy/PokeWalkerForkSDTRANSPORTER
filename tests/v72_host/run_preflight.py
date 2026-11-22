@@ -16,5 +16,6 @@ with tempfile.TemporaryDirectory(prefix="pw_v72_wifi_gate_") as t:
     exe=Path(t)/("preflight.exe" if os.name=="nt" else "preflight")
     subprocess.run([cc,"-std=c11","-O2","-Wall","-Wextra","-Werror",
                     "-I",str(base),str(root/"tests/v72_host/test_wifi_preflight.c"),
-                    str(base/"walker_wifi_preflight.c"),"-o",str(exe)],check=True)
+                    str(base/"walker_wifi_preflight.c"),
+                    str(base/"walker_wifi_irq_audit.c"),"-o",str(exe)],check=True)
     subprocess.run([str(exe)],check=True)

@@ -12,7 +12,7 @@
 #include <string.h>
 #include "walker_hgss_net.h"
 
-int walkerResolveHgssNet(const u32 *arm9, u32 base, u32 bytes,
+int walkerResolveHgssNet(const uint32_t *arm9, uint32_t base, uint32_t bytes,
                          WalkerHgssNetApi *out, const char gameCode[4]) {
     if (!out) return 0;
     /* Reset even on malformed inputs; never leak a stale ready=1 state. */

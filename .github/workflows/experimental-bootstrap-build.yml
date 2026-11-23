@@ -1,6 +1,10 @@
 name: Experimental DSi bootstrap build (unverified)
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'core/bootstrap/**'
+      - '.github/workflows/experimental-bootstrap-build.yml'
 jobs:
   compile:
     runs-on: ubuntu-latest
@@ -15,6 +19,8 @@ jobs:
           command -v arm-none-eabi-gcc
           arm-none-eabi-gcc --version
           command -v ndstool
+          command -v python3
+          command -v cc
           test -f /opt/devkitpro/libnds/lib/libnds9.a
           test -f /opt/devkitpro/libnds/lib/libnds7.a
           test -f /opt/devkitpro/libnds/lib/libfat.a

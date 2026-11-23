@@ -10,18 +10,24 @@ static WalkerHgssOverlaySlot slots[WALKER_HGSS_OVERLAY_SLOTS];
 static int mainThreadSafe=0;
 static int checkoutDurable=0;
 static int shouldFailLoad=0;
+static int asyncLoad=0;
 static unsigned calls=0;
 static int safeCallback(void){return mainThreadSafe;}
 static int checkoutCallback(void){return checkoutDurable;}
 static int loadCallback(uint32_t id,uint32_t how){
     calls++;
     if(id!=0 || how!=2 || !mainThreadSafe || shouldFailLoad)return 0;
+    if(asyncLoad)return 1; /* accepted, completion on a later frame */
     slots[0].id=0;slots[0].active=1;
     return 1;
 }
 int main(void){
     WalkerHgssPostExit req;
+    WalkerHgssPostExitState progress;
     memset(&req,0,sizeof(req));
+    memset(&progress,0,sizeof(progress));
+    progress.magic=WALKER_POSTEXIT_STATE_MAGIC;
+    req.state=&progress;
     req.magic=WALKER_POSTEXIT_MAGIC;
     req.version=WALKER_POSTEXIT_REV;
     req.gameOverlaySlots=slots;
@@ -31,6 +37,9 @@ int main(void){
     CHECK(walkerHgssPostExitPrepare(NULL)==-1);
     req.magic=0;CHECK(walkerHgssPostExitPrepare(&req)==-1);
     req.magic=WALKER_POSTEXIT_MAGIC;
+    req.state=NULL;
+    CHECK(walkerHgssPostExitPrepare(&req)==-1); /* missing persistent state */
+    req.state=&progress;
     CHECK(walkerHgssPostExitPrepare(&req)==0); /* wrong scheduler */
     CHECK(calls==0);
     mainThreadSafe=1;
@@ -47,6 +56,7 @@ int main(void){
     shouldFailLoad=0;
     CHECK(walkerHgssPostExitPrepare(&req)==1);
     CHECK(calls==2 && slots[0].id==0 && slots[0].active==1);
+    CHECK(progress.loadRequested==1);
     CHECK(walkerHgssPostExitPrepare(&req)==1); /* reuse only */
     CHECK(calls==2);
     slots[1].active=1;
@@ -62,6 +72,27 @@ int main(void){
     mainThreadSafe=0;
     CHECK(walkerHgssPostExitPrepare(&req)==0);
     CHECK(calls==2);
+
+    /* Simulate a NEW, safely torn-down checkout: OVY_LOAD_ASYNC accepts
+     * the request, but sOverlayRegions is updated a later frame. */
+    mainThreadSafe=1;
+    progress.loadRequested=0;
+    slots[0].active=0;
+    asyncLoad=1;
+    CHECK(walkerHgssPostExitPrepare(&req)==0);
+    CHECK(calls==3 && progress.loadRequested==1 && !slots[0].active);
+    CHECK(walkerHgssPostExitPrepare(&req)==0);
+    CHECK(calls==3); /* MUST NOT schedule duplicate async overlay loads */
+    asyncLoad=0;
+    slots[0].active=1;
+    CHECK(walkerHgssPostExitPrepare(&req)==1);
+    CHECK(calls==3);
+    slots[0].active=0;
+    CHECK(walkerHgssPostExitPrepare(&req)==0);
+    CHECK(calls==3); /* unexpected unload: no automatic reload */
+    progress.loadRequested=2;
+    CHECK(walkerHgssPostExitPrepare(&req)==-1); /* malformed state */
+    progress.loadRequested=1;
     puts("PASS: post-IR game-managed overlay0 load only in verified normal main frame");
     puts("LIMIT: overlay manager callback simulated; no live HGSS app hook yet");
     return 0;

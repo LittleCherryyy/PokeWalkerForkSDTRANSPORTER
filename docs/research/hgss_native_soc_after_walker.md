@@ -52,6 +52,54 @@ in a decomp is NOT a validated function address in every ROM revision.
 Do not install jump hooks until a binary fingerprint and compatible
 calling convention have been checked.
 
+## Additional verified overlay collision: WFC setup versus title menu
+
+From the user's `wifi_v95_full_rom_index.json` of **both** US Rev0
+`IPKE` (HeartGold) and `IPGE` (SoulSilver), the ARM9 overlay addresses
+and sizes (including BSS) are:
+
+| Overlay | Role | RAM start | RAM end exclusive |
+| --- | --- | --- | --- |
+| 0 | NitroDWC SOC / WCM library | `0x021E5900` | `0x0221BA00` |
+| 13 | Original Nintendo WFC setup logic | `0x0221BA00` | `0x0224F660` |
+| 74 | Main/title menu application | `0x02227060` | `0x0223EA00` |
+| 112 | Pokéwalker infrared application | `0x021E5900` | `0x021FFCA0` |
+
+These are hard constraints, not guesses about executing code:
+
+- **0 + 112 overlap**: never load/call native Nitro SOC while the
+  Pokéwalker overlay is resident at its original address.
+- **13 + 74 overlap**: the game-native WFC setup overlay 13 cannot be
+  started while overlay 74 remains loaded. In
+  `pret/pokeheartgold/asm/overlay_13_thumb_2.s`, its initialization
+  includes `WCM_Init`, `WCM_StartupAsync`, `SOC_Startup`, and
+  potentially a blocking `OS_Sleep` loop waiting for `CPSMyIp`.
+  Copying that call sequence into a card-read callback would be
+  unsafe and could freeze the title menu.
+- **0 + 74 do not overlap**: there is potential to initialize WCM and
+  the Nitro SOC network stack using the lower-level functions in
+  overlay 0 **without loading the WFC setup overlay 13**, provided
+  that the game's own initialization ABI, work-memory/heap needs,
+  ARM7 Wi-Fi service, and non-IRQ scheduler are independently proven.
+  This is an engineering possibility, **not a completed connection**.
+
+The native-socket adapter is now implemented in
+`core/bootstrap/retail/transport/walker_hgss_soc_radio.c`.
+It correctly uses the HGSS Nintendo `SOC_Connect(fd,&sockaddr)`
+**two-argument** ABI and its 8-byte `SOCSockAddrIn` layout; it sends
+the real 88+65536 byte Direct Sync stream, supports partial sends,
+and parses the Android `OP_OK` via the existing stream worker.
+It rejects binding unless the *caller* asserts verified overlay
+112 unload, overlay 0 loaded, WCM/SOC and ARM7 Wi-Fi initialized, a
+live gateway, and matching socket entrypoint addresses. It checks
+`stillReady()` before each call so expired overlay pointers fail
+closed. The **actual lifecycle binder is not yet implemented** and
+the default radio remains disabled. Compilation and host tests with
+mock SOC callbacks are not evidence of real Wi-Fi association.
+
+Test: `core/tools/test_walker_hgss_soc_radio.c`;
+CI: https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45087151420
+
 ## Candidate path to true in-game Android transfer
 
 1. Keep SD Transporter's existing virtual IR hook as-is until HeartGold

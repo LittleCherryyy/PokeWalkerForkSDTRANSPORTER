@@ -63,4 +63,5 @@ jobs:
             LZSS="$GITHUB_WORKSPACE/core/bootstrap/lzss" \
             cardenginei_arm7 cardenginei_arm9_igm
       - name: Do not distribute unvalidated artifacts
-        run: echo "Compilation check only: no nds-bootstrap file is published or approved for DSi."
+        run: |
+          echo "Compilation check only: no nds-bootstrap file is published or approved for DSi."

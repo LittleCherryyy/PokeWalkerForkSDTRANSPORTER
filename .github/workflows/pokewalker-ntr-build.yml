@@ -11,6 +11,7 @@ on:
       - "core/bootstrap/**"
       - ".github/workflows/pokewalker-ntr-build.yml"
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   native-arm-build:

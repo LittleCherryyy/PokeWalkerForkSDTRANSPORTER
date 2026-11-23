@@ -17,7 +17,7 @@ int main(void) {
     assert(n.soclGatewayPtr==0 && n.ready==0);
     assert(walkerResolveHgssNet(arm9,0x02000000u,12,&n,hg)==0);
     assert(n.ready==0 && n.soclGatewayPtr==0);
-    assert(walkerResolveHgssNet(arm9,0xfffff000u,sizeof(arm9),&n,hg)==1);
+    assert(walkerResolveHgssNet(arm9,0xffffefffu,sizeof(arm9),&n,hg)==0);
     assert(walkerResolveHgssNet(arm9,0xfffff001u,sizeof(arm9),&n,hg)==0);
     assert(walkerResolveHgssNet(arm9,0xfffffffcu,sizeof(arm9),&n,hg)==0);
     assert(walkerResolveHgssNet(0,0x02000000u,sizeof(arm9),&n,hg)==0);

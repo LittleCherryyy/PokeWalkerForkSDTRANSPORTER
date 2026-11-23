@@ -27,6 +27,31 @@ range, from `0x021E5900`. They cannot coexist *at their original
 addresses*. The game's native sockets are therefore NOT callable simply
 because `SOC_Socket` can be found in a disassembly.
 
+## Confirmed game-managed unload boundary
+
+The *decompiled game's own* `src/application/main_menu/main_menu.c`
+registers the original Pokéwalker main-menu action as
+`FS_OVERLAY_ID(OVY_112)` with its original Pokéwalker application.
+In `src/overlay_manager.c`, `OverlayManager_Run()` calls
+`UnloadOverlayByID(man->template.ovy_id)` when an application
+completes its exit handler. Thus the genuine Pokéwalker menu has a
+**natural overlay-112 teardown boundary**, unlike a hypothetical
+concurrent Wi-Fi call made inside the infrared stub. This makes a
+*post-exit* native-Nitro-WFC route the first architecture to investigate.
+
+- https://github.com/pret/pokeheartgold/blob/master/src/application/main_menu/main_menu.c
+- https://github.com/pret/pokeheartgold/blob/master/src/overlay_manager.c
+- https://github.com/pret/pokeheartgold/blob/master/src/poke_overlay.c
+
+**Still to prove:** that a cardengine worker can be scheduled safely
+*after* this exact unload, that the networking overlay 0 can be loaded
+and initialized through the game's own overlay/heap/IRQ managers
+without disrupting the main menu, and that the original ARM7 WFC
+service has an available associated interface. A C function name
+in a decomp is NOT a validated function address in every ROM revision.
+Do not install jump hooks until a binary fingerprint and compatible
+calling convention have been checked.
+
 ## Candidate path to true in-game Android transfer
 
 1. Keep SD Transporter's existing virtual IR hook as-is until HeartGold

@@ -55,6 +55,8 @@ static int overlayStates(const WalkerHgssOverlaySlot *slots){
 int walkerHgssPostExitPrepare(const WalkerHgssPostExit *req){
     if(!req || req->magic!=WALKER_POSTEXIT_MAGIC ||
        req->version!=WALKER_POSTEXIT_REV ||
+       !req->state || req->state->magic!=WALKER_POSTEXIT_STATE_MAGIC ||
+       req->state->loadRequested>1u ||
        !req->gameOverlaySlots || !originalManagerFunction(req))
         return -1;
     /* Never risk HandleLoadOverlay() from inside cardRead(), where it
@@ -64,11 +66,18 @@ int walkerHgssPostExitPrepare(const WalkerHgssPostExit *req){
     int state=overlayStates(req->gameOverlaySlots);
     if(state<=0)return state<0?-1:0;
     if(state==1)return 1;
+    /* OVY_LOAD_ASYNC may return success before the manager marks ov0
+     * active. Poll the original table on later main-thread frames,
+     * without requesting the same overlay twice. A lost/incomplete
+     * request fails closed; the caller must not reset this state until
+     * the game's manager has finished teardown. */
+    if(req->state->loadRequested)return 0;
     /* The game owns overlay-manager refcounts, region collision checks,
      * game heap and async filesystem completion. All handled by original
      * HandleLoadOverlay, never reimplemented in nds-bootstrap. */
     if(req->handleLoadOverlay(WALKER_POSTEXIT_OV_NETWORK,
                              WALKER_POSTEXIT_LOAD_ASYNC)<=0)return 0;
+    req->state->loadRequested=1u;
     /* Return success only when the actual game reports ov0 active. */
     return overlayStates(req->gameOverlaySlots)==1?1:0;
 }

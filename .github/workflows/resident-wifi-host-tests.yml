@@ -35,3 +35,10 @@ jobs:
             core/bootstrap/retail/common/source/walker_hgss_net.c \
             -o /tmp/walker_hgss_resolver_test
           /tmp/walker_hgss_resolver_test
+      - name: Check ARM7 ARM9 shared memory ABI
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Wno-unused-function \
+            -I diagnostics/resident_wifi/host_include \
+            -I core/bootstrap/retail/common/include \
+            diagnostics/resident_wifi/test_walker_abi.c -o /tmp/walker_abi_test
+          /tmp/walker_abi_test

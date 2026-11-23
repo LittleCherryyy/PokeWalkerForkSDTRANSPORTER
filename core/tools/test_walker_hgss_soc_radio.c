@@ -21,6 +21,7 @@ static unsigned char sent[STREAM_SIZE];
 static unsigned sentLen;
 static unsigned char ack[WALKER_DIRECT_HEADER_SIZE];
 static unsigned ackOff;
+static WalkerHgssOverlaySlot overlays[WALKER_HGSS_OVERLAY_SLOTS];
 static int valid=1;
 static int connectCalls;
 static int closeCalls;
@@ -86,6 +87,8 @@ static WalkerHgssSocBindings makeApi(void){
     a.networkingLoaded=1;
     a.socStarted=1;
     a.arm7WifiReady=1;
+    a.gameOverlaySlots=overlays;
+    overlays[0].id=0;overlays[0].active=1;
     a.gateway[0]=192;a.gateway[1]=168;a.gateway[2]=0;a.gateway[3]=1;
     a.socSocket=mockSocket;a.socFcntl=mockFcntl;
     a.socConnect=mockConnect;a.socSend=mockSend;a.socRecv=mockRecv;
@@ -125,6 +128,14 @@ int main(void){
     api.gateway[0]=0;
     CHECK(!walkerHgssSocBind(&api));
     api.gateway[0]=192;
+    /* Real game overlay-manager table: never bind while Pokewalker
+     * 112 is active or networking overlay 0 has been unloaded. */
+    overlays[1].id=112;overlays[1].active=1;
+    CHECK(!walkerHgssSocBind(&api));
+    overlays[1].active=0;
+    overlays[0].active=0;
+    CHECK(!walkerHgssSocBind(&api));
+    overlays[0].active=1;
     valid=0;
     CHECK(!walkerHgssSocBind(&api));
     valid=1;
@@ -136,6 +147,11 @@ int main(void){
     CHECK(ops->connect(30821)==1);
     CHECK(socketCalls==1 && gatewayChecked==2);
     CHECK(fcntlMode==4);
+    overlays[1].active=1;
+    CHECK(!ops->available());
+    CHECK(ops->write(sent,1)<0);
+    overlays[1].active=0;
+    CHECK(ops->available());
 
     static unsigned char walker[WALKER_DIRECT_WALKER_SIZE];
     for(unsigned i=0;i<sizeof(walker);i++)walker[i]=(unsigned char)(i*73u+19u);

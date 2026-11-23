@@ -31,6 +31,10 @@ typedef struct WalkerHgssPostExit {
      * callback, with the original IR app's exit handler completed,
      * interrupts enabled, and no NitroFS operation on the stack. */
     int (*safeMainThreadAfterExit)(void);
+    /* The game has actually checked out a Pokémon to the virtual
+     * EEPROM and ARM7 has durably committed it to SD. No unrelated
+     * main-menu action should load the network overlay automatically. */
+    int (*verifiedCheckoutPending)(void);
     /* Exact original game ABI from src/poke_overlay.c:
      * BOOL HandleLoadOverlay(FSOverlayID ovyId, PMOverlayLoadType how).
      * Verified callable ARM9 MAIN CODE address required; no ROM patch

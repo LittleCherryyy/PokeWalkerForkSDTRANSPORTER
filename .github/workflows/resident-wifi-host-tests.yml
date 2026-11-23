@@ -26,3 +26,12 @@ jobs:
             -I core/bootstrap/retail/common/include \
             diagnostics/resident_wifi/test_protocol.c -o /tmp/walker_protocol_test
           /tmp/walker_protocol_test
+      - name: Compile and test HGSS resolver against host ABI
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -pedantic \
+            -I diagnostics/resident_wifi/host_include \
+            -I core/bootstrap/retail/common/include \
+            diagnostics/resident_wifi/test_hgss_resolver.c \
+            core/bootstrap/retail/common/source/walker_hgss_net.c \
+            -o /tmp/walker_hgss_resolver_test
+          /tmp/walker_hgss_resolver_test

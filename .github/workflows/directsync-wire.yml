@@ -9,6 +9,8 @@ on:
       - 'core/bootstrap/retail/common/include/walker_directsync.h'
       - 'core/tools/test_walker_push_stream.c'
       - 'core/tools/test_walker_hgss_soc_radio.c'
+      - 'core/tools/test_walker_hgss_postexit.c'
+      - 'core/bootstrap/retail/common/include/walker_hgss_postexit.h'
       - 'core/bootstrap/retail/common/include/walker_hgss_soc_radio.h'
       - 'core/tools/test_walker_direct_lock.c'
       - 'core/tools/test_walker_direct_lock_cpp.cpp'
@@ -22,6 +24,8 @@ on:
       - 'core/bootstrap/retail/common/include/walker_directsync.h'
       - 'core/tools/test_walker_push_stream.c'
       - 'core/tools/test_walker_hgss_soc_radio.c'
+      - 'core/tools/test_walker_hgss_postexit.c'
+      - 'core/bootstrap/retail/common/include/walker_hgss_postexit.h'
       - 'core/bootstrap/retail/common/include/walker_hgss_soc_radio.h'
       - 'core/tools/test_walker_direct_lock.c'
       - 'core/tools/test_walker_direct_lock_cpp.cpp'
@@ -96,3 +100,13 @@ jobs:
             core/tools/test_walker_hgss_soc_radio.c \
             -o "$RUNNER_TEMP/pw-hgss-soc-test"
           "$RUNNER_TEMP/pw-hgss-soc-test"
+      - name: Validate original HGSS game-managed post-Pokewalker overlay handoff
+        shell: bash
+        run: |
+          gcc -std=c99 -O2 -Wall -Wextra -Werror \
+            -DWALKER_HGSS_POSTEXIT_HOST_TEST \
+            -I core/bootstrap/retail/common/include \
+            core/bootstrap/retail/transport/walker_hgss_postexit.c \
+            core/tools/test_walker_hgss_postexit.c \
+            -o "$RUNNER_TEMP/pw-hgss-postexit-test"
+          "$RUNNER_TEMP/pw-hgss-postexit-test"

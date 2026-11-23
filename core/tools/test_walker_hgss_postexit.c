@@ -8,9 +8,11 @@
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL: %s line %d\n",#x,__LINE__);return 1;}}while(0)
 static WalkerHgssOverlaySlot slots[WALKER_HGSS_OVERLAY_SLOTS];
 static int mainThreadSafe=0;
+static int checkoutDurable=0;
 static int shouldFailLoad=0;
 static unsigned calls=0;
 static int safeCallback(void){return mainThreadSafe;}
+static int checkoutCallback(void){return checkoutDurable;}
 static int loadCallback(uint32_t id,uint32_t how){
     calls++;
     if(id!=0 || how!=2 || !mainThreadSafe || shouldFailLoad)return 0;
@@ -24,6 +26,7 @@ int main(void){
     req.version=WALKER_POSTEXIT_REV;
     req.gameOverlaySlots=slots;
     req.safeMainThreadAfterExit=safeCallback;
+    req.verifiedCheckoutPending=checkoutCallback;
     req.handleLoadOverlay=loadCallback;
     CHECK(walkerHgssPostExitPrepare(NULL)==-1);
     req.magic=0;CHECK(walkerHgssPostExitPrepare(&req)==-1);
@@ -31,6 +34,9 @@ int main(void){
     CHECK(walkerHgssPostExitPrepare(&req)==0); /* wrong scheduler */
     CHECK(calls==0);
     mainThreadSafe=1;
+    CHECK(walkerHgssPostExitPrepare(&req)==0); /* not checked out */
+    CHECK(calls==0);
+    checkoutDurable=1;
     slots[1].id=112;slots[1].active=1;
     CHECK(walkerHgssPostExitPrepare(&req)==0); /* IR still loaded */
     CHECK(calls==0);

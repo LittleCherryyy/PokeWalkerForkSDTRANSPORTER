@@ -458,3 +458,44 @@ The Android home-screen Pokéwalker widget is a core feature of this fork and pr
 Track ongoing work and acceptance criteria in [Widget issue #2](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/issues/2), including LCD/shell alignment across layouts, Premier Ball white appearance, transparent assets, touch targets, visual scaling and preserving original emulator behavior.
 
 Keep widget enhancements and DSi/network changes separately reviewable where practical. Do not report a widget fix as complete without a built APK and a repeatable phone test. Credit Shinygati and every relevant original contributor, and preserve licenses and source notices.
+
+## CI stabilization and Android checkout acknowledgement (2026-11-22)
+
+After the local merge of `main` into `dev/v72-resident-ping-core` at
+`3f01098`, review of the *actual* GitHub Actions job logs identified two
+merged CI problems, not a previously unreported hardware transfer:
+
+- The resident Wi-Fi host resolver test used the unavailable `u32` typedef
+  instead of standard `uint32_t` (`eb12e59`).
+- Its next run exposed a genuine 32-bit address-range overflow in
+  `walkerResolveHgssNet`; the resolver now rejects an ARM9 base/length
+  combination whose end exceeds `UINT32_MAX` (`189623c`).
+- The redundant experimental bootstrap workflow started before setting up
+  its legacy ARM compiler/host build tools. It now delegates to the
+  successful pinned NTR bootstrap pipeline, with an optional **diagnostic
+  only** artifact and explicit non-release naming (`6c309be`,
+  `8a10acd`, `d5a340b`).
+- The Android direct-checkout handler could populate its in-memory active
+  token before the verified `AtomicFile` save finished. If recovery
+  archiving failed early, the next identical PUSH might have been ACKed
+  from RAM without a durable state record. The handler now sets a
+  fail-closed, uncommitted error marker before modifying the checkout;
+  `WalkerStore.save()` clears it only following verified persistence
+  (`ffb2e9b`). This is a source-level risk correction, not a tested
+  Android power-failure transaction.
+
+On commit `189623c`, the NTR source build, Android debug compilation,
+Direct Sync C/Java wire contract, resident Wi-Fi host checks, V7.2 PING
+tests, and DSi diagnostic bootstrap workflow all completed successfully in
+GitHub Actions. This proves compiler and host-test gates only. Individual
+later commits require their own checks; the old V7.1 workflow has also
+shown GitHub runs with no jobs and must not be mistaken for a validated
+current NTR build.
+
+**Still blocking a user-ready release:** a hardware-verified, resident
+Wi-Fi transport in the retail game, safe ARM7 WFC/radio ownership, the
+post-Pokéwalker overlay unload/main-thread callback, MPU/cache access,
+real TCP transfer to the phone, and finally the transactional return path.
+The diagnostic `.nds` artifact must **not** be installed as a claimed
+Wi-Fi transfer build, and existing `.sav`, `.walker`, and
+`.walker.directlock` data must not be cleared to work around a lock.

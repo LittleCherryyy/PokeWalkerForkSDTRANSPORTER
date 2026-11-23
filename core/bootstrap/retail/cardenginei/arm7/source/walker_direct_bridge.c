@@ -52,7 +52,7 @@ void walkerDirectBridgeInit(WalkerControl *c) { if(c) walkerDirectBridgeReset(&c
 void walkerDirectBridgeCommitted(WalkerControl *c,u32 seq) {
     if(!c || c->direct.magic!=WALKER_DIRECT_BRIDGE_MAGIC) return;
     c->direct.durableSeq=seq;
-    if(seq==c->direct.offeredSeq || c->state) return;
+    /* Never offer a second lease while the phone owns the walker or while a\n     * transfer/confirmation is in flight. A later flush must not replace the\n     * session token for an outstanding transaction. */\n    if(seq==c->direct.offeredSeq || c->state || !c->eeprom ||\n       (c->direct.state!=WALKER_DIRECT_IDLE &&\n        c->direct.state!=WALKER_DIRECT_PUSH_READY)) return;
     c->direct.crc32=crc32((const u8 *)c->eeprom,WALKER_DIRECT_WALKER_SIZE);
     makeSession(c,c->direct.crc32,seq);
     c->direct.offeredSeq=seq;
@@ -67,7 +67,7 @@ void walkerDirectBridgeCommitted(WalkerControl *c,u32 seq) {
 void walkerDirectBridgeTick(void) {
     WalkerControl *c=directControl();
     if(!c || c->direct.magic!=WALKER_DIRECT_BRIDGE_MAGIC) return;
-    if(!walkerDirectTransportAvailable()) return;
+    if(!walkerDirectTransportAvailable()) return;\n    /* An active IR session takes precedence over background phone sync. */\n    if(c->state) return;
     int rc=0;
     switch(c->direct.state) {
     case WALKER_DIRECT_PUSH_READY:

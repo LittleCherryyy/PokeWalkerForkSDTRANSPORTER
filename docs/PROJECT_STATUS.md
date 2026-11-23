@@ -310,6 +310,44 @@ not the basic TCP client code. Research sources:
 - https://blocksds.skylyrac.net/dswifi/md_documentation_2internet__mode.html
 - https://github.com/pret/pokeheartgold/blob/master/main.lsf
 
+### Native Nintendo SOC adapter — implemented and host-verified (2026-11-22)
+
+A real, nonblocking Nintendo **SOC TCP adapter** is now in source:
+`retail/transport/walker_hgss_soc_radio.c`, with exact 8-byte Nintendo
+sockaddr ABI, two-argument `SOC_Connect`, `SOC_Fcntl` nonblocking
+setup, partial `SOC_Send/SOC_Recv`, and fail-closed socket teardown
+when an overlay becomes unavailable. It uses the existing *complete*
+88+65536-byte DSi-to-Android PUSH serializer and session-bound ACK.
+`common/include/walker_hgss_soc_radio.h` defines a binding contract.
+Before permitting even one native socket call it requires **verified**
+overlay 112 unload, overlay 0 lifetime, SOC/WCM initialization,
+initialized ARM7 Wi-Fi service, live DHCP hotspot gateway and
+revision-matched entrypoints.
+
+A synthetic host test `core/tools/test_walker_hgss_soc_radio.c`
+exercises the real C adapter via fake SOC callbacks, nonblocking
+connect and a complete 65,536-byte push + Android-shaped ACK;
+[Direct Sync CI run 45087151420](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45087151420)
+completed **successfully**, as did the native component build and
+Android APK build at that commit. THIS IS NOT A HARDWARE TEST.
+
+**Blocking integration still missing:** the original HGSS overlay
+manager must have a proved main-thread callback after the Pokéwalker
+overlay unload; the game-native network overlay 0 must then be loaded
+and WCM/SOC connected to the Android open hotspot with its own ARM7
+service and correct DHCP configuration, without disrupting the
+title-menu overlay 74. The **exact lifecycle binding/hook does not
+exist** in this branch. The default target never builds or enables the
+new native socket adapter (unless four separate verification flags are
+provided); without a binder it remains fail-closed even if forced on.
+
+V9.5 ROM overlay tables show that overlay 13 (the native WFC setup
+application) **overlaps overlay 74** (title menu); invoking WFC setup
+code directly from the current menu would therefore be unsafe. The
+next implementation should use lower-level WCM/SOC routines of overlay
+0 after verified 112 unload or a fully managed game app transition.
+See `docs/research/hgss_native_soc_after_walker.md`.
+
 ### Reproducible full-source build and native-sockets direction (2026-11-22)
 
 - [DSi nds-bootstrap CI run 45086088787](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45086088787) **succeeded**. With the legacy devkitARM/libnds container and GPL-3.0 bootstrap pack data pulled from pinned SD Transporter ancestor commit `75610fa9905ac252609081287121e8d4c44febed`, the fork compiled **the complete** `bin/nds-bootstrap.nds`, size **1,744,896 bytes**. No upstream source files were overwritten, and no binary was published to the DSi.

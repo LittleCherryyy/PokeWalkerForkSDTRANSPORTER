@@ -8,6 +8,8 @@ on:
       - 'core/bootstrap/retail/transport/**'
       - 'core/bootstrap/retail/common/include/walker_directsync.h'
       - 'core/tools/test_walker_push_stream.c'
+      - 'core/tools/test_walker_hgss_soc_radio.c'
+      - 'core/bootstrap/retail/common/include/walker_hgss_soc_radio.h'
       - 'core/tools/test_walker_direct_lock.c'
       - 'core/tools/test_walker_direct_lock_cpp.cpp'
       - 'core/bootstrap/retail/common/include/walker_direct_lock.h'
@@ -19,6 +21,8 @@ on:
       - 'core/bootstrap/retail/transport/**'
       - 'core/bootstrap/retail/common/include/walker_directsync.h'
       - 'core/tools/test_walker_push_stream.c'
+      - 'core/tools/test_walker_hgss_soc_radio.c'
+      - 'core/bootstrap/retail/common/include/walker_hgss_soc_radio.h'
       - 'core/tools/test_walker_direct_lock.c'
       - 'core/tools/test_walker_direct_lock_cpp.cpp'
       - 'core/bootstrap/retail/common/include/walker_direct_lock.h'
@@ -81,3 +85,14 @@ jobs:
             core/tools/test_walker_direct_lock_cpp.cpp \
             -o "$RUNNER_TEMP/pw-direct-lock-cpp-test"
           "$RUNNER_TEMP/pw-direct-lock-cpp-test"
+      - name: Validate real HGSS Nitro SOC ABI adapter and full 64 KiB checkout with fake sockets
+        shell: bash
+        run: |
+          gcc -std=c99 -O2 -Wall -Wextra -Werror \
+            -DWALKER_HGSS_SOC_ADAPTER_TEST \
+            -I core/bootstrap/retail/common/include \
+            core/bootstrap/retail/transport/walker_hgss_soc_radio.c \
+            core/bootstrap/retail/transport/walker_push_stream.c \
+            core/tools/test_walker_hgss_soc_radio.c \
+            -o "$RUNNER_TEMP/pw-hgss-soc-test"
+          "$RUNNER_TEMP/pw-hgss-soc-test"

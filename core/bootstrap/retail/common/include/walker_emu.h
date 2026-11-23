@@ -21,6 +21,9 @@
 #ifndef WALKER_EMU_H
 #define WALKER_EMU_H
 
+#include "walker_direct_bridge.h"
+#include "walker_hgss_net.h"
+
 #define WALKER_RESERVE      0x14000u
 #define WALKER_EEPROM_OFF   0x00000u
 #define WALKER_CONTROL_OFF  0x10000u
@@ -96,6 +99,9 @@ typedef struct WalkerControl {
 	unsigned int cooldown;     /* idle reads left before advertising again after a session */
 	unsigned int wipeStart;    /* game VBlank count when the SELECT + LEFT hold began */
 	unsigned int linkMode;     /* identity command the game sent this link (0x60 = receive a gift) */
+	/* V18 bridge metadata appended to preserve all existing field offsets. */
+	WalkerDirectBridge direct;
+	WalkerHgssNetApi hgssNet;
 } WalkerControl;
 
 #define WALKER_ASSERT(name, cond) typedef char walker_assert_##name[(cond) ? 1 : -1]

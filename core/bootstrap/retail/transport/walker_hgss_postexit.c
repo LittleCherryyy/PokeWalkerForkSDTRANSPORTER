@@ -59,7 +59,8 @@ int walkerHgssPostExitPrepare(const WalkerHgssPostExit *req){
         return -1;
     /* Never risk HandleLoadOverlay() from inside cardRead(), where it
      * would recursively read NitroFS with a filesystem lock held. */
-    if(!correctMainThread(req))return 0;
+    if(!correctMainThread(req) || !req->verifiedCheckoutPending ||
+       req->verifiedCheckoutPending()<=0)return 0;
     int state=overlayStates(req->gameOverlaySlots);
     if(state<=0)return state<0?-1:0;
     if(state==1)return 1;

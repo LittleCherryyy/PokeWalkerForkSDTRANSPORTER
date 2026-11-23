@@ -3,7 +3,7 @@
 #include <string.h>
 #include "walker_hgss_net.h"
 int main(void) {
-    static u32 arm9[1024];
+    static uint32_t arm9[1024];
     WalkerHgssNetApi n;
     const char hg[4]={'I','P','K','E'};
     const char ss[4]={'I','P','G','E'};

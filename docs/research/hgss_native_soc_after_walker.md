@@ -100,6 +100,24 @@ mock SOC callbacks are not evidence of real Wi-Fi association.
 Test: `core/tools/test_walker_hgss_soc_radio.c`;
 CI: https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45087151420
 
+## Async overlay-0 request deduplication (source-only)
+
+`walkerHgssPostExitPrepare` now requires a caller-owned,
+per-session `WalkerHgssPostExitState` (API revision 2).
+`HandleLoadOverlay(0, OVY_LOAD_ASYNC)` can accept a load before
+`sOverlayRegions` marks overlay 0 active. Once accepted, the
+`loadRequested` flag prevents duplicate load requests on later
+game-main-thread frames; later calls only poll the **game's own**
+overlay table. A request that never completes remains blocked instead
+of repeatedly touching NitroFS. Resetting this state is allowed only
+after a separately verified overlay-manager teardown, never during a
+possibly pending async request.
+
+The synthetic `test_walker_hgss_postexit.c` covers delayed activation,
+single enqueue, unexpected unload, invalid state and missing scheduler
+authorization. This is **not** a verified retail callback, WCM
+association or Wi-Fi transfer; the production binder remains absent.
+
 ## Candidate path to true in-game Android transfer
 
 1. Keep SD Transporter's existing virtual IR hook as-is until HeartGold

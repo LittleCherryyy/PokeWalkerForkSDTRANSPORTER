@@ -1,5 +1,9 @@
 name: V7.1 experimental DSi NTR cross-compile
 
+# Legacy compatibility gate for the V7.1 branch. Reuse the pinned,
+# already-tested NTR source pipeline instead of installing host GCC
+# from retired Bullseye package revisions (apt security mirror 404).
+# No console-ready binary or save is published.
 on:
   push:
     branches:
@@ -19,49 +23,13 @@ on:
       - 'core/bootstrap/retail/common/include/walker_*.h'
       - 'core/bootstrap/retail/common/source/walker_hgss_net.c'
       - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_*.c'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   dsi-cross-compile:
-    runs-on: ubuntu-latest
-    container:
-      image: devkitpro/devkitarm:20241104
-    timeout-minutes: 25
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-      - name: Verify pinned toolchain, build host LZSS, compile DSi NTR components
-        shell: bash
-        run: |
-          set -euxo pipefail
-          export DEVKITPRO=/opt/devkitpro
-          export COMPILER_DIR=/opt/devkitpro/devkitARM
-          export SDK_DIR=/opt/devkitpro/libnds
-          export PATH="$COMPILER_DIR/bin:$DEVKITPRO/tools/bin:$PATH"
-          arm-none-eabi-gcc --version | head -1
-          test -f "$SDK_DIR/include/nds.h"
-          command -v make
-          command -v python3
-          command -v bin2s
-          command -v ndstool
-          # The pinned devkitARM container has the ARM cross compiler, but
-          # does not ship the native cc needed to build the host-side LZSS tool.
-          # The old container ships cached bullseye indexes whose security
-          # package revisions may have disappeared from the live mirror.
-          rm -rf /var/lib/apt/lists/*
-          apt-get -o Acquire::http::No-Cache=true update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential
-          gcc core/bootstrap/lzss.c -O2 -o core/bootstrap/lzss
-          make -C core/bootstrap/retail -j2 \
-            DEVKITARM="$GITHUB_WORKSPACE/core/bootstrap/portable-ds-rules" \
-            LEGACY_DEVKITARM="$COMPILER_DIR" \
-            LEGACY_LIBNDS="$SDK_DIR" \
-            LIBDIRS="$SDK_DIR" \
-            PYTHON=python3 GIT_VER=sdlang2 \
-            LZSS="$GITHUB_WORKSPACE/core/bootstrap/lzss" \
-            cardenginei_arm7 cardenginei_arm9_igm
-      - name: Do not distribute unvalidated artifacts
-        run: |
-          echo "Compilation check only: no nds-bootstrap file is published or approved for DSi."
+    uses: ./.github/workflows/pokewalker-ntr-build.yml
+    with:
+      upload_unverified_artifact: false

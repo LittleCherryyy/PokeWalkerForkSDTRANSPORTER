@@ -15,14 +15,27 @@
 #include "walker_hgss_soc_radio.h"
 
 #define WALKER_POSTEXIT_MAGIC 0x31585050u /* 'PPX1' */
-#define WALKER_POSTEXIT_REV 1u
+#define WALKER_POSTEXIT_REV 2u
+#define WALKER_POSTEXIT_STATE_MAGIC 0x31535050u /* 'PPS1' */
 #define WALKER_POSTEXIT_OV_NETWORK 0u
 #define WALKER_POSTEXIT_OV_WALKER 112u
 #define WALKER_POSTEXIT_LOAD_ASYNC 2u /* pret/pokeheartgold OVY_LOAD_ASYNC */
 
+/* Caller-owned, per-session state: an async overlay load may not become
+ * active in the same frame. Once accepted, NEVER enqueue a duplicate load.
+ * Reset only after the game's original overlay manager has completed
+ * teardown, never while an async load could still be pending. */
+typedef struct WalkerHgssPostExitState {
+    uint32_t magic;
+    uint32_t loadRequested; /* 0=never requested, 1=accepted/in-flight */
+} WalkerHgssPostExitState;
+
 typedef struct WalkerHgssPostExit {
     uint32_t magic;
     uint32_t version;
+    /* Required persistent state across consecutive game-main-thread frames.
+     * A local/temporary state would reissue OVY_LOAD_ASYNC on every tick. */
+    WalkerHgssPostExitState *state;
     /* Original game's sOverlayRegions[3][8], verified exact ROM build.
      * Main menu overlay 74 occupies a different range from ov0; never
      * attempt to load ov13 here (it overlaps main menu overlay 74). */
@@ -46,6 +59,8 @@ typedef struct WalkerHgssPostExit {
  *   1 = original game manager reports network ov0 LIVE and ov112 ABSENT
  *   0 = not ready or failed safely (do not start a phone send)
  *  -1 = configuration is invalid; reject caller and ROM revision.
- * A missing game lifecycle hook must leave this function unused. */
+ * A missing game lifecycle hook must leave this function unused.
+ * The caller must initialize state.magic=... and state.loadRequested=0
+ * before the first safe frame; state must outlive all async callbacks. */
 int walkerHgssPostExitPrepare(const WalkerHgssPostExit *req);
 #endif

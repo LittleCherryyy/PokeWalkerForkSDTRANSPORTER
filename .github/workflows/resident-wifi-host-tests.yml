@@ -20,3 +20,9 @@ jobs:
             diagnostics/resident_wifi/test_wifi_gate.c -o /tmp/walker_wifi_gate_test
       - name: Exercise fail-closed transitions
         run: /tmp/walker_wifi_gate_test
+      - name: Compile and exercise wire protocol header
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Wno-unused-function \\
+            -I core/bootstrap/retail/common/include \\
+            diagnostics/resident_wifi/test_protocol.c -o /tmp/walker_protocol_test
+          /tmp/walker_protocol_test

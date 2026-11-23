@@ -49,6 +49,28 @@ static int validGateway(const uint8_t ip[4]) {
         return 0;
     return 1;
 }
+/* Unlike a scan for leftover overlay-0 instructions, the original
+ * game manager table records which overlays are LIVE. Its 3x8 slots
+ * are maintained by HandleLoadOverlay() and UnloadOverlayByID().
+ * The table pointer itself MUST be resolved from the exact ROM binary. */
+static int overlayStateValid(const WalkerHgssSocBindings *b) {
+    if(!b || !b->gameOverlaySlots)return 0;
+#if !defined(WALKER_HGSS_SOC_ADAPTER_TEST)
+    const uintptr_t addr=(uintptr_t)b->gameOverlaySlots;
+    if((addr&3u)!=0 || addr<0x02000000u ||
+       addr>0x02400000u-sizeof(WalkerHgssOverlaySlot)*WALKER_HGSS_OVERLAY_SLOTS)
+        return 0;
+#endif
+    unsigned activeNetwork=0;
+    for(unsigned i=0;i<WALKER_HGSS_OVERLAY_SLOTS;i++) {
+        const WalkerHgssOverlaySlot *slot=&b->gameOverlaySlots[i];
+        const uint32_t active=slot->active;
+        if(active>1u)return 0; /* not a valid overlay-manager entry */
+        if(active && slot->id==112u)return 0; /* Pokewalker is live */
+        if(active && slot->id==0u)activeNetwork++;
+    }
+    return activeNetwork==1u;
+}
 static int inside(const void *p,uint32_t begin,uint32_t end) {
 #if defined(WALKER_HGSS_SOC_ADAPTER_TEST)
     /* Host callbacks have ASLR addresses; exercise the actual socket
@@ -69,6 +91,7 @@ static int validBindings(const WalkerHgssSocBindings *b) {
        b->overlayStart!=WALKER_HGSS_SOC_OV0_START ||
        b->overlayEnd!=WALKER_HGSS_SOC_OV0_END ||
        !validGateway(b->gateway) ||
+       !overlayStateValid(b) ||
        !inside((const void*)b->socSocket,b->overlayStart,b->overlayEnd) ||
        !inside((const void*)b->socFcntl,b->overlayStart,b->overlayEnd) ||
        !inside((const void*)b->socConnect,b->overlayStart,b->overlayEnd) ||
@@ -97,6 +120,7 @@ void walkerHgssSocInvalidate(void) {
 }
 static int live(void) {
     return installed && state!=NATIVE_RETIRED &&
+           overlayStateValid(&game) &&
            game.stillReady && game.stillReady();
 }
 static int available(void) {

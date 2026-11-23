@@ -145,6 +145,13 @@ public final class DirectSyncService extends Service {
                 if(s.data!=null)s.archiveCurrent("direct-replaced");
                 if(s.completedSession(f.session))
                     throw new IOException("This DSi session was already returned");
+                /* Mark the in-memory checkout as uncommitted BEFORE changing
+                 * state. If Native.resume(), recovery archiving or the
+                 * AtomicFile save fails, a repeated DSi PUSH must NOT be
+                 * acknowledged merely because RAM still holds its token.
+                 * WalkerStore.save() clears error only after verified disk
+                 * persistence, making a lost-ACK retry safe. */
+                s.error="Direct checkout is not durably saved";
                 s.returnCompleted=false;
                 s.battlePaid=s.battleDone=s.battleRewarded=false;
                 s.battleSession=s.battlePeer="";s.battleWinner=0;s.battleRewardChoice=-1;

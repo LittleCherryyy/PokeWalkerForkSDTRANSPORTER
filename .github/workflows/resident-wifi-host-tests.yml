@@ -1,0 +1,44 @@
+name: Resident Wi-Fi host checks
+on:
+  push:
+    paths:
+      - 'diagnostics/resident_wifi/**'
+      - '.github/workflows/resident-wifi-host-tests.yml'
+  pull_request:
+    paths:
+      - 'diagnostics/resident_wifi/**'
+      - '.github/workflows/resident-wifi-host-tests.yml'
+  workflow_dispatch:
+jobs:
+  host-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile lifecycle guard test
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer \
+            diagnostics/resident_wifi/test_wifi_gate.c -o /tmp/walker_wifi_gate_test
+      - name: Exercise fail-closed transitions
+        run: /tmp/walker_wifi_gate_test
+      - name: Compile and exercise wire protocol header
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Wno-unused-function \
+            -I core/bootstrap/retail/common/include \
+            diagnostics/resident_wifi/test_protocol.c -o /tmp/walker_protocol_test
+          /tmp/walker_protocol_test
+      - name: Compile and test HGSS resolver against host ABI
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -pedantic \
+            -I diagnostics/resident_wifi/host_include \
+            -I core/bootstrap/retail/common/include \
+            diagnostics/resident_wifi/test_hgss_resolver.c \
+            core/bootstrap/retail/common/source/walker_hgss_net.c \
+            -o /tmp/walker_hgss_resolver_test
+          /tmp/walker_hgss_resolver_test
+      - name: Check ARM7 ARM9 shared memory ABI
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Wno-unused-function \
+            -I diagnostics/resident_wifi/host_include \
+            -I core/bootstrap/retail/common/include \
+            diagnostics/resident_wifi/test_walker_abi.c -o /tmp/walker_abi_test
+          /tmp/walker_abi_test

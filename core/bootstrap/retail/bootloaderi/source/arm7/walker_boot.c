@@ -16,7 +16,9 @@
 #include "my_fat.h"
 #include "tonccpy.h"
 #include "nds_header.h"
+#include "locations.h"
 #include "cardengine_header_arm7.h"
+#include "cardengine_header_arm9.h"
 #include "walker_emu.h"
 #include "walker_payload.h"
 
@@ -54,6 +56,11 @@ static u32 *findNext(u32 *from, u32 *end, u32 push, u32 maxWords) {
 }
 
 void walkerBoot(cardengineArm7 *ce7, const tNDSHeader *ndsHeader) {
+	/* Fail closed across resets and unsuccessful IR-hook detection: never
+	 * leave a stale ARM9 pointer from a previous Pokémon session. */
+	((cardengineArm9 *)CARDENGINEI_ARM9_LOCATION)->walkerControl = 0;
+    ce7->walkerControl=0;
+    ce7->walkerDirectLockCluster=0;
 	/* Persist the exact refusal reason in the resident ARM7 cardengine.
 	 * Zero would mean walkerBoot() was never reached. */
 	ce7->walkerBootStatus = (!walkerCluster ? WALKER_BOOT_NO_CLUSTER : 0u)
@@ -113,7 +120,17 @@ void walkerBoot(cardengineArm7 *ce7, const tNDSHeader *ndsHeader) {
 	getStatus[0] = 0xE3A000AA;
 	getStatus[1] = 0xE12FFF1E;
 
-	/* Expose the control block only when the IR hook has been installed. */
+	/* Expose the SAME validated control block to both resident CPUs only
+	 * after all HGSS IR hooks have been successfully installed. Without
+	 * this assignment ce9->walkerControl remains zero, so no ARM9 direct
+	 * transport can ever see a pending real Pokémon checkout. */
 	ce7->walkerControl = (u32)c;
+    /* NTR reuses a loader slot unused without a DS Lite bundled payload.
+     * The launcher guarantees the 512-byte directlock exists and is
+     * PREPARED, and that the runtime can address its allocated FAT cluster. */
+    extern u32 walkerPayloadOffset, walkerPayloadSize;
+    ce7->walkerDirectLockCluster = (!walkerPayloadSize && walkerPayloadOffset) ?
+                                   walkerPayloadOffset : 0u;
+	((cardengineArm9 *)CARDENGINEI_ARM9_LOCATION)->walkerControl = (u32)c;
 	ce7->walkerBootStatus = WALKER_BOOT_INSTALLED;
 }

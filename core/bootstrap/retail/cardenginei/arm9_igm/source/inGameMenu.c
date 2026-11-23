@@ -4,6 +4,7 @@
 #include <nds/ndstypes.h>
 #include <nds/input.h>
 #include <nds/interrupts.h>
+#include <nds/timers.h>
 #include <nds/system.h>
 #include <nds/arm9/background.h>
 #include <nds/arm9/video.h>
@@ -11,6 +12,8 @@
 #include "igm_text.h"
 #include "locations.h"
 #include "cardengine_header_arm9.h"
+#include "walker_arm9_snapshot.h"
+#include "walker_arm9_wifi_sig.h"
 #include "nds_header.h"
 #include "tonccpy.h"
 
@@ -512,6 +515,461 @@ static const unsigned char* walkerBootReason(u32 code) {
     }
 }
 
+/* V7.2: a read-only pre-menu snapshot of ARM7 IRQ and timer registers.
+ * This is NOT a Wi-Fi capability probe. IRQ enable masks cannot establish
+ * which function owns the handler, and we never touch radio registers. */
+/* V7.2.1: ARM7 DMA3 values sampled before the game was paused,
+ * whereas ARM9 values are observed in the menu context only.
+ * Neither observation establishes ownership or permits DSWifi startup. */
+/* ARM9 NTR IGM receives these values via r3 from the resident cardengine,
+ * with a pointer to a live stack record. Never touch ARM7 IPC mailbox slots
+ * for this handoff. Other builds see an unavailable snapshot. */
+static WalkerArm9Snapshot walkerArm9PreWrapper = {0,0,0,0};
+
+/* V7.8: the menu enters from IRQ, so do not mistake its IME for the
+ * earlier ROM callback state. This reports snapshots captured at cardRead
+ * entry before the existing ROM-read code performs critical sections.
+ */
+static void walkerArm9PreWrapperMenu(void) {
+    clearScreen(false);
+    print(1,1,(const unsigned char*)"V7.9 ARM9 DEFERRED",FONT_LIME,false);
+    if(walkerArm9PreWrapper.magic == WALKER_ARM9_SNAPSHOT_MAGIC) {
+        print(1,4,(const unsigned char*)"ROM reads:0x",FONT_WHITE,false);
+        printHex(13,4,walkerArm9PreWrapper.romReadCalls,4,FONT_LIGHT_BLUE,false);
+        print(1,7,(const unsigned char*)"Post+IME:0x",FONT_WHITE,false);
+        printHex(13,7,walkerArm9PreWrapper.postReadEligibleCalls,4,FONT_LIGHT_BLUE,false);
+        print(1,10,(const unsigned char*)"Task stage:0x",FONT_WHITE,false);
+        printHex(15,10,walkerArm9PreWrapper.dryRunStage,1,FONT_LIGHT_BLUE,false);
+    } else {
+        print(1,6,(const unsigned char*)"ARM9 snapshot unavailable",FONT_RED,false);
+    }
+    print(1,17,(const unsigned char*)"0 idle 1 queued 2 done",FONT_LIGHT_GRAY,false);
+    print(1,19,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,21,(const unsigned char*)"B: Back",FONT_WHITE,false);
+    waitKeys(KEY_B);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_B);
+}
+
+static void walkerRadioResourcesMenu(void) {
+    u32 dma[4]={0,0,0,0};
+    bool answered=false;
+    const u16 arm9Timer3AtMenu=TIMER_CR(3);
+    const u32 arm9IeAtMenu=REG_IE;
+    const u32 arm9ImeAtMenu=REG_IME;
+#ifndef B4DS
+    sharedAddr[4]=0x44535057u; /* WPSD */
+    for(unsigned frames=0;frames<90;frames++) {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+        const u32 response=sharedAddr[4];
+        if(response==0x4B535057u) { /* WPSK */
+            for(unsigned i=0;i<4;i++) dma[i]=sharedAddr[i];
+            answered=true;
+            break;
+        }
+        if(response==WALKER_DIAG_MENU) {
+            sharedAddr[4]=0x44535057u;
+        } else if(response!=0x44535057u) {
+            break;
+        }
+    }
+    if(sharedAddr[4]==0x44535057u || sharedAddr[4]==0x4B535057u)
+        sharedAddr[4]=WALKER_DIAG_MENU;
+#endif
+    clearScreen(false);
+    print(1,1,(const unsigned char *)"V7.2.2 DMA3 / ARM9 AUDIT",FONT_LIME,false);
+    if(!answered) {
+        print(1,4,(const unsigned char *)"ARM7 DMA3: no IPC reply",FONT_RED,false);
+    } else {
+        print(1,4,(const unsigned char *)"ARM7 DMA3_CR: 0x",FONT_WHITE,false);
+        printHex(18,4,dma[0],4,FONT_LIGHT_BLUE,false);
+        print(1,6,(const unsigned char *)"ARM7 DMA3_SRC:0x",FONT_WHITE,false);
+        printHex(18,6,dma[1],4,FONT_LIGHT_BLUE,false);
+        print(1,8,(const unsigned char *)"ARM7 DMA3_DST:0x",FONT_WHITE,false);
+        printHex(18,8,dma[2],4,FONT_LIGHT_BLUE,false);
+        print(1,10,(const unsigned char *)((dma[0]&0x80000000u) ?
+            "DMA3 ENABLED at snapshot" : "DMA3 not enabled at snapshot"),
+            FONT_LIGHT_GRAY,false);
+    }
+    print(1,12,(const unsigned char *)"ARM9 TMR3 (menu): 0x",FONT_WHITE,false);
+    printHex(22,12,arm9Timer3AtMenu,2,FONT_LIGHT_BLUE,false);
+    print(1,14,(const unsigned char *)"ARM9 IE (menu): 0x",FONT_WHITE,false);
+    printHex(20,14,arm9IeAtMenu,4,FONT_LIGHT_BLUE,false);
+    print(1,16,(const unsigned char *)"ARM9 IME (menu):0x",FONT_WHITE,false);
+    printHex(20,16,arm9ImeAtMenu,1,FONT_LIGHT_BLUE,false);
+    print(1,18,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,19,(const unsigned char *)"No IRQ/DMA ownership proof",FONT_LIGHT_GRAY,false);
+    print(1,20,(const unsigned char *)"A: ARM9 pre-wrapper view",FONT_WHITE,false);
+    print(1,21,(const unsigned char *)"B: Back to main menu",FONT_WHITE,false);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_Y);
+    waitKeys(KEY_A | KEY_B);
+    if(KEYS & KEY_A) {
+        walkerArm9PreWrapperMenu();
+    } else {
+        do {
+            while(REG_VCOUNT!=191) mySwiDelay(100);
+            while(REG_VCOUNT==191) mySwiDelay(100);
+        } while(KEYS & KEY_B);
+    }
+}
+
+static void walkerRadioSnapshotMenu(void) {
+    u32 regs[4]={0,0,0,0};
+    bool answered=false;
+#ifndef B4DS
+    sharedAddr[4]=0x44525057u; /* WPRD */
+    for(unsigned frames=0;frames<90;frames++) {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+        const u32 response=sharedAddr[4];
+        if(response==0x4B525057u) { /* WPRK */
+            for(unsigned i=0;i<4;i++)regs[i]=sharedAddr[i];
+            answered=true;
+            break;
+        }
+        if(response==WALKER_DIAG_MENU) {
+            sharedAddr[4]=0x44525057u;
+        } else if(response!=0x44525057u) break;
+    }
+    if(sharedAddr[4]==0x44525057u || sharedAddr[4]==0x4B525057u)
+        sharedAddr[4]=WALKER_DIAG_MENU;
+#endif
+    clearScreen(false);
+    print(1,1,(const unsigned char *)"V7.2 ARM7 IRQ/TIMER SNAPSHOT",FONT_LIME,false);
+    if(!answered) {
+        print(1,4,(const unsigned char *)"ARM7 radio probe: no reply",FONT_RED,false);
+    } else {
+        print(1,4,(const unsigned char *)"REG_IE:  0x",FONT_WHITE,false);
+        printHex(13,4,regs[0],4,FONT_LIGHT_BLUE,false);
+        print(1,6,(const unsigned char *)"REG_IME: 0x",FONT_WHITE,false);
+        printHex(13,6,regs[1],1,FONT_LIGHT_BLUE,false);
+        print(1,8,(const unsigned char *)"TIMER0: 0x",FONT_WHITE,false);
+        printHex(13,8,regs[2]&0xFFFFu,2,FONT_LIGHT_BLUE,false);
+        print(1,9,(const unsigned char *)"TIMER1: 0x",FONT_WHITE,false);
+        printHex(13,9,regs[2]>>16,2,FONT_LIGHT_BLUE,false);
+        print(1,10,(const unsigned char *)"TIMER2: 0x",FONT_WHITE,false);
+        printHex(13,10,regs[3]&0xFFFFu,2,FONT_LIGHT_BLUE,false);
+        print(1,11,(const unsigned char *)"TIMER3: 0x",FONT_WHITE,false);
+        printHex(13,11,regs[3]>>16,2,FONT_LIGHT_BLUE,false);
+    }
+    print(1,14,(const unsigned char *)"Captured before menu pause",FONT_WHITE,false);
+    print(1,16,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,18,(const unsigned char *)"IRQ ownership NOT verified",FONT_LIGHT_GRAY,false);
+    print(1,19,(const unsigned char *)"Y: DMA3 + ARM9 snapshot",FONT_WHITE,false);
+    print(1,21,(const unsigned char *)"B: Back to main menu",FONT_WHITE,false);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_X);
+    bool openResources=false;
+    while(1) {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+        if(KEYS & KEY_B) break;
+        if(KEYS & KEY_Y) { openResources=true; break; }
+    }
+    if(openResources) {
+        walkerRadioResourcesMenu();
+    } else {
+        do {
+            while(REG_VCOUNT!=191) mySwiDelay(100);
+            while(REG_VCOUNT==191) mySwiDelay(100);
+        } while(KEYS & KEY_B);
+    }
+}
+
+/* V7.2.5: obtain the REAL bootloaderi IRQ-table location selected at
+ * HGSS startup. Never dereference a table entry here, especially slot 24.
+ * Only four boot metadata words cross the already-tested bounded IPC. */
+/* V7.2.7 boot-vs-live comparison. Both responses come from the existing
+ * menu IPC; the ARM7 reads only the already-bounded words 0 and 16 and
+ * returns boot-time snapshots of the original bootstrap hooks.
+ * In particular, this does NOT resolve IRQ_WIFI or authorize any IRQ write.
+ */
+static bool walkerReadFourWords(u32 request, u32 acknowledge, u32 words[4]) {
+#ifndef B4DS
+    sharedAddr[4] = request;
+    bool answered = false;
+    for (unsigned frame=0; frame<90; frame++) {
+        while (REG_VCOUNT!=191) mySwiDelay(100);
+        while (REG_VCOUNT==191) mySwiDelay(100);
+        const u32 command = sharedAddr[4];
+        if (command == acknowledge) {
+            for (unsigned i=0; i<4; i++) words[i] = sharedAddr[i];
+            answered = true;
+            break;
+        }
+        if (command == WALKER_DIAG_MENU)
+            sharedAddr[4] = request;
+        else if (command != request)
+            break;
+    }
+    if (sharedAddr[4] == request || sharedAddr[4] == acknowledge)
+        sharedAddr[4] = WALKER_DIAG_MENU;
+    return answered;
+#else
+    (void)request; (void)acknowledge; (void)words;
+    return false;
+#endif
+}
+
+static void walkerIrqLifetimeMenu(void) {
+    u32 boot[4]={0,0,0,0};
+    u32 live[4]={0,0,0,0};
+    const bool bootOk=walkerReadFourWords(0x51435057u, 0x4B435057u, boot); /* WPCQ/WPCK */
+    const bool liveOk=walkerReadFourWords(0x514B5057u, 0x4B4B5057u, live); /* WPKQ/WPKK */
+    const bool bounded=liveOk && (live[0] & 1u);
+    clearScreen(false);
+    print(1,1,(const unsigned char *)"V7.2.7 IRQ BOOT vs LIVE",FONT_LIME,false);
+    if (!bootOk) {
+        print(1,5,(const unsigned char *)"ARM7 boot snapshot absent",FONT_RED,false);
+    } else if (!liveOk) {
+        print(1,5,(const unsigned char *)"ARM7 live reply absent",FONT_RED,false);
+    } else if (!bounded) {
+        print(1,5,(const unsigned char *)"Live RAM read BLOCKED",FONT_RED,false);
+    } else {
+        print(1,3,(const unsigned char *)"V0 before: 0x",FONT_WHITE,false);
+        printHex(16,3,boot[0],4,FONT_LIGHT_BLUE,false);
+        print(1,5,(const unsigned char *)"V0 hooked: 0x",FONT_WHITE,false);
+        printHex(16,5,boot[2],4,FONT_LIGHT_BLUE,false);
+        print(1,7,(const unsigned char *)"V0 live:   0x",FONT_WHITE,false);
+        printHex(16,7,live[1],4,FONT_LIGHT_BLUE,false);
+        print(1,9,(const unsigned char *)"I16 before:0x",FONT_WHITE,false);
+        printHex(16,9,boot[1],4,FONT_LIGHT_BLUE,false);
+        print(1,11,(const unsigned char *)"I16 hooked:0x",FONT_WHITE,false);
+        printHex(16,11,boot[3],4,FONT_LIGHT_BLUE,false);
+        print(1,13,(const unsigned char *)"I16 live:  0x",FONT_WHITE,false);
+        printHex(16,13,live[2],4,FONT_LIGHT_BLUE,false);
+        print(1,15,(const unsigned char *)(boot[2]==live[1] ?
+            "VBlank slot: unchanged" : "VBlank slot: CHANGED"),FONT_LIGHT_GRAY,false);
+        print(1,16,(const unsigned char *)(boot[3]==live[2] ?
+            "IPC slot: unchanged" : "IPC slot: CHANGED"),FONT_LIGHT_GRAY,false);
+    }
+    print(1,18,(const unsigned char *)"No IRQ ownership proof",FONT_LIGHT_GRAY,false);
+    print(1,20,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,22,(const unsigned char *)"B: Back to IRQ words",FONT_WHITE,false);
+    do {
+        while (REG_VCOUNT!=191) mySwiDelay(100);
+        while (REG_VCOUNT==191) mySwiDelay(100);
+    } while (KEYS & KEY_X);
+    waitKeys(KEY_B);
+    do {
+        while (REG_VCOUNT!=191) mySwiDelay(100);
+        while (REG_VCOUNT==191) mySwiDelay(100);
+    } while (KEYS & KEY_B);
+}
+
+/* V7.2.8: passive proof of whether the resident ARM7 callbacks execute.
+ * This reads counters only. Neither this menu nor the counter instrumentation
+ * installs IRQ handlers, touches WLAN registers, or accesses the game save.
+ */
+static void walkerHeartbeatMenu(void) {
+    u32 counts[4]={0,0,0,0};
+    const bool answered=walkerReadFourWords(0x51485057u,0x4B485057u,counts); /* WPHQ/WPHK */
+    clearScreen(false);
+    print(1,1,(const unsigned char *)"V7.2.8 ARM7 HEARTBEAT",FONT_LIME,false);
+    if (!answered) {
+        print(1,5,(const unsigned char *)"ARM7: no heartbeat reply",FONT_RED,false);
+    } else {
+        print(1,4,(const unsigned char *)"VBlank calls: 0x",FONT_WHITE,false);
+        printHex(19,4,counts[0],4,FONT_LIGHT_BLUE,false);
+        print(1,6,(const unsigned char *)"Bridge ticks: 0x",FONT_WHITE,false);
+        printHex(19,6,counts[1],4,FONT_LIGHT_BLUE,false);
+        print(1,8,(const unsigned char *)"IPC callbacks:0x",FONT_WHITE,false);
+        printHex(19,8,counts[2],4,FONT_LIGHT_BLUE,false);
+        print(1,11,(const unsigned char *)(counts[3] & 1u ?
+            "Walker ptr: present" : "Walker ptr: not set"),FONT_LIGHT_GRAY,false);
+        print(1,13,(const unsigned char *)"Compare after 10s gameplay",FONT_WHITE,false);
+        print(1,15,(const unsigned char *)"Delta > 0 = callback ran",FONT_LIGHT_GRAY,false);
+    }
+    print(1,17,(const unsigned char *)"No Wi-Fi/IRQ ownership proof",FONT_LIGHT_GRAY,false);
+    print(1,19,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,21,(const unsigned char *)"B: Back to IRQ words",FONT_WHITE,false);
+    do {
+        while (REG_VCOUNT != 191) mySwiDelay(100);
+        while (REG_VCOUNT == 191) mySwiDelay(100);
+    } while (KEYS & KEY_Y);
+    waitKeys(KEY_B);
+    do {
+        while (REG_VCOUNT != 191) mySwiDelay(100);
+        while (REG_VCOUNT == 191) mySwiDelay(100);
+    } while (KEYS & KEY_B);
+}
+
+/* V7.2.6: show raw, bounded ARM7 words. Slot24 might be ordinary data!
+ * Do not interpret raw words as an IRQ_WIFI handler or authorize a write. */
+static void walkerIrqWordsMenu(void) {
+    u32 reply[4]={0,0,0,0};
+    bool answered=false;
+#ifndef B4DS
+    sharedAddr[4]=0x514B5057u; /* WPKQ */
+    for(unsigned frame=0;frame<90;frame++) {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+        const u32 command=sharedAddr[4];
+        if(command==0x4B4B5057u) { /* WPKK */
+            for(unsigned i=0;i<4;i++)reply[i]=sharedAddr[i];
+            answered=true;
+            break;
+        }
+        if(command==WALKER_DIAG_MENU)
+            sharedAddr[4]=0x514B5057u;
+        else if(command!=0x514B5057u)
+            break;
+    }
+    if(sharedAddr[4]==0x514B5057u || sharedAddr[4]==0x4B4B5057u)
+        sharedAddr[4]=WALKER_DIAG_MENU;
+#endif
+    clearScreen(false);
+    print(1,1,(const unsigned char *)"V7.2.6 ARM7 IRQ WORDS",FONT_LIME,false);
+    if(!answered) {
+        print(1,5,(const unsigned char *)"ARM7: no word reply",FONT_RED,false);
+    } else if(!(reply[0] & 1u)) {
+        print(1,5,(const unsigned char *)"READ BLOCKED: no safe span",FONT_RED,false);
+    } else {
+        print(1,4,(const unsigned char *)"Slot 0 raw: 0x",FONT_WHITE,false);
+        printHex(17,4,reply[1],4,FONT_LIGHT_BLUE,false);
+        print(1,6,(const unsigned char *)"Slot16 raw: 0x",FONT_WHITE,false);
+        printHex(17,6,reply[2],4,FONT_LIGHT_BLUE,false);
+        print(1,8,(const unsigned char *)"Slot24 raw: 0x",FONT_WHITE,false);
+        printHex(17,8,reply[3],4,FONT_LIGHT_BLUE,false);
+        print(1,11,(const unsigned char *)"Slot24 may NOT be IRQ_WIFI",FONT_LIGHT_GRAY,false);
+    }
+    print(1,14,(const unsigned char *)"Raw RAM, NOT handler proof",FONT_LIGHT_GRAY,false);
+    print(1,16,(const unsigned char *)"No IRQ values changed",FONT_WHITE,false);
+    print(1,19,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,20,(const unsigned char *)"Y: ARM7 heartbeat counters",FONT_WHITE,false);
+    print(1,21,(const unsigned char *)"X: Boot vs live IRQ words",FONT_WHITE,false);
+    print(1,22,(const unsigned char *)"B: Back to menu",FONT_WHITE,false);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_A);
+    waitKeys(KEY_B | KEY_X | KEY_Y);
+    if (KEYS & KEY_Y) {
+        walkerHeartbeatMenu();
+    } else if (KEYS & KEY_X) {
+        walkerIrqLifetimeMenu();
+    } else {
+        do {
+            while(REG_VCOUNT!=191) mySwiDelay(100);
+            while(REG_VCOUNT==191) mySwiDelay(100);
+        } while(KEYS & KEY_B);
+    }
+}
+
+static void walkerIrqTableMenu(void) {
+    u32 record[4]={0,0,0,0};
+    bool answered=false;
+#ifndef B4DS
+    sharedAddr[4]=0x51545057u; /* WPTQ */
+    for(unsigned frame=0;frame<90;frame++) {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+        const u32 response=sharedAddr[4];
+        if(response==0x4B545057u) { /* WPTK */
+            for(unsigned i=0;i<4;i++)record[i]=sharedAddr[i];
+            answered=true;
+            break;
+        }
+        if(response==WALKER_DIAG_MENU)
+            sharedAddr[4]=0x51545057u;
+        else if(response!=0x51545057u)
+            break;
+    }
+    if(sharedAddr[4]==0x51545057u || sharedAddr[4]==0x4B545057u)
+        sharedAddr[4]=WALKER_DIAG_MENU;
+#endif
+    clearScreen(false);
+    print(1,1,(const unsigned char *)"V7.2.6 ARM7 BOOT IRQ MAP",FONT_LIME,false);
+    if(!answered) {
+        print(1,4,(const unsigned char *)"ARM7: no table report",FONT_RED,false);
+    } else {
+        print(1,4,(const unsigned char *)"IRQ table: 0x",FONT_WHITE,false);
+        printHex(15,4,record[0],4,FONT_LIGHT_BLUE,false);
+        print(1,6,(const unsigned char *)"ARM7 image:0x",FONT_WHITE,false);
+        printHex(15,6,record[1],4,FONT_LIGHT_BLUE,false);
+        print(1,8,(const unsigned char *)"Image bytes:0x",FONT_WHITE,false);
+        printHex(15,8,record[2],4,FONT_LIGHT_BLUE,false);
+        print(1,10,(const unsigned char *)"Method:",FONT_WHITE,false);
+        const unsigned char *method =
+            record[3]==1u?(const unsigned char *)"Cached IRQ location" :
+            record[3]==2u?(const unsigned char *)"SDK-known location" :
+            record[3]==3u?(const unsigned char *)"Marker scan" :
+            record[3]==4u?(const unsigned char *)"Relative IRQ literal" :
+                           (const unsigned char *)"Unknown / no location";
+        print(1,12,method,FONT_LIGHT_BLUE,false);
+        /* Arithmetic-only footprint test. The source method, writable
+         * extent, interrupt chaining and actual Wi-Fi IRQ owner are
+         * still NOT verified. Never touch record[0] as a pointer. */
+        bool inImage = record[0]>=record[1] &&
+                       record[2]>=100u &&
+                       record[0]-record[1]<=record[2]-100u &&
+                       (record[0]&3u)==0u;
+        print(1,15,(const unsigned char *)(inImage ?
+            "25 slots fit image" : "25 slots NOT proven"),FONT_LIGHT_GRAY,false);
+    }
+    print(1,17,(const unsigned char *)"A: Read bounded IRQ words",FONT_WHITE,false);
+    print(1,19,(const unsigned char *)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,21,(const unsigned char *)"B: Back to menu",FONT_WHITE,false);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_Y);
+    waitKeys(KEY_A | KEY_B);
+    if(KEYS & KEY_A) {
+        walkerIrqWordsMenu();
+    } else {
+        do {
+            while(REG_VCOUNT!=191) mySwiDelay(100);
+            while(REG_VCOUNT==191) mySwiDelay(100);
+        } while(KEYS & KEY_B);
+    }
+}
+
+/* V7.7 NTR ARM9 live-code audit of the same fixed five windows
+ * identified by V7.6. On-console CRC32 must be compared to the offline
+ * ROM CRC32 for the same code window. PRO means plausible ARM prologue,
+ * not Wi-Fi/ABI proof. No WCM/SOC calls, IRQ or save writes.
+ */
+#ifndef B4DS
+/* V8.3 replaces the already-validated V7.7 CRC menu with a small,
+ * guarded OS_IsThreadAvailable return-word reader. Earlier CRC helper
+ * and prior test builds remain preserved in source/history.
+ * No scheduler/WM call, no IRQ writes, no save/ROM modifications. */
+static void walkerArm9WifiCodeMenu(void) {
+    u32 words[6]={0u,0u,0u,0u,0u,0u};
+    const bool ok=walkerArm9LegacyThreadInfoWords(words)!=0;
+    clearScreen(false);
+    print(1,1,(const unsigned char*)"V8.8 OS LAYOUT 2.X",FONT_LIME,false);
+    if (ok) {
+        static const unsigned char labels[6][6]={
+            "9C:0x","A0:0x","A4:0x","A8:0x","AC:0x","B0:0x"
+        };
+        for (unsigned i=0;i<6;i++) {
+            const u32 y=3+2*i;
+            print(1,y,labels[i],FONT_WHITE,false);
+            printHex(7,y,words[i],4,FONT_LIGHT_BLUE,false);
+        }
+    } else {
+        print(1,5,(const unsigned char*)"OS gate FAILED",FONT_RED,false);
+    }
+    print(1,19,(const unsigned char*)"Wi-Fi: NOT ENABLED",FONT_RED,false);
+    print(1,21,(const unsigned char*)"B: Back",FONT_WHITE,false);
+    waitKeys(KEY_B);
+    do {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_B);
+}
+#endif
+
 static void virtualPokewalkerMenu(void) {
     u32 diag[4]={0,0,0,0};
     bool answered=false;
@@ -548,7 +1006,7 @@ static void virtualPokewalkerMenu(void) {
     #endif
 
     clearScreen(false);
-    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.1.5", FONT_LIME, false);
+    print(1, 1, (const unsigned char *)"VIRTUAL POKEWALKER V7.2.6", FONT_LIME, false);
     print(1, 3, (const unsigned char *)"HeartGold / SoulSilver", FONT_WHITE, false);
     print(1, 5, (const unsigned char *)"Android TCP: 30821", FONT_WHITE, false);
     if(!answered) {
@@ -591,18 +1049,49 @@ static void virtualPokewalkerMenu(void) {
         printHex(16,14,diag[3],4,FONT_LIGHT_BLUE,false);
         print(1, 16, (const unsigned char *)"Wi-Fi: NOT ENABLED", FONT_RED, false);
     }
-    print(1, 19, (const unsigned char *)"Read-only diagnostics", FONT_LIGHT_GRAY, false);
-    print(1, 20, (const unsigned char *)"B: Back to menu", FONT_WHITE, false);
-    /* Wait until A has been released to prevent a carried key from closing. */
+    print(1, 18, (const unsigned char *)"X: ARM7 IRQ/timer snapshot", FONT_WHITE, false);
+    print(1, 19, (const unsigned char *)"Y: ARM7 boot IRQ table", FONT_WHITE, false);
+#ifndef B4DS
+    print(1, 20, (const unsigned char *)"L: ARM9 OS raw status", FONT_WHITE, false);
+    print(1, 22, (const unsigned char *)"R: ARM9 task context", FONT_WHITE, false);
+#endif
+    print(1, 21, (const unsigned char *)"B: Back to menu", FONT_WHITE, false);
+    /* Wait for initial A release, then accept X (snapshot) or B. */
     do {
-        while (REG_VCOUNT != 191) mySwiDelay(100);
-        while (REG_VCOUNT == 191) mySwiDelay(100);
-    } while (KEYS & KEY_A);
-    waitKeys(KEY_B);
-    do {
-        while (REG_VCOUNT != 191) mySwiDelay(100);
-        while (REG_VCOUNT == 191) mySwiDelay(100);
-    } while (KEYS & KEY_B);
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+    } while(KEYS & KEY_A);
+    bool showRadio=false;
+    bool showTable=false;
+    bool showWifiCode=false;
+    bool showTaskContext=false;
+    while(1) {
+        while(REG_VCOUNT!=191) mySwiDelay(100);
+        while(REG_VCOUNT==191) mySwiDelay(100);
+        if(KEYS & KEY_B) break;
+        if(KEYS & KEY_X){showRadio=true;break;}
+        if(KEYS & KEY_Y){showTable=true;break;}
+#ifndef B4DS
+        if(KEYS & KEY_L){showWifiCode=true;break;}
+        if(KEYS & KEY_R){showTaskContext=true;break;}
+#endif
+    }
+    if(showRadio) {
+        walkerRadioSnapshotMenu();
+    } else if(showTable) {
+        walkerIrqTableMenu();
+#ifndef B4DS
+    } else if(showWifiCode) {
+        walkerArm9WifiCodeMenu();
+    } else if(showTaskContext) {
+        walkerArm9PreWrapperMenu();
+#endif
+    } else {
+        do {
+            while(REG_VCOUNT!=191) mySwiDelay(100);
+            while(REG_VCOUNT==191) mySwiDelay(100);
+        } while(KEYS & KEY_B);
+    }
 }
 
 static void optionsMenu(s32 *mainScreen, u32 consoleModel) {
@@ -967,7 +1456,17 @@ static void ramViewer(void) {
 	(*revertMpu)();
 }
 
+#if !defined(B4DS) && !defined(TWLSDK)
+u32 inGameMenu(s32 *mainScreen, u32 consoleModel, s32 *exceptionRegisters,
+               const WalkerArm9Snapshot *preMenu9) {
+    if(preMenu9 && preMenu9->magic == WALKER_ARM9_SNAPSHOT_MAGIC)
+        walkerArm9PreWrapper = *preMenu9;
+    else
+        walkerArm9PreWrapper.magic=0u;
+#else
 u32 inGameMenu(s32 *mainScreen, u32 consoleModel, s32 *exceptionRegisters) {
+    walkerArm9PreWrapper.magic=0u;
+#endif
 	// If we were given exception registers, then we're handling an exception
 	bool exception = (exceptionRegisters != 0);
 

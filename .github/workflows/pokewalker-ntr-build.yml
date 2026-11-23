@@ -1,0 +1,148 @@
+name: Pokewalker NTR source build (not a playable transfer)
+
+on:
+  workflow_call:
+    inputs:
+      upload_unverified_artifact:
+        type: boolean
+        required: false
+        default: false
+        description: 'Developer-only compile result; no in-game Wi-Fi transfer is enabled'
+  push:
+    branches: ["dev/v72-resident-ping-core"]
+    paths:
+      - "core/bootstrap/**"
+      - ".github/workflows/pokewalker-ntr-build.yml"
+  pull_request:
+    paths:
+      - "core/bootstrap/**"
+      - ".github/workflows/pokewalker-ntr-build.yml"
+  workflow_dispatch:
+
+jobs:
+  native-arm-build:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkitarm:20241104
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare pinned legacy SDK and portable rules
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory '*'
+          # NTR cardengine code depends on libnds 1.8.x / old fifomessages.h.
+          # Modern devkitarm images remove this header; use the release's
+          # pinned Docker toolchain and included portable Makefile rules.
+          export DEVKITPRO=/opt/devkitpro
+          export LEGACY_DEVKITARM=/opt/devkitpro/devkitARM
+          export LEGACY_LIBNDS=/opt/devkitpro/libnds
+          export DEVKITARM="$GITHUB_WORKSPACE/core/bootstrap/portable-ds-rules"
+          export PATH="$LEGACY_DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH"
+          for var in DEVKITPRO LEGACY_DEVKITARM LEGACY_LIBNDS DEVKITARM; do
+            echo "$var=${!var}" >> "$GITHUB_ENV"
+          done
+          echo "$LEGACY_DEVKITARM/bin" >> "$GITHUB_PATH"
+          echo "$DEVKITPRO/tools/bin" >> "$GITHUB_PATH"
+          test -f "$LEGACY_LIBNDS/include/nds/fifomessages.h"
+          "$LEGACY_DEVKITARM/bin/arm-none-eabi-gcc" --version | head -1
+          # GCC is a host utility here, not the ARM compiler.
+          if ! command -v gcc >/dev/null 2>&1; then
+            # The frozen 2024 image still lists Debian 11 security package
+            # revisions removed from the mirror. Use the stable bullseye
+            # repository for native GCC; keep the pinned ARM SDK untouched.
+            sed -i '/bullseye-security/d' /etc/apt/sources.list
+            rm -rf /var/lib/apt/lists/*
+            apt-get -o Acquire::http::No-Cache=true update -qq
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential
+          fi
+          gcc -O2 core/bootstrap/lzss.c -o /usr/local/bin/lzss
+      - name: Rebuild injected original-IR ARM9 payload from source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd core/bootstrap/retail
+          make walker_payload
+      - name: Link resident NTR ARM7 (SD and durable lock)
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C core/bootstrap/retail cardenginei_arm7
+      - name: Link resident NTR ARM9 (Pokewalker real PUSH coordinator)
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C core/bootstrap/retail cardenginei_arm9
+      - name: Compile NTR bootloader with patched walker hook
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C core/bootstrap/retail/bootloaderi
+      - name: Restore missing GPL-3 bootstrap pack data from pinned SD Transporter ancestor
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This fork excludes upstream pack data (e.g. files-mep,
+          # files-dsi, asyncLoadSettings files). Fetch DATA ONLY from a
+          # reproducibly pinned ancestor. Never overwrite fork source.
+          source_root="$RUNNER_TEMP/sd-transporter-ancestor"
+          mkdir -p "$source_root"
+          git -C "$source_root" init -q
+          git -C "$source_root" remote add origin https://github.com/Shinygati/SD-Transporter.git
+          git -C "$source_root" sparse-checkout init --cone
+          git -C "$source_root" sparse-checkout set \
+            bootstrap/retail/preLoadSettings \
+            bootstrap/retail/asyncLoadSettings \
+            bootstrap/retail/dsi2dsSavePatches \
+            bootstrap/retail/apfix \
+            bootstrap/retail/mobiclipOffsets
+          git -C "$source_root" fetch --depth=1 --filter=blob:none origin \
+            75610fa9905ac252609081287121e8d4c44febed
+          git -C "$source_root" checkout --detach FETCH_HEAD
+          test "$(git -C "$source_root" rev-parse HEAD)" = \
+            75610fa9905ac252609081287121e8d4c44febed
+          for project in preLoadSettings asyncLoadSettings dsi2dsSavePatches apfix mobiclipOffsets; do
+            upstream="$source_root/bootstrap/retail/$project"
+            target="core/bootstrap/retail/$project"
+            for asset in "$upstream"/files*; do
+              [ -e "$asset" ] || continue
+              destination="$target/$(basename "$asset")"
+              if [ -d "$asset" ]; then
+                mkdir -p "$destination"
+                # The fork may contain *some* files, but lacks nested
+                # language folders (for example apfix/files/cht).
+                # Merge missing assets only, never overwrite source.
+                cp -a -n "$asset/." "$destination/"
+              elif [ ! -e "$destination" ]; then
+                cp -a "$asset" "$destination"
+              fi
+            done
+          done
+          test -d core/bootstrap/retail/preLoadSettings/files-mep
+          test -d core/bootstrap/retail/preLoadSettings/files-dsi
+          echo "Preload data restored from pinned GPL ancestor; no fork code overwritten."
+      - name: Assemble complete DSi nds-bootstrap from native source (do not distribute)
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C core/bootstrap/retail -j2 all \
+            GIT_VER=sdlang2 PYTHON=python3 LZSS=/usr/local/bin/lzss
+      - name: Check full NTR image and compiled original-IR components
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s core/bootstrap/retail/common/include/walker_payload.h
+          test -s core/bootstrap/retail/nitrofiles_dec/cardenginei_arm7.bin
+          test -s core/bootstrap/retail/nitrofiles_dec/cardenginei_arm9.bin
+          test -s core/bootstrap/retail/bin/nds-bootstrap.nds
+          stat -c "Full bootstrap: %s bytes (NOT READY for actual Wi-Fi transfer)" \
+            core/bootstrap/retail/bin/nds-bootstrap.nds
+          echo "Compile/link only. In-game resident Wi-Fi is still missing."
+      - name: Upload diagnostic NTR image (NOT a validated DSi transfer)
+        if: ${{ inputs.upload_unverified_artifact }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nds-bootstrap-source-build-NOT-WIFI-READY
+          path: core/bootstrap/retail/bin/nds-bootstrap.nds
+          if-no-files-found: error
+          retention-days: 7

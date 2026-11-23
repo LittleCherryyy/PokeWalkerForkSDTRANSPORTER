@@ -192,6 +192,26 @@ gen5SaveCluster: .word 0
 gen5RomSize: .word 0
 .global walkerBootStatus
 walkerBootStatus: .word 0
+.global walkerIrqTableAddress
+.global walkerIrqImageStart
+.global walkerIrqImageSize
+.global walkerIrqTableMethod
+walkerIrqTableAddress: .word 0
+walkerIrqImageStart: .word 0
+walkerIrqImageSize: .word 0
+walkerIrqTableMethod: .word 0
+@ V7.2.7 read-only boot snapshot; must match the append-only C fields.
+.global walkerIrqBootOriginalVblank
+.global walkerIrqBootOriginalIpc
+.global walkerIrqBootInstalledVblank
+.global walkerIrqBootInstalledIpc
+walkerIrqBootOriginalVblank: .word 0
+walkerIrqBootOriginalIpc: .word 0
+walkerIrqBootInstalledVblank: .word 0
+walkerIrqBootInstalledIpc: .word 0
+@ Append-only durable direct checkout fence.
+.global walkerDirectLockCluster
+walkerDirectLockCluster: .word 0
 .align 4
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

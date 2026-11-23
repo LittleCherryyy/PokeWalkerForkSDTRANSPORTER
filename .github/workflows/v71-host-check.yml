@@ -1,9 +1,10 @@
-name: V7.1 SDK-free network sanity checks
+name: V7.2 DSi full bootstrap diagnostic build
 
 on:
   push:
     branches:
       - dev/v71-network-readiness-diagnostics
+      - dev/v72-resident-ping-core
     paths:
       - '.github/workflows/v71-host-check.yml'
       - '.github/workflows/v71-dsi-cross-compile.yml'
@@ -16,12 +17,35 @@ on:
       - 'core/bootstrap/retail/cardenginei/arm7/source/walker_direct_bridge.c'
       - 'core/bootstrap/retail/cardenginei/arm7/source/walker_file.c'
       - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_boot.c'
+      - 'core/bootstrap/retail/bootloaderi/source/arm7/hook_arm7.c'
       - 'core/bootstrap/retail/common/include/cardengine_header_arm7.h'
+      - 'core/bootstrap/retail/common/include/walker_irq_live_guard.h'
       - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
       - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
       - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/source/walker_arm9_wifi_sig.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/include/walker_arm9_wifi_sig.h'
+      - 'core/bootstrap/retail/cardenginei/arm9/source/cardengine.c'
+      - 'core/bootstrap/retail/common/include/walker_arm9_snapshot.h'
+      - 'core/bootstrap/retail/nettransport/**'
       - 'tests/v71_host/**'
+      - 'tests/v72_host/**'
       - 'tools/v7_1/identify_hgss_nds.py'
+      - 'tools/v7_3/**'
+      - 'tools/v7_4/**'
+      - 'tools/v7_5/**'
+      - 'tools/v7_6/**'
+      - 'tools/v7_7/**'
+      - 'tools/v8_0/**'
+      - 'tools/v8_1/**'
+      - 'tools/v8_2/**'
+      - 'tools/v8_4/**'
+      - 'tools/v8_5/**'
+      - 'tools/v8_9/**'
+      - 'tools/v9_0/**'
+      - 'tools/v9_1/**'
+      - 'tools/v9_2/**'
+      - 'tools/v9_3/**'
   pull_request:
     paths:
       - '.github/workflows/v71-host-check.yml'
@@ -34,11 +58,32 @@ on:
       - 'core/bootstrap/retail/cardenginei/arm7/source/walker_direct_bridge.c'
       - 'core/bootstrap/retail/cardenginei/arm7/source/walker_file.c'
       - 'core/bootstrap/retail/bootloaderi/source/arm7/walker_boot.c'
+      - 'core/bootstrap/retail/bootloaderi/source/arm7/hook_arm7.c'
       - 'core/bootstrap/retail/common/include/cardengine_header_arm7.h'
+      - 'core/bootstrap/retail/common/include/walker_irq_live_guard.h'
       - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
       - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
       - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/source/walker_arm9_wifi_sig.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/include/walker_arm9_wifi_sig.h'
+      - 'core/bootstrap/retail/cardenginei/arm9/source/cardengine.c'
+      - 'core/bootstrap/retail/common/include/walker_arm9_snapshot.h'
       - 'tests/v71_host/**'
+      - 'tools/v7_3/**'
+      - 'tools/v7_4/**'
+      - 'tools/v7_5/**'
+      - 'tools/v7_6/**'
+      - 'tools/v7_7/**'
+      - 'tools/v8_0/**'
+      - 'tools/v8_1/**'
+      - 'tools/v8_2/**'
+      - 'tools/v8_4/**'
+      - 'tools/v8_5/**'
+      - 'tools/v8_9/**'
+      - 'tools/v9_0/**'
+      - 'tools/v9_1/**'
+      - 'tools/v9_2/**'
+      - 'tools/v9_3/**'
 
 permissions:
   contents: read
@@ -51,6 +96,239 @@ jobs:
         uses: actions/checkout@v4
       - name: Compile and execute host checks (no ROM/SDK)
         run: python3 tests/v71_host/run.py
+      - name: Package Windows V7.4 HGSS ARM9 audit after tests pass
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V7_4-ROM-ARM9-offline-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_4/TESTAR_ARM9_WIFI.bat
+            tools/v7_4/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V7.5 WCM-SOC callsite auditor after tests pass
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V7_5-WCM-SOC-offline-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_5/TESTAR_CALLS_WIFI.bat
+            tools/v7_5/COMPARAR_HGSS_WIFI.bat
+            tools/v7_5/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V7.6 ARM9 WCM-SOC veneer auditor
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V7_6-ARM9-WiFi-Entry-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_6/hgss_wifi_entry_audit.py
+            tools/v7_6/COMPARAR_ENTRADAS_WIFI.bat
+            tools/v7_6/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V7.7 ARM9 offline CRC reference
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V7_7-Offline-ROM-CRC-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_7/hgss_wifi_live_crc_reference.py
+            tools/v7_7/COMPARAR_CRC_ARM9.bat
+            tools/v7_7/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V8.0 HGSS NitroSDK thread callsite audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V8_0-OS-Thread-Callsites-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v8_0/hgss_thread_callsite_audit.py
+            tools/v8_0/COMPARAR_THREADS_HGSS.bat
+            tools/v8_0/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V8.1 HGSS OS thread ABI and context audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V8_1-OS-Thread-ABI-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_6/hgss_wifi_entry_audit.py
+            tools/v8_0/hgss_thread_callsite_audit.py
+            tools/v8_1/hgss_thread_abi_context.py
+            tools/v8_1/COMPARAR_ABI_THREADS.bat
+            tools/v8_1/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V8.2 read-only HGSS scheduler pointer map
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V8_2-Scheduler-Refs-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_6/hgss_wifi_entry_audit.py
+            tools/v8_0/hgss_thread_callsite_audit.py
+            tools/v8_1/hgss_thread_abi_context.py
+            tools/v8_2/hgss_thread_scheduler_refs.py
+            tools/v8_2/COMPARAR_ESTADO_THREADS.bat
+            tools/v8_2/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V8.4 HGSS ARM9 thread-flag cross-reference auditor
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V8_4-Thread-Flag-Crossrefs-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_6/hgss_wifi_entry_audit.py
+            tools/v8_0/hgss_thread_callsite_audit.py
+            tools/v8_1/hgss_thread_abi_context.py
+            tools/v8_2/hgss_thread_scheduler_refs.py
+            tools/v8_4/hgss_thread_flag_xrefs.py
+            tools/v8_4/COMPARAR_REFERENCIAS_THREADS.bat
+            tools/v8_4/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V8.5 HGSS NitroSDK OS thread-info layout auditor
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V8_5-Thread-Info-Layout-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_6/hgss_wifi_entry_audit.py
+            tools/v8_0/hgss_thread_callsite_audit.py
+            tools/v8_1/hgss_thread_abi_context.py
+            tools/v8_2/hgss_thread_scheduler_refs.py
+            tools/v8_4/hgss_thread_flag_xrefs.py
+            tools/v8_5/hgss_thread_info_layout_audit.py
+            tools/v8_5/COMPARAR_LAYOUT_THREADS.bat
+            tools/v8_5/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V8.9 HGSS ARM9 halfword/word field-access xrefs
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V8_9-Scheduler-Field-Xrefs-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_6/hgss_wifi_entry_audit.py
+            tools/v8_0/hgss_thread_callsite_audit.py
+            tools/v8_1/hgss_thread_abi_context.py
+            tools/v8_2/hgss_thread_scheduler_refs.py
+            tools/v8_4/hgss_thread_flag_xrefs.py
+            tools/v8_5/hgss_thread_info_layout_audit.py
+            tools/v8_9/hgss_scheduler_field_xrefs.py
+            tools/v8_9/COMPARAR_CAMPOS_THREADS.bat
+            tools/v8_9/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V9.0 HGSS bounded ARM9 scheduler semantic windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V9_0-ARM9-Scheduler-Windows-Offline
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_6/hgss_wifi_entry_audit.py
+            tools/v8_0/hgss_thread_callsite_audit.py
+            tools/v8_1/hgss_thread_abi_context.py
+            tools/v8_2/hgss_thread_scheduler_refs.py
+            tools/v8_4/hgss_thread_flag_xrefs.py
+            tools/v8_5/hgss_thread_info_layout_audit.py
+            tools/v8_9/hgss_scheduler_field_xrefs.py
+            tools/v9_0/hgss_arm9_thread_trace_windows.py
+            tools/v9_0/COMPARAR_JANELAS_ARM9.bat
+            tools/v9_0/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V9.1 HGSS ARM9 register value provenance auditor
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V9_1-ARM9-Register-Provenance-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_6/hgss_wifi_entry_audit.py
+            tools/v8_0/hgss_thread_callsite_audit.py
+            tools/v8_1/hgss_thread_abi_context.py
+            tools/v8_2/hgss_thread_scheduler_refs.py
+            tools/v8_4/hgss_thread_flag_xrefs.py
+            tools/v8_5/hgss_thread_info_layout_audit.py
+            tools/v8_9/hgss_scheduler_field_xrefs.py
+            tools/v9_0/hgss_arm9_thread_trace_windows.py
+            tools/v9_1/hgss_register_provenance.py
+            tools/v9_1/COMPARAR_ORIGEM_REGISTRADORES.bat
+            tools/v9_1/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V9.2 HGSS original ARM9 preceding-store register audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V9_2-ARM9-Store-Origins-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_6/hgss_wifi_entry_audit.py
+            tools/v8_0/hgss_thread_callsite_audit.py
+            tools/v8_1/hgss_thread_abi_context.py
+            tools/v8_2/hgss_thread_scheduler_refs.py
+            tools/v8_4/hgss_thread_flag_xrefs.py
+            tools/v8_5/hgss_thread_info_layout_audit.py
+            tools/v8_9/hgss_scheduler_field_xrefs.py
+            tools/v9_0/hgss_arm9_thread_trace_windows.py
+            tools/v9_1/hgss_register_provenance.py
+            tools/v9_2/hgss_store_value_backtrace.py
+            tools/v9_2/COMPARAR_ESCRITAS_ARM9.bat
+            tools/v9_2/README.md
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package Windows V9.3 HGSS original ARM9 source-load base origins
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pokewalker-V9_3-ARM9-Source-Address-Origins-Windows
+          path: |
+            tools/v7_3/hgss_wifi_abi_audit.py
+            tools/v7_4/arm9_runtime_reconstruction.py
+            tools/v7_5/hgss_wifi_call_targets.py
+            tools/v7_6/hgss_wifi_entry_audit.py
+            tools/v8_0/hgss_thread_callsite_audit.py
+            tools/v8_1/hgss_thread_abi_context.py
+            tools/v8_2/hgss_thread_scheduler_refs.py
+            tools/v8_4/hgss_thread_flag_xrefs.py
+            tools/v8_5/hgss_thread_info_layout_audit.py
+            tools/v8_9/hgss_scheduler_field_xrefs.py
+            tools/v9_0/hgss_arm9_thread_trace_windows.py
+            tools/v9_1/hgss_register_provenance.py
+            tools/v9_2/hgss_store_value_backtrace.py
+            tools/v9_3/hgss_store_address_register_origins.py
+            tools/v9_3/COMPARAR_BASES_LEITURAS_ARM9.bat
+            tools/v9_3/README.md
+          if-no-files-found: error
+          retention-days: 7
       - name: Build portable static LZSS host tool
         run: |
           gcc -static -O2 core/bootstrap/lzss.c -o lzss
@@ -59,7 +337,7 @@ jobs:
       - name: Share static LZSS with legacy cross-build
         uses: actions/upload-artifact@v4
         with:
-          name: v71-lzss-host-linux-x86_64
+          name: v72-lzss-host-linux-x86_64
           path: lzss
           retention-days: 1
 
@@ -75,7 +353,7 @@ jobs:
       - name: Download static host LZSS from successful host job
         uses: actions/download-artifact@v4
         with:
-          name: v71-lzss-host-linux-x86_64
+          name: v72-lzss-host-linux-x86_64
           path: core/bootstrap
       - name: Compile DSi NTR components
         shell: bash
@@ -127,7 +405,12 @@ jobs:
             LEGACY_DEVKITARM="$COMPILER_DIR" LEGACY_LIBNDS="$SDK_DIR" LIBDIRS="$SDK_DIR" \
             PYTHON=python3 GIT_VER=sdlang2 LZSS="$GITHUB_WORKSPACE/core/bootstrap/lzss" all
           test -s bin/nds-bootstrap.nds
-          echo "Full build succeeded; experimental menu-only diagnostic build."
+          echo "Full build succeeded; V8.8 guarded 6-word NitroSDK2 legacy thread-info layout snapshot. No Wi-Fi, no save I/O."
+          # Verify no accidental radio library linked into this retail image.
+          if arm-none-eabi-nm cardenginei/arm7/build/cardenginei_arm7.elf 2>/dev/null | grep -E "Wifi_Init|socConnect|walkerPingStep"; then
+            echo "ERROR: unexpected V7.2 radio/PING symbol linked into ARM7" >&2
+            exit 1
+          fi
       - name: Create SHA-256 checksum for diagnostic build
         shell: bash
         run: |
@@ -137,7 +420,7 @@ jobs:
       - name: Upload experimental DSi menu diagnostic artifact (not a release)
         uses: actions/upload-artifact@v4
         with:
-          name: v71-5-dsi-prelaunch-logging-test-only
+          name: v88-hgss-arm9-legacy-thread-info-six-word-readonly-test-only
           path: |
             core/bootstrap/retail/bin/nds-bootstrap.nds
             core/bootstrap/retail/bin/nds-bootstrap.nds.sha256

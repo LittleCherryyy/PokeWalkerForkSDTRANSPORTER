@@ -1,28 +1,31 @@
 #ifndef WALKER_HGSS_NET_H
 #define WALKER_HGSS_NET_H
-#include <nds/ndstypes.h>
+/* Shared by the regular ARM7/ARM9 cardengines and the freestanding
+ * position-independent Pokéwalker ARM9 blob. Do not include libnds:
+ * the blob is compiled without SDK headers and must stay portable. */
+#include <stdint.h>
 #define WALKER_HGSS_NET_MAGIC 0x324E5748u /* HWN2 */
 typedef struct WalkerHgssNetApi {
-    u32 magic;
-    u32 ready;
-    u32 wcmInit;
-    u32 wcmStartupAsync;
-    u32 wcmBeginSearchAsync;
-    u32 wcmEndSearchAsync;
-    u32 wcmConnectAsync;
-    u32 wcmDisconnectAsync;
-    u32 wcmCleanupAsync;
-    u32 wcmGetPhase;
-    u32 wcmCountApList;
-    u32 wcmPointApList;
-    u32 soclStartup;
-    u32 socSocket;
-    u32 socConnect;
-    u32 socRecv;
-    u32 socSend;
-    u32 socClose;
-    u32 socFcntl;
-    u32 soclGatewayPtr;
+    uint32_t magic;
+    uint32_t ready;
+    uint32_t wcmInit;
+    uint32_t wcmStartupAsync;
+    uint32_t wcmBeginSearchAsync;
+    uint32_t wcmEndSearchAsync;
+    uint32_t wcmConnectAsync;
+    uint32_t wcmDisconnectAsync;
+    uint32_t wcmCleanupAsync;
+    uint32_t wcmGetPhase;
+    uint32_t wcmCountApList;
+    uint32_t wcmPointApList;
+    uint32_t soclStartup;
+    uint32_t socSocket;
+    uint32_t socConnect;
+    uint32_t socRecv;
+    uint32_t socSend;
+    uint32_t socClose;
+    uint32_t socFcntl;
+    uint32_t soclGatewayPtr;
 } WalkerHgssNetApi;
 /* V7.1 diagnostic mask: bit set means the corresponding entry is missing.
  * Do not change WalkerHgssNetApi layout: it is shared across cardengine CPUs.
@@ -42,7 +45,7 @@ enum {
     WALKER_NET_MISS_SOC_CLOSE = 1u << 11,
     WALKER_NET_MISS_GATEWAY = 1u << 12
 };
-static inline u32 walkerHgssNetMissingMask(const WalkerHgssNetApi *n) {
+static inline uint32_t walkerHgssNetMissingMask(const WalkerHgssNetApi *n) {
     if (!n || n->magic != WALKER_HGSS_NET_MAGIC) return (1u << 13) - 1u;
     return (!n->wcmInit ? WALKER_NET_MISS_WCM_INIT : 0u)
         | (!n->wcmStartupAsync ? WALKER_NET_MISS_WCM_START : 0u)
@@ -58,7 +61,7 @@ static inline u32 walkerHgssNetMissingMask(const WalkerHgssNetApi *n) {
         | (!n->socClose ? WALKER_NET_MISS_SOC_CLOSE : 0u)
         | (!n->soclGatewayPtr ? WALKER_NET_MISS_GATEWAY : 0u);
 }
-static inline u32 walkerArmBlTarget(u32 pc,u32 insn){s32 off=(s32)(insn<<8)>>6;return pc+8+(u32)off;}
-static inline int walkerArmIsBl(u32 insn){return (insn&0x0f000000u)==0x0b000000u;}
-int walkerResolveHgssNet(const u32 *arm9,u32 arm9Address,u32 arm9Bytes,WalkerHgssNetApi *out,const char gameCode[4]);
+static inline uint32_t walkerArmBlTarget(uint32_t pc,uint32_t insn){int32_t off=(int32_t)(insn<<8)>>6;return pc+8+(uint32_t)off;}
+static inline int walkerArmIsBl(uint32_t insn){return (insn&0x0f000000u)==0x0b000000u;}
+int walkerResolveHgssNet(const uint32_t *arm9,uint32_t arm9Address,uint32_t arm9Bytes,WalkerHgssNetApi *out,const char gameCode[4]);
 #endif

@@ -145,6 +145,19 @@ typedef struct cardengineArm7 {
 	u32 gen5RomSize;
 	/* V7.1.3: append-only boot outcome for read-only in-game diagnostics. */
 	u32 walkerBootStatus;
+	/* V7.2.5: bootloaderi NTR IRQ-table location metadata, append-only. */
+	u32 walkerIrqTableAddress;
+	u32 walkerIrqImageStart;
+	u32 walkerIrqImageSize;
+	u32 walkerIrqTableMethod;
+	/* V7.2.7: read-only boot snapshots, append-only to preserve existing fields. */
+	u32 walkerIrqBootOriginalVblank;
+	u32 walkerIrqBootOriginalIpc;
+	u32 walkerIrqBootInstalledVblank;
+	u32 walkerIrqBootInstalledIpc;
+    /* Append-only: preallocated <save>.walker.directlock FAT cluster.
+     * Zero for games and platforms without direct DSi checkout. */
+    u32 walkerDirectLockCluster;
 } cardengineArm7;
 
 //

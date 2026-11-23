@@ -1,0 +1,21 @@
+name: Experimental DSi bootstrap build (unverified)
+# Manual developer artifact only. Reuse the known-working pinned SDK pipeline;
+# never substitute the current devkitPro/Calico SDK for retail NTR cardengine.
+on:
+  workflow_dispatch:
+  # Build a diagnostic artifact once when this wrapper changes; normal
+  # bootstrap edits stay on the compile-only NTR workflow.
+  push:
+    branches:
+      - dev/v72-resident-ping-core
+    paths:
+      - '.github/workflows/experimental-bootstrap-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    uses: ./.github/workflows/pokewalker-ntr-build.yml
+    with:
+      upload_unverified_artifact: true

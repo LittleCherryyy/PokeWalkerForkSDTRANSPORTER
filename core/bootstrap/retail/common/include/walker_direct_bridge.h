@@ -45,9 +45,15 @@ typedef struct WalkerDirectBridge {
     volatile unsigned int lastProgress;
     char session[WALKER_DIRECT_SESSION_SIZE + 1];
     char trainer[WALKER_DIRECT_TRAINER_SIZE + 1];
+    /* ARM7 sets this only after checked read-back of the durable
+     * .directlock PENDING record. ARM9 MUST NOT send before it is 1. */
+    volatile unsigned int lockReady;
+    /* Set by resident ARM9 only when the radio backend is actually ready.
+     * ARM7 does not persist a phone lock for ordinary offline gameplay. */
+    volatile unsigned int lockRequested;
 } WalkerDirectBridge;
 
-static void walkerDirectBridgeReset(WalkerDirectBridge *d,unsigned durableSeq) {
+static inline void walkerDirectBridgeReset(WalkerDirectBridge *d,unsigned durableSeq) {
     if(!d) return;
     d->magic=WALKER_DIRECT_BRIDGE_MAGIC;
     d->state=WALKER_DIRECT_IDLE;
@@ -55,7 +61,7 @@ static void walkerDirectBridgeReset(WalkerDirectBridge *d,unsigned durableSeq) {
     d->durableSeq=durableSeq;
     d->offeredSeq=durableSeq;
     d->crc32=0;d->attempts=0;d->lastProgress=0;
-    d->session[0]=0;d->trainer[0]=0;
+    d->session[0]=0;d->trainer[0]=0;d->lockReady=0;d->lockRequested=0;
 }
 #endif
 

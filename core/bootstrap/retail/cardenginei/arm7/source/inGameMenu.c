@@ -1,6 +1,8 @@
 #include <nds/ndstypes.h>
 #include <nds/ipc.h>
 #include <nds/interrupts.h>
+#include <nds/timers.h>
+#include <nds/dma.h>
 #include <nds/input.h>
 #include <nds/arm7/audio.h>
 #include <nds/arm7/clock.h>
@@ -14,6 +16,7 @@
 #include "nds_header.h"
 #include "walker_emu.h"
 #include "walker_hgss_net.h"
+#include "walker_irq_live_guard.h"
 #include "tonccpy.h"
 
 #define sleepMode BIT(17)
@@ -35,6 +38,100 @@ extern u32 walkerControl;
 extern u32 walkerBootStatus;
 #define WALKER_DIAG_REQUEST 0x47445057u /* WPDG */
 #define WALKER_DIAG_REPLY   0x4B445057u /* WPDK */
+/* V7.2 register snapshot only; no Wi-Fi initialization or register writes. */
+#define WALKER_RADIO_REQUEST 0x44525057u /* WPRD */
+#define WALKER_RADIO_REPLY   0x4B525057u /* WPRK */
+#define WALKER_RESOURCE_REQUEST 0x44535057u /* WPSD */
+#define WALKER_RESOURCE_REPLY   0x4B535057u /* WPSK */
+#define WALKER_TABLE_REQUEST    0x51545057u /* WPTQ */
+#define WALKER_TABLE_REPLY      0x4B545057u /* WPTK */
+#define WALKER_PEEK_REQUEST     0x514B5057u /* WPKQ */
+#define WALKER_PEEK_REPLY       0x4B4B5057u /* WPKK */
+#define WALKER_BOOT_SNAPSHOT_REQUEST 0x51435057u /* WPCQ */
+#define WALKER_BOOT_SNAPSHOT_REPLY   0x4B435057u /* WPCK */
+#define WALKER_HEARTBEAT_REQUEST 0x51485057u /* WPHQ */
+#define WALKER_HEARTBEAT_REPLY   0x4B485057u /* WPHK */
+extern u32 walkerIrqBootOriginalVblank;
+extern u32 walkerIrqBootOriginalIpc;
+extern u32 walkerIrqBootInstalledVblank;
+extern u32 walkerIrqBootInstalledIpc;
+extern volatile u32 walkerVblankCallbackCount;
+extern volatile u32 walkerBridgeTickCount;
+extern volatile u32 walkerFifoCallbackCount;
+extern u32 walkerIrqTableAddress;
+extern u32 walkerIrqImageStart;
+extern u32 walkerIrqImageSize;
+extern u32 walkerIrqTableMethod;
+
+/* V7.2.7: boot-captured data only; no IRQ table dereference and no writes. */
+static void walkerBootSnapshotReadOnlyDiagnostics(void) {
+    sharedAddr[0] = walkerIrqBootOriginalVblank;
+    sharedAddr[1] = walkerIrqBootOriginalIpc;
+    sharedAddr[2] = walkerIrqBootInstalledVblank;
+    sharedAddr[3] = walkerIrqBootInstalledIpc;
+    sharedAddr[4] = WALKER_BOOT_SNAPSHOT_REPLY;
+}
+
+/* V7.2.8: counters are observed only; no callback is run by this command. */
+static void walkerHeartbeatReadOnlyDiagnostics(void) {
+    sharedAddr[0] = walkerVblankCallbackCount;
+    sharedAddr[1] = walkerBridgeTickCount;
+    sharedAddr[2] = walkerFifoCallbackCount;
+    sharedAddr[3] = walkerControl ? 1u : 0u;
+    sharedAddr[4] = WALKER_HEARTBEAT_REPLY;
+}
+
+static void walkerIrqTableReadOnlyDiagnostics(void) {
+    /* These four words are boot-time *metadata* already stored in ce7,
+     * not dereferences of the game IRQ table. */
+    sharedAddr[0]=walkerIrqTableAddress;
+    sharedAddr[1]=walkerIrqImageStart;
+    sharedAddr[2]=walkerIrqImageSize;
+    sharedAddr[3]=walkerIrqTableMethod;
+    sharedAddr[4]=WALKER_TABLE_REPLY;
+}
+/* V7.2.6: read at most three raw words in a loaded, bounded NTR RAM area.
+ * This is menu-only. The table is not reinterpreted as a verified 25-slot
+ * IRQ dispatch array, even if the memory is readable. */
+static void walkerIrqPeekReadOnlyDiagnostics(void) {
+    const u32 addr = walkerIrqTableAddress;
+    const int safe = walkerIrqReadOnlyRangeOk(
+        addr, walkerIrqImageStart, walkerIrqImageSize, walkerIrqTableMethod);
+    sharedAddr[0] = safe ? 1u : 0u;
+    sharedAddr[1] = 0u;
+    sharedAddr[2] = 0u;
+    sharedAddr[3] = 0u;
+    if (safe) {
+        const volatile u32* const entries = (const volatile u32*)(uintptr_t)addr;
+        sharedAddr[1] = entries[0];  /* VBlank candidate */
+        sharedAddr[2] = entries[16]; /* IPC candidate */
+        sharedAddr[3] = entries[24]; /* RAW word: not necessarily IRQ_WIFI */
+    }
+    sharedAddr[4] = WALKER_PEEK_REPLY;
+}
+static u32 radioIeBeforeMenu, radioImeBeforeMenu;
+static u16 radioTimersBeforeMenu[4];
+/* DMA3 control, source and destination read before IRQ masking. A zero
+ * DMA3 control does not prove the channel belongs to the bridge. */
+static u32 radioDma3BeforeMenu[3];
+
+static void walkerResourceReadOnlyDiagnostics(void) {
+    sharedAddr[0]=radioDma3BeforeMenu[0];
+    sharedAddr[1]=radioDma3BeforeMenu[1];
+    sharedAddr[2]=radioDma3BeforeMenu[2];
+    sharedAddr[3]=0u;
+    sharedAddr[4]=WALKER_RESOURCE_REPLY;
+}
+
+static void walkerRadioReadOnlyDiagnostics(void) {
+    sharedAddr[0]=radioIeBeforeMenu;
+    sharedAddr[1]=radioImeBeforeMenu;
+    sharedAddr[2]=(u32)radioTimersBeforeMenu[0] |
+                  ((u32)radioTimersBeforeMenu[1]<<16);
+    sharedAddr[3]=(u32)radioTimersBeforeMenu[2] |
+                  ((u32)radioTimersBeforeMenu[3]<<16);
+    sharedAddr[4]=WALKER_RADIO_REPLY;
+}
 static void walkerReadOnlyDiagnostics(void) {
     /* Query result in sharedAddr[0..3]: presence/state/ready, missing mask,
      * write sequence, flushed sequence (or loader boot outcome if absent).
@@ -100,7 +197,20 @@ void biosRead(void* dst, const void* src, u32 len)
 
 volatile int timeTillStatusRefresh = 7;
 
-void inGameMenu(void) {
+/* Keep this paused-menu routine compact: the resident ARM7 engine has a
+ * fixed 0xF400-byte WRAM allocation. Scope -Os to this menu, not to the
+ * gameplay VBlank path or storage routines. */
+__attribute__((optimize("Os"))) void inGameMenu(void) {
+    /* Snapshot BEFORE the menu masks interrupts. This is diagnostic only;
+     * a captured IRQ enable bit never proves who owns the IRQ handler. */
+#ifndef TWLSDK
+    radioIeBeforeMenu=REG_IE;
+    radioImeBeforeMenu=REG_IME;
+    for(unsigned i=0;i<4;i++) radioTimersBeforeMenu[i]=TIMER_CR(i);
+    radioDma3BeforeMenu[0]=DMA_CR(3);
+    radioDma3BeforeMenu[1]=DMA_SRC(3);
+    radioDma3BeforeMenu[2]=DMA_DEST(3);
+#endif
 	// returnToMenu = false;
 	sharedAddr[4] = 0x554E454D; // 'MENU'
 	const u32 errorBak = sharedAddr[0];
@@ -239,6 +349,24 @@ void inGameMenu(void) {
                 case WALKER_DIAG_REQUEST: // WPDG: read-only diagnostics
                     walkerReadOnlyDiagnostics();
                     break;
+                case WALKER_RADIO_REQUEST: // WPRD: read-only IRQ/timer snapshot
+                    walkerRadioReadOnlyDiagnostics();
+                    break;
+                case WALKER_RESOURCE_REQUEST: // WPSD: read-only ARM7 DMA3
+                    walkerResourceReadOnlyDiagnostics();
+                    break;
+                case WALKER_TABLE_REQUEST: // WPTQ: bootloaderi IRQ metadata
+                    walkerIrqTableReadOnlyDiagnostics();
+                    break;
+                case WALKER_PEEK_REQUEST: // WPKQ: guarded raw table words
+                    walkerIrqPeekReadOnlyDiagnostics();
+                    break;
+                case WALKER_BOOT_SNAPSHOT_REQUEST: // WPCQ: boot-captured hook words
+                    walkerBootSnapshotReadOnlyDiagnostics();
+                    break;
+                case WALKER_HEARTBEAT_REQUEST: // WPHQ: read-only callback counters
+                    walkerHeartbeatReadOnlyDiagnostics();
+                    break;
                 #endif
 				case 0x524D4152: // RAMR
 					u32* dst = (u32*)((u32)sharedAddr[0]);
@@ -283,6 +411,12 @@ void inGameMenu(void) {
 			} else if (!exitMenu
                 #ifndef TWLSDK
                 && sharedAddr[4] != WALKER_DIAG_REPLY
+                && sharedAddr[4] != WALKER_RADIO_REPLY
+                && sharedAddr[4] != WALKER_RESOURCE_REPLY
+                && sharedAddr[4] != WALKER_TABLE_REPLY
+                && sharedAddr[4] != WALKER_PEEK_REPLY
+                && sharedAddr[4] != WALKER_BOOT_SNAPSHOT_REPLY
+                && sharedAddr[4] != WALKER_HEARTBEAT_REPLY
                 #endif
                 && sharedAddr[4] == menuCommandSeen
             ) {

@@ -7,13 +7,9 @@
 #ifndef TWLSDK
 extern u32 walkerControl;
 
-/* Network backend contract. A later DSi transport unit supplies strong
- * definitions. Keeping weak no-op definitions makes this bridge safe in
- * builds where the radio transport has not been linked yet. */
-__attribute__((weak)) bool walkerDirectTransportAvailable(void) { return false; }
-__attribute__((weak)) int walkerDirectTransportPush(WalkerControl *c) { (void)c; return 0; }
-__attribute__((weak)) int walkerDirectTransportPull(WalkerControl *c) { (void)c; return 0; }
-__attribute__((weak)) int walkerDirectTransportConfirm(WalkerControl *c) { (void)c; return 0; }
+/* ARM7 owns SD durability and may run this coordinator during VBlank.
+ * Do not perform WCM, SOC, or any potentially blocking network call here.
+ * The future ARM9 worker consumes PUSH_READY only outside IRQ context. */
 
 static WalkerControl *directControl(void) {
     WalkerControl *c=(WalkerControl *)walkerControl;
@@ -53,13 +49,18 @@ static void makeSession(WalkerControl *c,u32 crc,u32 seq) {
 
 void walkerDirectBridgeInit(WalkerControl *c) { if(c) walkerDirectBridgeReset(&c->direct,c->flushedSeq); }
 
-/* Called immediately after the ARM7 has physically verified all dirty walker
- * sectors on SD. Never advertise RAM that has not been committed first. */
-/* Called after the checked SD writer finishes. Only schedule a CRC here;
- * the actual scan is bounded and performed later in the VBlank tick. */
+/* Called after the ARM7 verified the complete EEPROM on SD. Merely
+ * registering a walker, receiving a gift or altering steps is NOT a
+ * Pokémon checkout. The original HGSS stroll must also have completed.
+ * The CRC scan remains incremental rather than blocking the VBlank IRQ. */
 void walkerDirectBridgeCommitted(WalkerControl *c,u32 seq) {
     if(!durableImageStable(c,seq)) return;
     c->direct.durableSeq=seq;
+    /* No backend means no CRC scan, SD phone lock, or background
+     * 64 KiB access during ordinary HGSS play. ARM9 sets the request
+     * only after confirming a usable resident radio backend. */
+    if(c->checkoutState!=WALKER_CHECKOUT_COMPLETE ||
+       !c->direct.lockRequested) return;
     if(seq==c->direct.offeredSeq ||
        (crcPending && crcSeq==seq)) return;
     /* A checked-out image must not be replaced by a new offer. */
@@ -73,7 +74,9 @@ void walkerDirectBridgeCommitted(WalkerControl *c,u32 seq) {
 
 static void walkerDirectSnapshotTick(WalkerControl *c) {
     if(!crcPending) return;
-    if(!durableImageStable(c,crcSeq) ||
+    if(c->checkoutState!=WALKER_CHECKOUT_COMPLETE ||
+       !c->direct.lockRequested ||
+       !durableImageStable(c,crcSeq) ||
        (c->direct.state!=WALKER_DIRECT_IDLE &&
         c->direct.state!=WALKER_DIRECT_PUSH_READY)) {
         crcPending=false;
@@ -97,40 +100,31 @@ static void walkerDirectSnapshotTick(WalkerControl *c) {
     c->direct.offeredSeq=crcSeq;
     c->direct.error=WALKER_DIRECT_ERR_NONE;
     c->direct.attempts=0;
+    c->direct.lockReady=0;
+    /* Keep ARM9's request: the next ARM7 mutex-protected flush
+     * must persist PENDING before ARM9 can send any TCP bytes. */
     c->direct.state=WALKER_DIRECT_PUSH_READY;
 }
 
-/* Called from VBlank. Backends must be incremental/non-blocking; a return of
- * >0 means complete, 0 means still pending/unavailable, <0 means retryable
- * error. */
+/* Called from VBlank. This function ONLY prepares a durable outbound
+ * image. Radio association, packet I/O and ACK processing must be done by
+ * a separate ARM9 worker in a confirmed safe non-IRQ execution context. */
 void walkerDirectBridgeTick(void) {
     WalkerControl *c=directControl();
     if(!c || c->direct.magic!=WALKER_DIRECT_BRIDGE_MAGIC) {crcPending=false;return;}
+    /* HGSS may finish its last IR command after the SD flusher already
+     * committed the last dirty sector. Pick up that completed stroll here
+     * even when there are no further writes to trigger the commit callback.
+     * This is safe only if all sectors are clean and flushedSeq matches. */
+    if(c->checkoutState==WALKER_CHECKOUT_COMPLETE &&
+       c->direct.lockRequested && !crcPending &&
+       c->direct.state==WALKER_DIRECT_IDLE &&
+       c->writeSeq!=c->direct.offeredSeq &&
+       durableImageStable(c,c->writeSeq))
+        walkerDirectBridgeCommitted(c,c->writeSeq);
     walkerDirectSnapshotTick(c);
-    if(!walkerDirectTransportAvailable()) return;
-    int rc=0;
-    switch(c->direct.state) {
-    case WALKER_DIRECT_PUSH_READY:
-    case WALKER_DIRECT_PUSHING:
-        c->direct.state=WALKER_DIRECT_PUSHING;
-        rc=walkerDirectTransportPush(c);
-        if(rc>0){c->direct.state=WALKER_DIRECT_PHONE_OWNS;c->direct.error=0;}
-        else if(rc<0){c->direct.state=WALKER_DIRECT_PUSH_READY;c->direct.error=WALKER_DIRECT_ERR_TRANSPORT;c->direct.attempts++;}
-        break;
-    case WALKER_DIRECT_PULL_READY:
-    case WALKER_DIRECT_PULLING:
-        c->direct.state=WALKER_DIRECT_PULLING;
-        rc=walkerDirectTransportPull(c);
-        if(rc>0){c->direct.state=WALKER_DIRECT_CONFIRM_READY;c->direct.error=0;}
-        else if(rc<0){c->direct.state=WALKER_DIRECT_PULL_READY;c->direct.error=WALKER_DIRECT_ERR_TRANSPORT;c->direct.attempts++;}
-        break;
-    case WALKER_DIRECT_CONFIRM_READY:
-        rc=walkerDirectTransportConfirm(c);
-        if(rc>0){c->direct.state=WALKER_DIRECT_IDLE;c->direct.error=0;}
-        else if(rc<0){c->direct.error=WALKER_DIRECT_ERR_TRANSPORT;c->direct.attempts++;}
-        break;
-    default: break;
-    }
+    /* No socket operations in VBlank. State remains PUSH_READY until the
+     * ARM9 transport can genuinely send the 64 KiB image and verify OK. */
 }
 
 void walkerDirectBridgeRequestPull(void) {

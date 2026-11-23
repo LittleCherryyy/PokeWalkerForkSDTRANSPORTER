@@ -37,6 +37,7 @@
 #include "cardengine.h"
 #include "locations.h"
 #include "cardengine_header_arm9.h"
+#include "walker_arm9_snapshot.h"
 #include "unpatched_funcs.h"
 
 #define saveOnFlashcard BIT(0)
@@ -150,6 +151,33 @@ static bool driveInitialized = false;
 static bool region0FixNeeded = false;
 #endif */
 bool igmReset = false;
+/* V7.8 low-overhead ARM9 execution-context evidence.
+ * A ROM read is a normal game callback, but not automatically a safe
+ * network scheduling site. No radio, IRQ handler or save access here.
+ * Keep only four scalar counters; no IPC mailbox or ce9-layout change. */
+#if !defined(TWLSDK) && !defined(B4DS) && !defined(DLDI) && !defined(GSDD)
+static volatile u32 walkerArm9RomReadCalls;
+static volatile u32 walkerArm9EligibleReadCalls;
+static volatile u32 walkerArm9LastReadCpsrMode;
+static volatile u32 walkerArm9LastReadIme;
+/* V7.9: entirely local, constant-time, one-shot DRY RUN. Never a
+ * networking worker and never called from a game IRQ. */
+static volatile u32 walkerArm9PostEligibleCalls;
+/* One-shot: 0 idle, 1 pending, 2 completed in a normal callback. */
+static volatile u32 walkerArm9DryRunStage;
+/* Outside-game-IRQ, bounded 64 KiB checkout coordinator. Actual radio
+ * remains fail-closed until a verified backend is linked. */
+extern void walkerDirectArm9Tick(void);
+/* ARM946E-S does not support MRS CPSR in Thumb-1. The cardengine is built
+ * in Thumb mode, so this tiny interworked leaf must be ARM-state code. */
+__attribute__((target("arm"),noinline))
+static u32 walkerArm9GetCpsrMode(void) {
+    u32 cpsr;
+    __asm__ volatile ("mrs %0, cpsr" : "=r"(cpsr));
+    return cpsr & 0x1fu;
+}
+#endif
+
 
 extern bool isDma;
 
@@ -776,6 +804,21 @@ extern void slot2EmuCheck(u32 entry, u32 valueBits);
 #endif
 
 void cardRead(u32* cacheStruct, u8* dst0, u32 src0, u32 len0) {
+#if !defined(TWLSDK) && !defined(B4DS) && !defined(DLDI) && !defined(GSDD)
+    /* Sample at the existing cardRead entry, before any SDK or bootstrap
+     * critical section. ARM CPSR M[4:0] distinguishes IRQ=0x12 from
+     * System/User/SVC. IME=1 is necessary, not sufficient, for an
+     * eligible non-IRQ network callback.
+     * Do not run networking here; only count it for a later menu snapshot. */
+    const u32 mode=walkerArm9GetCpsrMode();
+    const u32 ime=(REG_IME & 1u);
+    if(walkerArm9RomReadCalls != 0xffffffffu) walkerArm9RomReadCalls++;
+    walkerArm9LastReadCpsrMode=mode;
+    walkerArm9LastReadIme=ime;
+    if((mode == 0x10u || mode == 0x13u || mode == 0x1fu) && ime &&
+       walkerArm9EligibleReadCalls != 0xffffffffu)
+        walkerArm9EligibleReadCalls++;
+#endif
 	//nocashMessage("\narm9 cardRead\n");
 	#ifdef TWLSDK
 	u32 src = src0;
@@ -976,6 +1019,23 @@ void cardRead(u32* cacheStruct, u8* dst0, u32 src0, u32 len0) {
 		(*code)();
 	}
 	#endif
+#if !defined(TWLSDK) && !defined(B4DS) && !defined(DLDI) && !defined(GSDD)
+    /* Read/write operations above have returned. Only sample context and
+     * consume a single pending DRY RUN. There is no IPC, storage, Wi-Fi,
+     * callback invocation, busy wait, allocation, or loop here. */
+    const u32 postMode=walkerArm9GetCpsrMode();
+    if ((postMode==0x10u || postMode==0x13u || postMode==0x1fu) &&
+        (REG_IME & 1u)) {
+        if (walkerArm9PostEligibleCalls!=0xffffffffu)
+            walkerArm9PostEligibleCalls++;
+        if (walkerArm9DryRunStage==1u)
+            walkerArm9DryRunStage=2u;
+        /* One bounded nonblocking step, never inside the virtual IR stub,
+         * ARM7 VBlank, or the game's IRQ mode. The radio backend itself
+         * must be independently verified safe before enabling sockets. */
+        walkerDirectArm9Tick();
+    }
+#endif
 }
 
 /*void cardPullOut(void) {
@@ -1552,6 +1612,25 @@ void initMBKARM9_dsiMode(void) {
 extern void reset(u32 param, u32 tid2);
 
 void inGameMenu(s32* exRegisters) {
+#if !defined(TWLSDK) && !defined(DLDI) && !defined(GSDD)
+    /* Capture before the menu's own critical section. This is commonly
+     * called from myIrqHandlerIPC(), so pre-wrapper is NOT equivalent to
+     * normal gameplay outside IRQ context; in particular IME may be 0.
+     * DLDI and GSDD have tiny cardengine linker budgets. Their IGM
+     * receives NULL and explicitly marks V7.8 diagnostics unavailable. */
+    const WalkerArm9Snapshot preMenu9 = {
+        WALKER_ARM9_SNAPSHOT_MAGIC,
+        (u32)TIMER_CR(3),
+        REG_IE,
+        REG_IME,
+        walkerArm9RomReadCalls,
+        walkerArm9EligibleReadCalls,
+        walkerArm9LastReadCpsrMode,
+        walkerArm9LastReadIme,
+        walkerArm9PostEligibleCalls,
+        walkerArm9DryRunStage
+    };
+#endif
 	int oldIME = enterCriticalSection();
 
 	while (sharedAddr[5] != 0x4C4D4749) { // 'IGML'
@@ -1570,8 +1649,22 @@ void inGameMenu(s32* exRegisters) {
 	#endif
 
 	*(u32*)(INGAME_MENU_LOCATION + IGM_TEXT_SIZE_ALIGNED) = (u32)sharedAddr;
+#ifndef TWLSDK
+    /* Both binaries are built together. Pass a same-CPU stack pointer via
+     * ARM EABI register r3, avoiding busy sharedAddr slots / ARM7 RAM. */
+    volatile u32 (*inGameMenu)(s32*, u32, s32*, const WalkerArm9Snapshot*) =
+        (volatile void*)INGAME_MENU_LOCATION + IGM_ENTRY;
+#if defined(DLDI) || defined(GSDD)
+    const u32 res = (*inGameMenu)(&ce9->mainScreen, ce9->consoleModel,
+                                  exRegisters, (const WalkerArm9Snapshot*)0);
+#else
+    const u32 res = (*inGameMenu)(&ce9->mainScreen, ce9->consoleModel,
+                                  exRegisters, &preMenu9);
+#endif
+#else
 	volatile u32 (*inGameMenu)(s32*, u32, s32*) = (volatile void*)INGAME_MENU_LOCATION + IGM_ENTRY;
 	const u32 res = (*inGameMenu)(&ce9->mainScreen, ce9->consoleModel, exRegisters);
+#endif
 
 	while (sharedAddr[5] != 0x4C4D4749) { // 'IGML'
 		while (REG_VCOUNT != 191) swiDelay(100);
@@ -1606,6 +1699,12 @@ void inGameMenu(s32* exRegisters) {
 	}
 
 	leaveCriticalSection(oldIME);
+#if !defined(TWLSDK) && !defined(B4DS) && !defined(DLDI) && !defined(GSDD)
+    /* Queue once on a normal menu return; the eventual non-IRQ post-read
+     * callback may consume it. This IRQ/menu path NEVER runs the job. */
+    if (!exRegisters && res!=0x52534554u && walkerArm9DryRunStage==0u)
+        walkerArm9DryRunStage=1u;
+#endif
 }
 
 //---------------------------------------------------------------------------------

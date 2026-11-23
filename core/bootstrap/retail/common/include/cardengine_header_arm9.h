@@ -139,6 +139,9 @@ typedef struct cardengineArm9 {
 	u32 romMapLines;
 	u32 romMap[8][3]; // 0: ROM part start, 1: ROM part start in RAM, 2: ROM part end in RAM
 	u32 slot2EmuEntry; // Virtual GBA Slot-2 blob (0 = off); not present in TWLSDK/DSiWare binaries
+    /* Append-only NTR field shared by bootstrap ARM7 and resident ARM9.
+     * Do not insert before any prior cardengine header fields. */
+    u32 walkerControl;
 } cardengineArm9;
 
 #else

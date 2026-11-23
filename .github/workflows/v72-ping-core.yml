@@ -1,0 +1,114 @@
+name: V7.2 resident PING protocol tests (offline only)
+
+on:
+  push:
+    branches:
+      - dev/v72-resident-ping-core
+    paths:
+      - '.github/workflows/v72-ping-core.yml'
+      - 'core/bootstrap/retail/nettransport/**'
+      - 'core/bootstrap/retail/common/include/walker_directsync.h'
+      - 'core/bootstrap/retail/bootloaderi/source/arm7/hook_arm7.c'
+      - 'core/bootstrap/retail/common/include/cardengine_header_arm7.h'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
+      - 'tests/v72_host/**'
+      - 'tools/v7_2/**'
+      - 'core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java'
+  pull_request:
+    paths:
+      - '.github/workflows/v72-ping-core.yml'
+      - 'core/bootstrap/retail/nettransport/**'
+      - 'core/bootstrap/retail/common/include/walker_directsync.h'
+      - 'core/bootstrap/retail/bootloaderi/source/arm7/hook_arm7.c'
+      - 'core/bootstrap/retail/common/include/cardengine_header_arm7.h'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/card_engine_header.s'
+      - 'core/bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
+      - 'core/bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
+      - 'tests/v72_host/**'
+      - 'tools/v7_2/**'
+      - 'core/android/app/src/main/java/io/github/sdtransporter/pokewalker/DirectSyncProtocol.java'
+
+permissions:
+  contents: read
+
+jobs:
+  protocol-host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test host protocol (NO sockets, saves, or console)
+        run: python3 tests/v72_host/run.py
+      - name: Verify real Android Java parser and C PING client interoperably
+        run: python3 tests/v72_host/run_interop.py
+      - name: Verify fail-closed Wi-Fi hardware resource gate
+        run: python3 tests/v72_host/run_preflight.py
+      - name: Verify IRQ_WIFI slot-24 footprint without touching game IRQ handlers
+        run: python3 tests/v72_host/run_irq_audit.py
+      - name: Test 4MB RAM and loaded image bounds for IRQ word reads
+        run: python3 tests/v72_host/run_irq_live_guard.py
+      - name: Check read-only ARM7 IPC and candidate-only UI
+        run: python3 -m unittest discover -s tests/v72_host -p 'test_irq_live_integration.py' -v
+      - name: Audit photographed V7.2.6 IRQ words and require IRQ provenance
+        run: |
+          python3 -m unittest discover -s tests/v72_host -p 'test_irq_words_audit.py' -v
+          python3 tools/v7_2/analyze_irq_words.py --table 0x0238ECF4 --image-start 0x02380000 --image-bytes 0x000276D8 --method 1 --slot0 0xCBA77ABC --slot16 0x24285A5F --slot24 0xBA84DFC5
+      - name: Verify radio snapshot IPC source is read-only
+        run: python3 -m unittest discover -s tests/v72_host -p 'test_radio_snapshot.py' -v
+      - name: Verify DMA3/ARM9 read-only resource snapshot
+        run: python3 -m unittest discover -s tests/v72_host -p 'test_dma3_snapshot.py' -v
+      - name: Verify pre-wrapper ARM9 register handoff and fail-closed UI
+        run: python3 -m unittest discover -s tests/v72_host -p 'test_arm9_prewrapper.py' -v
+      - name: Verify actual HGSS NTR ARM7 IRQ table boot metadata and IPC
+        run: python3 -m unittest discover -s tests/v72_host -p 'test_bootloader_irq_map.py' -v
+      - name: Decode real DSi ARM7 IRQ/timer snapshot and assert safe readiness gates
+        run: |
+          python3 -m unittest discover -s tests/v72_host -p 'test_irq_audit.py' -v
+          python3 tools/v7_2/analyze_irq_snapshot.py --ie 0x00050019 --ime 0x01 --timer0 0x00C1 --timer1 0x00C1 --timer2 0x0000 --timer3 0x0000
+      - name: Decode real V7.2.1 DMA3 and ARM9 menu snapshot
+        run: |
+          python3 -m unittest discover -s tests/v72_host -p 'test_arm9_dma_audit.py' -v
+          python3 tools/v7_2/analyze_arm9_dma_snapshot.py --dma-cr 0 --dma-src 0 --dma-dst 0 --arm9-timer3 0x00C1 --arm9-ie 0x00050049 --arm9-ime 0
+
+  arm-cross-check:
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitarm:20241104
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile V7.2 protocol object for ARM7 and ARM9 (not linked)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARM_CC=/opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc
+          SRC=core/bootstrap/retail/nettransport/walker_ping_engine.c
+          ENGINE=core/bootstrap/retail/nettransport
+          COMMON=core/bootstrap/retail/common/include
+          "$ARM_CC" -std=c11 -O2 -Wall -Wextra -Werror -Wno-unused-function \
+            -march=armv4t -mthumb -I "$ENGINE" -I "$COMMON" -c "$SRC" -o /tmp/walker-ping-arm7.o
+          "$ARM_CC" -std=c11 -Os -Wall -Wextra -Werror -Wno-unused-function \
+            -march=armv5te -I "$ENGINE" -I "$COMMON" -c "$SRC" -o /tmp/walker-ping-arm9.o
+          test -s /tmp/walker-ping-arm7.o
+          test -s /tmp/walker-ping-arm9.o
+          PREFLIGHT=core/bootstrap/retail/nettransport/walker_wifi_preflight.c
+          "$ARM_CC" -std=c11 -O2 -Wall -Wextra -Werror \
+            -march=armv4t -mthumb -I "$ENGINE" -c "$PREFLIGHT" -o /tmp/walker-wifi-gate-arm7.o
+          "$ARM_CC" -std=c11 -Os -Wall -Wextra -Werror \
+            -march=armv5te -I "$ENGINE" -c "$PREFLIGHT" -o /tmp/walker-wifi-gate-arm9.o
+          test -s /tmp/walker-wifi-gate-arm7.o
+          test -s /tmp/walker-wifi-gate-arm9.o
+          IRQ_AUDIT=core/bootstrap/retail/nettransport/walker_wifi_irq_audit.c
+          "$ARM_CC" -std=c11 -O2 -Wall -Wextra -Werror \
+            -march=armv4t -mthumb -I "$ENGINE" -c "$IRQ_AUDIT" -o /tmp/walker-irq-audit-arm7.o
+          test -s /tmp/walker-irq-audit-arm7.o
+          "$ARM_CC" -std=c11 -O2 -Wall -Wextra -Werror \
+            -march=armv4t -mthumb -I core/bootstrap/retail/common/include \
+            -xc -c -o /tmp/walker-irq-live-guard-arm7.o - <<'WALKER_C'
+          #include "walker_irq_live_guard.h"
+          int walker_guard_compile(void) {
+            return walkerIrqReadOnlyRangeOk(0x0238ECF4u,0x02380000u,0x000276D8u,1u);
+          }
+          WALKER_C
+          test -s /tmp/walker-irq-live-guard-arm7.o
+          echo "Both CPU PING/gate objects compile; neither is linked into nds-bootstrap."

@@ -12,13 +12,16 @@
 #include <string.h>
 #include "walker_hgss_net.h"
 
-int walkerResolveHgssNet(const u32 *arm9, u32 base, u32 bytes,
+int walkerResolveHgssNet(const uint32_t *arm9, uint32_t base, uint32_t bytes,
                          WalkerHgssNetApi *out, const char gameCode[4]) {
     if (!out) return 0;
     /* Reset even on malformed inputs; never leak a stale ready=1 state. */
     memset(out, 0, sizeof(*out));
     out->magic = WALKER_HGSS_NET_MAGIC;
-    if (!arm9 || bytes < 0x1000u || (bytes & 3u) || (base & 3u)) return 0;
+    /* The 32-bit target address space must contain the entire ARM9 image.
+     * Reject wraparound before considering any candidate HGSS global. */
+    if (!arm9 || bytes < 0x1000u || (bytes & 3u) || (base & 3u) ||
+        bytes > UINT32_MAX - base) return 0;
 
     /* Address from the matching US HGSS decomp is only a candidate global.
      * This DOES NOT imply an associated Wi-Fi network or an available socket.

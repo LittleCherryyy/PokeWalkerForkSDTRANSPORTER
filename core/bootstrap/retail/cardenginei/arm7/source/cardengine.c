@@ -43,6 +43,10 @@
 #include "slot2_file.h"
 #include "walker_file.h"
 #include "walker_direct_bridge_api.h"
+#ifndef TWLSDK
+extern bool walkerDirectLockDue(void);
+extern void walkerDirectLockWrite(void);
+#endif
 #include "transfer_probe.h"
 #include "gen5_adapter.h"
 #include "gen5_file.h"
@@ -199,6 +203,15 @@ fpsa_t sActiveFpsa;
 
 // static int cardEgnineCommandMutex = 0;
 static int saveMutex = 0;
+
+/* V7.2.8: passive, resident ARM7 execution counters. Counts are only
+ * incremented where the corresponding existing callbacks already execute.
+ * No new interrupt routing, radio startup, SD or save access is added. */
+#ifndef TWLSDK
+volatile u32 walkerVblankCallbackCount = 0;
+volatile u32 walkerBridgeTickCount = 0;
+volatile u32 walkerFifoCallbackCount = 0;
+#endif
 
 bool returnToMenu = false;
 
@@ -1858,6 +1871,9 @@ void runCardEngineCheckHalt(void) {
 //---------------------------------------------------------------------------------
 void myIrqHandlerFIFO(void) {
 //---------------------------------------------------------------------------------
+#ifndef TWLSDK
+    walkerFifoCallbackCount++;
+#endif
 	#ifdef DEBUG		
 	nocashMessage("myIrqHandlerFIFO");
 	#endif
@@ -1906,13 +1922,30 @@ static void slot2EmuWriteLocked(void) {
 
 static void slot2EmuFlush(bool force) {
 	const bool slot2 = slot2EmuDue(force), walker = walkerDue(force);
+#ifndef TWLSDK
+    /* Reserve durable phone ownership only when an ARM9 Wi-Fi backend
+     * explicitly requests it for a fully committed real Pokémon. */
+    const bool directLock = walkerDirectLockDue();
+    if ((!slot2 && !walker && !directLock) || !tryLockMutex(&saveMutex)) return;
+#else
 	if ((!slot2 && !walker) || !tryLockMutex(&saveMutex)) return;
+#endif
 	virtualFilesWriteLocked(slot2, walker, force);
+#ifndef TWLSDK
+    if(directLock && (valueBits & b_dsiSD) && !isSdEjected()) {
+        driveInitialize();
+        sdmmc_set_ndma_slot(4);
+        saveTimer=1;
+        walkerDirectLockWrite();
+        sdmmc_set_ndma_slot(0);
+    }
+#endif
 	unlockMutex(&saveMutex);
 }
 
 void myIrqHandlerVBlank(void) {
   #ifndef TWLSDK
+  walkerVblankCallbackCount++;
   if(gen5Active){sharedAddr[11]++;gen5RecordIrqState();}
   #endif
   while (1) {
@@ -2160,6 +2193,7 @@ void myIrqHandlerVBlank(void) {
 	/* V7.1: poll the persistent ARM7 bridge after the checked SD flush.
 	 * With no verified transport backend, its weak Available() returns false
 	 * and nothing is sent. Future backends MUST remain non-blocking in IRQ. */
+	walkerBridgeTickCount++;
 	walkerDirectBridgeTick();
 	#endif
 

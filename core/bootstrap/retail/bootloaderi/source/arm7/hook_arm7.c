@@ -208,10 +208,16 @@ int hookNdsRetailArm7(
 		}
 	}
 
-	u32* hookLocation = patchOffsetCache.a7IrqHookOffset;
+    u32* hookLocation = patchOffsetCache.a7IrqHookOffset;
+    /* V7.2.5: observe ONLY how the existing NTR bootloader finds the
+     * IRQ table. A cached result has unknown original discovery method.
+     * 0=none, 1=cache, 2=SDK known layout, 3=marker scan,
+     * 4=relative handler literal. No new IRQ table access here. */
+    u32 walkerIrqMethod = hookLocation ? 1u : 0u;
 	if (!hookLocation) {
 		// Now find the IRQ vector table
 		if (ndsHeader->unitCode > 0) {
+            walkerIrqMethod = 2u;
 			switch (newArm7binarySize) {	// SDK 5
 				case 0x0001D5A8:
 					hookLocation = (u32*)0x239D280;		// DS WiFi Settings
@@ -314,12 +320,14 @@ int hookNdsRetailArm7(
 			}
 			if (!hookLocation) {
 				hookLocation = findIrqListOffset((u32*)ndsHeader->arm7destination, newArm7binarySize);
+                if(hookLocation) walkerIrqMethod = 3u;
 			}
 			if (!hookLocation && ndsHeader->unitCode == 3) {
 				dbg_printf("ERR_HOOK\n");
 				return ERR_HOOK;
 			}
 		} else if (wordsLocation[1] >= 0x037F0000 && wordsLocation[1] < 0x03800000) {
+            walkerIrqMethod = 4u;
 			// Use relative and absolute addresses to find the location of the table in RAM
 			u32 tableAddr = wordsLocation[0];
 			u32 returnAddr = wordsLocation[1];
@@ -343,6 +351,15 @@ int hookNdsRetailArm7(
 	dbg_hexa((u32)hookLocation);
 	dbg_printf("\n\n");
 	patchOffsetCache.a7IrqHookOffset = hookLocation;
+
+    /* Metadata only: this assignment is after the existing bootloader has
+     * already accepted the table location for VBlank and IPC. The span
+     * describes the loaded ARM7 image, NOT a verified 25-entry table.
+     * For cached or out-of-image tables, callers must fail closed. */
+    ce7->walkerIrqTableAddress = (u32)hookLocation;
+    ce7->walkerIrqImageStart = (u32)ndsHeader->arm7destination;
+    ce7->walkerIrqImageSize = newArm7binarySize;
+    ce7->walkerIrqTableMethod = walkerIrqMethod;
 
 	u32* vblankHandler = hookLocation;
 	u32* ipcSyncHandler = hookLocation + 16;
@@ -368,6 +385,10 @@ int hookNdsRetailArm7(
 
 	ce7->intr_vblank_orig_return  = *vblankHandler;
 	ce7->intr_fifo_orig_return    = *ipcSyncHandler;
+	/* V7.2.7: save what boot actually observed, before installing the
+	 * existing VBlank/IPC hooks. No new IRQ writes or handler changes. */
+	ce7->walkerIrqBootOriginalVblank = ce7->intr_vblank_orig_return;
+	ce7->walkerIrqBootOriginalIpc = ce7->intr_fifo_orig_return;
 	ce7->cheatEngineAddr          = cheatEngineOffset;
 	ce7->quitFileCluster          = quitFileCluster;
 	ce7->fileCluster              = fileCluster;
@@ -532,6 +553,10 @@ int hookNdsRetailArm7(
 		}
 	}*/
 	}
+	/* V7.2.7: capture installed pointers immediately after the stock
+	 * hooks, while their slots are known to be live at boot time. */
+	ce7->walkerIrqBootInstalledVblank = *vblankHandler;
+	ce7->walkerIrqBootInstalledIpc = *ipcSyncHandler;
 
 	/*extern bool setDmaPatched;
 

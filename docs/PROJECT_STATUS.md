@@ -310,6 +310,14 @@ not the basic TCP client code. Research sources:
 - https://blocksds.skylyrac.net/dswifi/md_documentation_2internet__mode.html
 - https://github.com/pret/pokeheartgold/blob/master/main.lsf
 
+### Reproducible full-source build and native-sockets direction (2026-11-22)
+
+- [DSi nds-bootstrap CI run 45086088787](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45086088787) **succeeded**. With the legacy devkitARM/libnds container and GPL-3.0 bootstrap pack data pulled from pinned SD Transporter ancestor commit `75610fa9905ac252609081287121e8d4c44febed`, the fork compiled **the complete** `bin/nds-bootstrap.nds`, size **1,744,896 bytes**. No upstream source files were overwritten, and no binary was published to the DSi.
+- [Android CI run 45085734540](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45085734540) **succeeded** building the complete debug APK (Java + assets + native C++) for the receiver. The missing `gradle-wrapper.jar` is bypassed by installing pinned Gradle 9.3.1 through `gradle/actions/setup-gradle@v4`. Neither APK nor NTR output proves an in-game radio connection.
+- The HGSS decomp confirms `OverlayManager_Run` **unloads** the Pokéwalker main-menu overlay 112 through `UnloadOverlayByID` when the action exits. The game also has native `SOC_Socket`, `SOC_Send`, `SOC_Recv`, etc., in networking overlay 0; overlay 0 and 112 share RAM, so the socket stack cannot be called during overlay 112's lifetime at linked addresses. See `docs/research/hgss_native_soc_after_walker.md`.
+- **Next actual implementation gate:** capture and verify the game-native post-IR overlay unload/overlay-0 WFC initialization and callable SOC ABI for the relevant HGSS ROM revision, then attach a real backend to the already compiled 64 KiB PUSH worker without a companion homebrew. Until it can associate with the Android hotspot in-game and confirm EEPROM import, the build **MUST remain uninstalled and unadvertised as a finished transfer**.
+- Do not substitute a desktop PING or independent DSi homebrew Wi-Fi probe for an in-game Pokémon transfer. Implement the native NitroWFC route only with verified overlay lifetime, memory, thread and ARM7 service assumptions.
+
 ### CI milestone — actual ARM7/ARM9/IR/linker build passed (2026-11-22)
 
 GitHub Actions [run 45085211191](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45085211191),

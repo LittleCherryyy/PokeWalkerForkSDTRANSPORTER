@@ -1,6 +1,13 @@
 name: Pokewalker NTR source build (not a playable transfer)
 
 on:
+  workflow_call:
+    inputs:
+      upload_unverified_artifact:
+        type: boolean
+        required: false
+        default: false
+        description: 'Developer-only compile result; no in-game Wi-Fi transfer is enabled'
   push:
     branches: ["dev/v72-resident-ping-core"]
     paths:
@@ -131,3 +138,11 @@ jobs:
           stat -c "Full bootstrap: %s bytes (NOT READY for actual Wi-Fi transfer)" \
             core/bootstrap/retail/bin/nds-bootstrap.nds
           echo "Compile/link only. In-game resident Wi-Fi is still missing."
+      - name: Upload diagnostic NTR image (NOT a validated DSi transfer)
+        if: ${{ inputs.upload_unverified_artifact }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nds-bootstrap-source-build-NOT-WIFI-READY
+          path: core/bootstrap/retail/bin/nds-bootstrap.nds
+          if-no-files-found: error
+          retention-days: 7

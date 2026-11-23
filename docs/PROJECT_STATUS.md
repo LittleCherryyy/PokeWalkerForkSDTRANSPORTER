@@ -310,6 +310,40 @@ not the basic TCP client code. Research sources:
 - https://blocksds.skylyrac.net/dswifi/md_documentation_2internet__mode.html
 - https://github.com/pret/pokeheartgold/blob/master/main.lsf
 
+### Post-Pokéwalker native overlay-0 handoff — source implemented (2026-11-22)
+
+The original game-managed network overlay handoff is implemented in
+`retail/transport/walker_hgss_postexit.c` with an SDK-free interface
+`common/include/walker_hgss_postexit.h`. It invokes the game's own
+`HandleLoadOverlay(0, OVY_LOAD_ASYNC)` (real native ABI), **only after**
+the actual Pokéwalker 112 overlay is absent, an actual checkout has
+been committed to SD, and a verified safe **normal game-main-thread**
+callback authorizes the call. It refuses to run during game card reads
+or ARM7 VBlank to avoid recursive NitroFS reads and deadlock. It reads
+the game-owned `sOverlayRegions[3][8]` active-overlay table before and
+after the load and refuses stale/duplicate entries. It never loads the
+original WFC setup overlay 13, which overlaps title-menu overlay 74.
+
+The companion Nitro SOC TCP adapter now independently checks the
+**same game's active overlay table on every socket operation**:
+network overlay 0 must be live, Pokéwalker 112 must be absent.
+Host tests:
+`core/tools/test_walker_hgss_postexit.c` and
+`core/tools/test_walker_hgss_soc_radio.c`.
+[Direct Sync CI run 45087910526](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45087910526)
+passed at commit `48ed30be0391440c3a4f9528093be1bdefd19847`.
+
+**Explicit remaining block:** the exact ROM-specific symbol addresses
+for the original game main-thread application-frame hook,
+`HandleLoadOverlay`, and `sOverlayRegions` have NOT been resolved
+and runtime-verified. No code calls `walkerHgssPostExitPrepare()`
+in the DSi build yet. The ARM7 game-native WCM association, Nitro
+`SOC_Startup`, verified live DHCP gateway, and main-thread
+nonblocking socket scheduling are also not initialized. All these
+source units are compiled out of the default DSi build by independent
+verification gates. It is NOT safe to merely define those flags to
+make a DSi build appear to send Pokémon.
+
 ### Native Nintendo SOC adapter — implemented and host-verified (2026-11-22)
 
 A real, nonblocking Nintendo **SOC TCP adapter** is now in source:

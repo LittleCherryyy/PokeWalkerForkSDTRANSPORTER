@@ -103,6 +103,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          cc -static -O2 upstream/bootstrap/lzss.c -o out/lzss
+          file out/lzss
           docker pull devkitpro/devkitarm:20241104
           docker image inspect devkitpro/devkitarm:20241104 --format '{{json .RepoDigests}}' > out/image-digest.json
           docker run --rm -v "$PWD:/src" -w /src/upstream/bootstrap devkitpro/devkitarm:20241104 bash -ec '
@@ -113,7 +115,7 @@ jobs:
             find retail -type d -name build -prune -exec rm -rf {} +
             find retail -type f \( -name "*.o" -o -name "*.elf" -o -name "*.d" \) -delete
             rm -f retail/bin/nds-bootstrap.nds
-            cc lzss.c -O2 -o /src/out/lzss
+            test -x /src/out/lzss
             make -C retail -j2 DEVKITARM="$PWD/portable-ds-rules" LEGACY_DEVKITARM="$DEVKITPRO/devkitARM" LEGACY_LIBNDS="$DEVKITPRO/libnds" LIBDIRS="$DEVKITPRO/libnds" PYTHON=python3 GIT_VER=nbp003 LZSS=/src/out/lzss all
             for d in bootloader bootloader2 bootloaderi bootloaderi2; do
               arm-none-eabi-nm -n retail/$d/*.elf > /src/out/$d.symbols

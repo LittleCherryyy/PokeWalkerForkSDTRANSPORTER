@@ -28,6 +28,13 @@
       "akmenu": 14991463044
     }
   },
-  "distribution": "GitHub Actions artifacts; retention limited; no GitHub Release created",
-  "license": "GPL-3.0; preserve upstream component notices"
+  "distribution": "Published GitHub prerelease package assembled from the original verified build artifacts without recompilation; original Actions artifacts have limited retention.",
+  "license": "GPL-3.0; preserve upstream component notices",
+  "release": {
+    "tag": "virtual-slot2-v0.1.0-beta",
+    "prerelease": true,
+    "url": "https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/releases/tag/virtual-slot2-v0.1.0-beta",
+    "asset": "https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/releases/download/virtual-slot2-v0.1.0-beta/Virtual-Slot2-v0.1.0-beta-DSi.zip",
+    "publication_run": 45548345261
+  }
 }

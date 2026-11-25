@@ -4,6 +4,8 @@
 
 An independent module within the Pokéwalker Virtual ecosystem, dedicated to native Pokémon migration from Generation III to Generation IV through Pal Park. No Wi-Fi, Android application, or physical GBA cartridge is required. This branch preserves the version confirmed working by the user on real hardware on November 25, 2026.
 
+- [Download the published DSi beta](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/releases/download/virtual-slot2-v0.1.0-beta/Virtual-Slot2-v0.1.0-beta-DSi.zip)
+- [GitHub Release notes](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/releases/tag/virtual-slot2-v0.1.0-beta)
 - [Installation, usage and limitations](virtual-slot2/README.md)
 - [Version history](virtual-slot2/CHANGELOG.md)
 - [Release manifest and reproducible build information](virtual-slot2/release.json)

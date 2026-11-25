@@ -6,8 +6,8 @@ Emulate a GBA Slot-2 cartridge on the Nintendo DSi using an external nds-bootstr
 
 ## Installation and usage
 
-1. Download the [NBP016 bootstrap](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45546143437/artifacts/14991950123) and [TWLM03 DSi/NES menu](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45546166642/artifacts/14990769748).
-2. Copy the files from both packages' `_nds` directories to the root of the SD card: `nds-bootstrap-nightly.nds`, `nds-bootstrap/plugins/virtual_slot2.nbp` and `TWiLightMenu/dsimenu.srldr`. Use the Nightly channel.
+1. Download the [published DSi beta ZIP](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/releases/download/virtual-slot2-v0.1.0-beta/Virtual-Slot2-v0.1.0-beta-DSi.zip).
+2. Copy the files from its `_nds` directory to the root of the SD card: `nds-bootstrap-nightly.nds`, `nds-bootstrap/plugins/virtual_slot2.nbp` and `TWiLightMenu/dsimenu.srldr`. Use the Nightly channel.
 3. Keep your existing configuration, or initially insert a compatible GBA ROM through the Y menu while highlighting the GBA game. Insertion requires an associated save. ROM and save paths can also be configured in `sd:/_nds/nds-bootstrap/slot2.ini`. See the example included in the package. Do not overwrite a working configuration indiscriminately.
 4. Launch a compatible DS game. For supported titles and revisions, the daily migration limit bypass is opt-in through the Y menu or `migration.ini`.
 5. Save your DS game progress. Open the in-game menu with L + Down + Select and choose Virtual Slot-2. Up/Down changes the edition, Left/Right changes the save, A confirms and restarts, and B cancels.

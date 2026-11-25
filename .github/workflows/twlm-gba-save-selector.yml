@@ -182,6 +182,10 @@ jobs:
             export PATH="$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH"
             arm-none-eabi-gcc --version
             find . -type d -name build -prune -exec rm -rf {} +
+            # DATA is expanded when the ARM9 submake starts; ensure binary inputs exist first.
+            make -C "romsel_$THEME" -j1 bootloader bootstub
+            test -s "romsel_$THEME/data/load.bin"
+            test -s "romsel_$THEME/data/bootstub.bin"
             make -C "romsel_$THEME" -j2 all
           ' 2>&1 | tee out/build.log
       - name: Validate and package menu only

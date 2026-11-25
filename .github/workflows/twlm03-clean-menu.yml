@@ -1,0 +1,109 @@
+name: TWLM03 clean DS game settings
+on:
+  push:
+    branches: [experimental/nbp003-build-only]
+    paths: [.github/workflows/twlm03-clean-menu.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - theme: dsimenutheme
+            target: dsimenu
+          - theme: r4theme
+            target: r4menu
+          - theme: aktheme
+            target: akmenu
+    steps:
+      - name: Fetch and patch pinned upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          git init upstream
+          git -C upstream remote add origin https://github.com/Shinygati/SD-Transporter.git
+          git -C upstream fetch --depth=1 origin 75610fa9905ac252609081287121e8d4c44febed
+          git -C upstream checkout --detach FETCH_HEAD
+          python3 - <<'PY'
+          import pathlib, hashlib, subprocess
+          root=pathlib.Path('upstream/TWiLightMenu-27.25.1')
+          def check(p,sha):
+              b=p.read_bytes()
+              assert hashlib.sha1(b'blob '+str(len(b)).encode()+b'\0'+b).hexdigest()==sha,p
+          def replace(p,a,b):
+              t=p.read_text(); assert t.count(a)==1,(p,a); p.write_text(t.replace(a,b,1))
+          h=root/'universal/include/common/pokeSlots.h'
+          check(h,'8d43fa7b690fdb54963c5ffcbdbf4b3af902ceb0')
+          themes=['dsimenutheme','r4theme','aktheme']
+          for theme in themes:
+              p=root/f'romsel_{theme}/arm9/source/perGameSettings.cpp'
+              t=p.read_text()
+              assert 'gbaSource' not in t and 'GbaSelector' not in h.read_text()
+              assert 'migrationLabel' in t and 'toggleSlot2' in t
+          (pathlib.Path('out')/'clean-menu.txt').write_text('TWLM03: upstream menu retained; no TWLM02 ROM/save rows injected. GBA ROM insertion and migration bypass preserved.\n')
+          pathlib.Path('out/menu-selector.patch').write_bytes(subprocess.check_output(['git','-C','upstream','diff','--binary']))
+          PY
+      - name: Build menu theme in legacy devkitARM
+        shell: bash
+        env:
+          THEME: ${{ matrix.theme }}
+        run: |
+          set -euo pipefail
+          docker pull devkitpro/devkitarm:20241104
+          docker run --rm -e THEME -v "$PWD:/src" -w /src/upstream/TWiLightMenu-27.25.1 devkitpro/devkitarm:20241104 bash -ec '
+            export DEVKITPRO=/opt/devkitpro
+            export DEVKITARM=$DEVKITPRO/devkitARM
+            export LIBNDS=$DEVKITPRO/libnds
+            export PATH="$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH"
+            arm-none-eabi-gcc --version
+            find . -type d -name build -prune -exec rm -rf {} +
+            # DATA is expanded when the ARM9 submake starts; ensure binary inputs exist first.
+            make -C "romsel_$THEME" -j1 bootloader bootstub
+            test -s "romsel_$THEME/data/load.bin"
+            test -s "romsel_$THEME/data/bootstub.bin"
+            make -C "romsel_$THEME" -j2 all
+          ' 2>&1 | tee out/build.log
+      - name: Validate and package menu only
+        shell: bash
+        env:
+          THEME: ${{ matrix.theme }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,os,struct,shutil,hashlib,json
+          out=pathlib.Path('out')
+          theme=os.environ['THEME']; target=os.environ['TARGET']
+          root=pathlib.Path('upstream')
+          nds=root/'TWiLightMenu-27.25.1'/('romsel_'+theme)/('romsel_'+theme+'.nds')
+          b=nds.read_bytes()
+          for off in (0x20,0x30):
+              start,entry,dest,size=struct.unpack_from('<4I',b,off)
+              assert size and start>=512 and start+size<=len(b) and dest<=(entry&~1)<dest+size
+          assert b'GBA save: none found' not in b and b'GBA source no longer valid' not in b
+          pkg=out/'package'; folder=pkg/'_nds/TWiLightMenu';folder.mkdir(parents=True)
+          shutil.copyfile(nds,folder/(target+'.srldr'))
+          shutil.copyfile(out/'clean-menu.txt',pkg/'clean-menu.txt')
+          for n in ('LICENSE','CREDITS.md'):
+              shutil.copyfile(root/n,pkg/n)
+          (pkg/'README-TEST.txt').write_text('TWLM03: replace only matching theme .srldr. Removes TWLM02 added ROM/save rows from Gen IV DS game Y menu; original GBA virtual Slot-2 insertion/removal and DS migration bypass remain. Existing slot2.ini remains untouched. Use NBP016 in-game menu for edition/save selection. If no cartridge is configured, use Y on a compatible GBA ROM to insert it. Hardware test pending. Source: Shinygati/SD-Transporter 75610fa9905ac252609081287121e8d4c44febed; see credits.\n')
+          (pkg/'build-report.json').write_text(json.dumps({'theme':theme,'sha256':hashlib.sha256(b).hexdigest(),'hardware_tested':False},indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TWLM03-${{ matrix.target }}-test
+          path: out/package
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TWLM03-${{ matrix.target }}-diagnostics
+          path: |
+            out/build.log
+            out/menu-selector.patch

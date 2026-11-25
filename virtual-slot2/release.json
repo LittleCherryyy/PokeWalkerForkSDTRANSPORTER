@@ -1,0 +1,33 @@
+{
+  "version": "0.1.0-beta",
+  "module": "Virtual Slot-2",
+  "hardware_validation": {
+    "date": "2026-11-25",
+    "scope": "User confirmed NBP016 + TWLM03 functioning on Nintendo DSi; not exhaustive compatibility validation"
+  },
+  "upstream": {
+    "repo": "Shinygati/SD-Transporter",
+    "commit": "75610fa9905ac252609081287121e8d4c44febed",
+    "sdk": "devkitpro/devkitarm:20241104"
+  },
+  "bootstrap": {
+    "version": "NBP016",
+    "commit": "2b8f49b2ff771d298d00f28ff5a7104e7a8546b1",
+    "workflow": ".github/workflows/nbp016-swap.yml",
+    "run": 45546143437,
+    "artifact": 14991950123
+  },
+  "twilight": {
+    "version": "TWLM03",
+    "commit": "18e68a74f89c6f0092c317c313e3dbc902697781",
+    "workflow": ".github/workflows/twlm03-clean-menu.yml",
+    "run": 45546166642,
+    "artifacts": {
+      "dsimenu": 14990769748,
+      "r4menu": 14990789702,
+      "akmenu": 14991463044
+    }
+  },
+  "distribution": "GitHub Actions artifacts; retention limited; no GitHub Release created",
+  "license": "GPL-3.0; preserve upstream component notices"
+}

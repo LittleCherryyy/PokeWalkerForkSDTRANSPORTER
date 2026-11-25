@@ -1,3 +1,21 @@
+# Virtual Slot-2 — Pokéwalker Virtual Plus
+
+**v0.1.0-beta | NBP016 + TWLM03 | Nintendo DSi (SD interno)**
+
+Módulo independente do ecossistema Pokéwalker Virtual, dedicado à migração nativa de Pokémon da terceira para a quarta geração através do Pal Park. Não necessita de Wi-Fi, aplicativo Android ou cartucho GBA físico. Esta branch preserva a versão confirmada pelo usuário em hardware em 25/11/2026.
+
+- [Instalação, uso e limitações](virtual-slot2/README.md)
+- [Histórico de versões](virtual-slot2/CHANGELOG.md)
+- [Manifesto da versão e builds reproduzíveis](virtual-slot2/release.json)
+- [Bootstrap NBP016 — download](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45546143437/artifacts/14991950123)
+- [TWiLight TWLM03 — DSi/NES — download](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45546166642/artifacts/14990769748)
+
+O código do Pokéwalker Wi-Fi continua separado na [main](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/tree/main) e nas branches de desenvolvimento originais. Os bootstraps ainda não foram unificados. Nenhum ROM ou save comercial é distribuído.
+
+Projeto derivado de [SD Transporter](https://github.com/Shinygati/SD-Transporter), com créditos a nds-bootstrap, TWiLight Menu++ e seus colaboradores. Veja [ATTRIBUTION.md](ATTRIBUTION.md), [CREDITS-UPSTREAM.md](CREDITS-UPSTREAM.md) e [LICENSE](LICENSE).
+
+## Contexto do projeto principal
+
 # Pokéwalker Virtual — SD Transporter fork
 
 > **Unofficial derivative of [Shinygati/SD-Transporter](https://github.com/Shinygati/SD-Transporter).**

@@ -1,0 +1,70 @@
+name: Update Virtual Slot-2 beta usage documentation
+on:
+  push:
+    branches: ['virtual-slot2/v0.1.0-beta']
+    paths: ['.github/workflows/virtual-slot2-beta-usage.yml']
+permissions:
+  contents: write
+jobs:
+  update-notes:
+    if: github.ref == 'refs/heads/virtual-slot2/v0.1.0-beta'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Update published release notes only
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view virtual-slot2-v0.1.0-beta --repo "$GITHUB_REPOSITORY" --json tagName,isPrerelease,assets
+          cat > release-notes.md <<'EOF'
+          ## Virtual Slot-2 v0.1.0-beta
+          
+          First user-confirmed working beta for the Nintendo DSi (internal SD), using **NBP016 + TWLM03**. An independent module of Pokéwalker Virtual Plus. No Wi-Fi, Android companion app or physical GBA cartridge is required.
+          
+          ### Features
+          - Virtual GBA Slot-2 cartridge with native Pal Park migration.
+          - In-game edition/save selector: Up/Down selects the edition; Left/Right selects the save.
+          - Verified GBA save writeback before cartridge changes and automatic bootstrap restart.
+          - Opt-in migration limit bypass for supported titles and revisions.
+          - Clean DS game settings menu; initial insertion via the GBA ROM menu remains available.
+          
+          ### Installation
+          Download the DSi ZIP and extract its _nds folder to the SD card root. Select the Nightly bootstrap. Keep existing INI files and saves. See README.txt inside the archive for setup and controls.
+          
+          ### How to use Virtual Slot-2 in-game
+          
+          1. In TWiLight Menu++, highlight a compatible GBA Pokémon ROM, press **Y**, and choose **Set as virtual Slot-2 cartridge**. An associated save is required. If a valid cartridge is already configured, skip this step.
+          2. Launch Pokémon Diamond, Pearl, Platinum, HeartGold or SoulSilver with the Nightly bootstrap. Save your DS game before changing cartridges.
+          3. Press **L + D-Pad Down + SELECT** together to open the nds-bootstrap in-game menu, then select **Virtual Slot-2**.
+          4. Choose the GBA edition and save directly using the D-pad:
+          
+             | Control | Action |
+             | --- | --- |
+             | D-Pad Up / Down | Change edition (Ruby, Sapphire, Emerald, FireRed or LeafGreen) |
+             | D-Pad Left / Right | Change save within that edition |
+             | A | Apply the selection and confirm the restart |
+             | B | Cancel and return to the previous menu |
+          
+          5. The bootstrap checks pending GBA save writes, stores the new selection and restarts the current DS game. There is no need to return to TWiLight Menu++ between cartridge changes.
+          6. At the Pokémon title menu, choose **MIGRATE FROM [EDITION]** (for example, **MIGRATE FROM EMERALD**). The destination game's normal Pal Park unlock requirements still apply. Select six eligible Pokémon from the selected GBA save and confirm the migration.
+          7. Enter Pal Park, complete the Catching Show, and save your DS game. Allow pending writes to finish before turning off the console. Migrated Pokémon are removed from the source GBA save; they are not cloned.
+          8. To migrate from another edition or save, repeat steps 2–7. The optional migration limit bypass applies only to supported game revisions; it does not remove the normal Pal Park eligibility requirements.
+          
+          **ROM hacks and save variants:** the menu displays the base edition rather than the full ROM filename. The catalog associates saves with compatible ROM variants using game IDs and filenames. If you need to force a specific patched ROM, configure the desired ROM/save pair before launching.
+          
+          **Important:** this beta requires an initially configured virtual cartridge. Swapping restarts the bootstrap rather than hot-swapping while the game runs. The tested platform is Nintendo DSi with internal SD; back up both saves.
+          
+          ### Validation and limitations
+          Confirmed working by the user on a real Nintendo DSi. Earlier tests confirmed Emerald-to-Pearl migration and writeback; FireRed recognition and Ruby, Sapphire and LeafGreen operation were reported. Full migration coverage for all Generation IV titles, regions and ROM hacks is not yet established. Flashcards/B4DS are not supported by this provider. This is a beta; back up both saves.
+          
+          ### Build provenance
+          These binaries are the original tested artifacts, not a new build:
+          - NBP016: https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45546143437
+          - TWLM03 DSi theme: https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45546166642
+          
+          Original source: [Shinygati/SD-Transporter](https://github.com/Shinygati/SD-Transporter), commit 75610fa9905ac252609081287121e8d4c44febed. Credit to its contributors, nds-bootstrap and TWiLight Menu++ contributors. Original credits, GPLv3 license and integration patch are included. No commercial ROMs or saves are distributed.
+          EOF
+          gh release edit virtual-slot2-v0.1.0-beta --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
+          gh release view virtual-slot2-v0.1.0-beta --repo "$GITHUB_REPOSITORY" --json url,body,assets

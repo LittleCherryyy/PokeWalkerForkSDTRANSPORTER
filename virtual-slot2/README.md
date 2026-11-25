@@ -13,6 +13,29 @@ Emulate a GBA Slot-2 cartridge on the Nintendo DSi using an external nds-bootstr
 5. Save your DS game progress. Open the in-game menu with L + Down + Select and choose Virtual Slot-2. Up/Down changes the edition, Left/Right changes the save, A confirms and restarts, and B cancels.
 6. Verify MIGRATE FROM in the game's menu and complete Pal Park. Save your DS game and allow writes to finish before powering off.
 
+## How to use Virtual Slot-2 in-game
+
+1. In TWiLight Menu++, highlight a compatible GBA Pokémon ROM, press **Y**, and choose **Set as virtual Slot-2 cartridge**. An associated save is required. If a valid cartridge is already configured, skip this step.
+2. Launch Pokémon Diamond, Pearl, Platinum, HeartGold or SoulSilver with the Nightly bootstrap. Save your DS game before changing cartridges.
+3. Press **L + D-Pad Down + SELECT** together to open the nds-bootstrap in-game menu, then select **Virtual Slot-2**.
+4. Choose the GBA edition and save directly using the D-pad:
+
+   | Control | Action |
+   | --- | --- |
+   | D-Pad Up / Down | Change edition (Ruby, Sapphire, Emerald, FireRed or LeafGreen) |
+   | D-Pad Left / Right | Change save within that edition |
+   | A | Apply the selection and confirm the restart |
+   | B | Cancel and return to the previous menu |
+
+5. The bootstrap checks pending GBA save writes, stores the new selection and restarts the current DS game. There is no need to return to TWiLight Menu++ between cartridge changes.
+6. At the Pokémon title menu, choose **MIGRATE FROM [EDITION]** (for example, **MIGRATE FROM EMERALD**). The destination game's normal Pal Park unlock requirements still apply. Select six eligible Pokémon from the selected GBA save and confirm the migration.
+7. Enter Pal Park, complete the Catching Show, and save your DS game. Allow pending writes to finish before turning off the console. Migrated Pokémon are removed from the source GBA save; they are not cloned.
+8. To migrate from another edition or save, repeat steps 2–7. The optional migration limit bypass applies only to supported game revisions; it does not remove the normal Pal Park eligibility requirements.
+
+**ROM hacks and save variants:** the menu displays the base edition rather than the full ROM filename. The catalog associates saves with compatible ROM variants using game IDs and filenames. If you need to force a specific patched ROM, configure the desired ROM/save pair before launching.
+
+**Important:** this beta requires an initially configured virtual cartridge. Swapping restarts the bootstrap rather than hot-swapping while the game runs. The tested platform is Nintendo DSi with internal SD; back up both saves.
+
 ## Compatibility and evidence
 
 - Nintendo DSi, internal SD, Pearl (USA, ROM modified for Ranch): complete Emerald migration and removal from the GBA save were confirmed; FireRed was recognized; Ruby, Sapphire and LeafGreen were reported working by the user. The NBP016 + TWLM03 combination was confirmed working by the user; this does not constitute a complete migration test matrix for that version.

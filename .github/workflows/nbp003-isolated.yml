@@ -1,0 +1,168 @@
+name: NBP003 isolated Slot-2 build
+on:
+  push:
+    branches: [experimental/nbp003-build-only]
+    paths: [.github/workflows/nbp003-isolated.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Fetch pinned public source and apply diagnostic provider patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          git init upstream
+          git -C upstream remote add origin https://github.com/Shinygati/SD-Transporter.git
+          git -C upstream fetch --depth=1 origin 75610fa9905ac252609081287121e8d4c44febed
+          git -C upstream checkout --detach FETCH_HEAD
+          python3 - <<'PY'
+          import pathlib, hashlib, re, struct, zlib, subprocess, difflib
+          root=pathlib.Path('upstream')
+          files={
+          'bootstrap/retail/arm9/include/slot2_prepare.h':'2dc9bbd804bd195156da3b6ada357ba1f6cdff3f',
+          'bootstrap/retail/bootloaderi/source/arm7/slot2emu_boot.c':'c99afbaf6b6de77eb35b93468d71ad18dbae6b22',
+          'bootstrap/retail/bootloaderi/source/arm7/hook_arm9.c':'dd943b31f9fcdec288274666fb4ac138af2bc96e',
+          'bootstrap/retail/common/include/slot2_emu_payload.h':'7ea3155bf70c423db0573ff6ce304f64cbad37fd'}
+          def blobhash(b): return hashlib.sha1(b'blob '+str(len(b)).encode()+b'\0'+b).hexdigest()
+          for p,sha in files.items(): assert blobhash((root/p).read_bytes())==sha,p
+          prep,boot,hook,pay=map(lambda p:root/p,files)
+          code=bytes(int(v,16) for v in re.findall(r'0x([0-9a-fA-F]{2})\b',re.search(r'slot2EmuBlob\[7572\][^=]*=\s*\{([^}]+)\}',pay.read_text(),re.S)[1]))
+          assert len(code)==7572 and zlib.crc32(code)==0x7a10ef46
+          pkg=struct.pack('<4s7I',b'NBP2',1,32,0x4d453253,0,7572,0x7a10ef46,0)+code
+          pathlib.Path('out/virtual_slot2.nbp').write_bytes(pkg)
+          header=r'''/* SPDX-License-Identifier: GPL-3.0-or-later */
+          #ifndef NBP_SLOT2_H
+          #define NBP_SLOT2_H
+          #define NBP_S2_PATH "sd:/_nds/nds-bootstrap/plugins/virtual_slot2.nbp"
+          #define NBP_S2_HEADER 32u
+          #define NBP_S2_CODE 7572u
+          #define NBP_S2_CRC 0x7a10ef46u
+          #define NBP_S2_TOTAL (NBP_S2_HEADER + NBP_S2_CODE)
+          #define NBP_S2_CLUSTER_MAX 0x0fffffefu
+          static inline unsigned int nbpS2le(const unsigned char *p) {
+            return (unsigned int)p[0]|((unsigned int)p[1]<<8)|((unsigned int)p[2]<<16)|((unsigned int)p[3]<<24);
+          }
+          static inline unsigned int nbpS2crc(const unsigned char *p,unsigned int n) {
+            unsigned int c=~0u; while(n--) {c^=*p++; for(unsigned int i=0;i<8;i++) c=(c>>1)^(0xedb88320u&(0u-(c&1u)));} return ~c;
+          }
+          static inline int nbpS2header(const unsigned char *h) {
+            return nbpS2le(h)==0x3250424eu && nbpS2le(h+4)==1u && nbpS2le(h+8)==32u && nbpS2le(h+12)==0x4d453253u && nbpS2le(h+16)==0u && nbpS2le(h+20)==NBP_S2_CODE && nbpS2le(h+24)==NBP_S2_CRC && nbpS2le(h+28)==0u;
+          }
+          static inline unsigned int nbpS2packCluster(unsigned int c,unsigned int flags) {return c>=2u && c<=NBP_S2_CLUSTER_MAX ? (c<<1)|(flags&1u):0u;}
+          static inline unsigned int nbpS2cluster(unsigned int v) {unsigned int c=v>>1;return c>=2u && c<=NBP_S2_CLUSTER_MAX?c:0u;}
+          #endif
+          '''
+          hdr=pay.parent/'nbp_slot2.h'
+          assert not hdr.exists()
+          hdr.write_text(header)
+          def replace(p,a,b):
+            s=p.read_text(); assert s.count(a)==1,(p,a);p.write_text(s.replace(a,b,1))
+          replace(prep,'#include "configuration.h"','#include "configuration.h"\n#include "../../common/include/nbp_slot2.h"')
+          replace(prep,'\tconf->slot2SaveCluster = saveCluster;',r'''  /* Diagnostic: only HG USA + Emerald USA, no GBA writeback. */
+            if (memcmp(nds + 12, "IPKE", 4) || gameCode != 0x45455042u || size != 0x20000u || !romCluster)
+              return slot2Skip(conf, "NBP2: requires IPKE + BPEE ROM + 128 KiB GBA save");
+            struct stat pluginStat;
+            if (stat(NBP_S2_PATH, &pluginStat) || !S_ISREG(pluginStat.st_mode) || pluginStat.st_size != NBP_S2_TOTAL
+             || pluginStat.st_ino < 2 || pluginStat.st_ino > NBP_S2_CLUSTER_MAX
+             || (u32)pluginStat.st_ino == saveCluster || (u32)pluginStat.st_ino == romCluster
+             || (u32)pluginStat.st_ino == dsSaveCluster || (u32)pluginStat.st_ino == dsRomCluster)
+              return slot2Skip(conf, "NBP2: external provider missing or invalid");
+            unsigned char pluginHeader[NBP_S2_HEADER];
+            f = fopen(NBP_S2_PATH, "rb");
+            const bool pluginOk = f && fread(pluginHeader,1,sizeof(pluginHeader),f)==sizeof(pluginHeader);
+            if (f) fclose(f);
+            if (!pluginOk || !nbpS2header(pluginHeader)) return slot2Skip(conf, "NBP2: provider header mismatch");
+            conf->slot2Reserved0 = nbpS2packCluster((u32)pluginStat.st_ino, 0);
+            if (!conf->slot2Reserved0) return slot2Skip(conf, "NBP2: invalid FAT cluster");
+            conf->slot2SaveCluster = saveCluster;''')
+          replace(boot,'#include "slot2_emu_payload.h"','#include "nbp_slot2.h"')
+          replace(boot,'\ttonccpy((u8 *)slot2EmuBase + SLOT2EMU_BLOB_OFF, slot2EmuBlob, sizeof(slot2EmuBlob));',r'''  const u32 cluster = nbpS2cluster(slot2Reserved0);
+            if (!cluster || NBP_S2_CODE > SLOT2EMU_BLOB_MAX) {slot2Disable(ce9);return;}
+            aFile plugin;
+            getFileFromCluster(&plugin,cluster,false);
+            u8 h[NBP_S2_HEADER];
+            u8 *payload=(u8 *)slot2EmuBase+SLOT2EMU_BLOB_OFF;
+            if (fileRead((char *)h,&plugin,0,sizeof(h))!=sizeof(h) || !nbpS2header(h)
+             || fileRead((char *)payload,&plugin,NBP_S2_HEADER,NBP_S2_CODE)!=NBP_S2_CODE
+             || nbpS2crc(payload,NBP_S2_CODE)!=NBP_S2_CRC) {
+              toncset(payload,0,NBP_S2_CODE);slot2Disable(ce9);return;
+            }''')
+          replace(boot,'\tce7->slot2SaveCluster = slot2SaveCluster;','\tce7->slot2SaveCluster = 0; /* no GBA disk writeback */')
+          replace(hook,'#include "slot2_emu.h"','#include "slot2_emu.h"\n#include "nbp_slot2.h"')
+          replace(hook,'\treturn slot2SaveCluster && ndsHeader->unitCode == 0','\textern u32 slot2Reserved0;\n\treturn nbpS2cluster(slot2Reserved0) && slot2SaveCluster && ndsHeader->unitCode == 0')
+          subprocess.run(['git','-C','upstream','add','-N',str(hdr.relative_to(root))],check=True)
+          pathlib.Path('out/integration.patch').write_bytes(subprocess.check_output(['git','-C','upstream','diff','--binary']))
+          print('Pinned sources verified, external provider packaged:',len(pkg))
+          PY
+      - name: Build in documented legacy SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull devkitpro/devkitarm:20241104
+          docker image inspect devkitpro/devkitarm:20241104 --format '{{json .RepoDigests}}' > out/image-digest.json
+          docker run --rm -v "$PWD:/src" -w /src/upstream/bootstrap devkitpro/devkitarm:20241104 bash -ec '
+            export DEVKITPRO=/opt/devkitpro
+            export PATH="$DEVKITPRO/devkitARM/bin:$DEVKITPRO/tools/bin:$PATH"
+            arm-none-eabi-gcc --version
+            [[ $(arm-none-eabi-gcc -dumpfullversion) == 14.2.* ]]
+            find retail -type d -name build -prune -exec rm -rf {} +
+            find retail -type f \( -name "*.o" -o -name "*.elf" -o -name "*.d" \) -delete
+            rm -f retail/bin/nds-bootstrap.nds
+            cc lzss.c -O2 -o /src/out/lzss
+            make -C retail -j2 DEVKITARM="$PWD/portable-ds-rules" LEGACY_DEVKITARM="$DEVKITPRO/devkitARM" LEGACY_LIBNDS="$DEVKITPRO/libnds" LIBDIRS="$DEVKITPRO/libnds" PYTHON=python3 GIT_VER=nbp003 LZSS=/src/out/lzss all
+            for d in bootloader bootloader2 bootloaderi bootloaderi2; do
+              arm-none-eabi-nm -n retail/$d/*.elf > /src/out/$d.symbols
+            done
+          ' 2>&1 | tee out/build.log
+      - name: Validate and package test candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib, struct, zlib, hashlib, json, shutil
+          out=pathlib.Path('out'); root=pathlib.Path('upstream/bootstrap/retail')
+          nds=root/'bin/nds-bootstrap.nds'; b=nds.read_bytes()
+          assert len(b)>=512 and b[12:16]==b'KBSE'
+          for off in (0x20,0x30):
+            start,entry,dest,size=struct.unpack_from('<4I',b,off)
+            assert size and start>=512 and start+size<=len(b) and dest<=(entry&~1)<dest+size
+          p=(out/'virtual_slot2.nbp').read_bytes()
+          assert len(p)==7604 and struct.unpack_from('<4s7I',p)==(b'NBP2',1,32,0x4d453253,0,7572,0x7a10ef46,0) and zlib.crc32(p[32:])==0x7a10ef46
+          gaps={}
+          for d in ('bootloader','bootloader2','bootloaderi','bootloaderi2'):
+            s={x[2]:int(x[0],16) for l in (out/(d+'.symbols')).read_text().splitlines() if len(x:=l.split())==3}
+            gaps[d]=s['__sp_usr']-s['__bss_end']
+            assert gaps[d]>=4096,(d,gaps[d])
+            if d=='bootloaderi': assert 'slot2EmuBoot' in s and 'slot2EmuBlob' not in s
+          target=out/'DSi-test'; plug=target/'_nds/nds-bootstrap/plugins';plug.mkdir(parents=True)
+          shutil.copyfile(nds,target/'_nds/nds-bootstrap-nightly.nds')
+          shutil.copyfile(out/'virtual_slot2.nbp',plug/'virtual_slot2.nbp')
+          shutil.copyfile(out/'integration.patch',target/'integration.patch')
+          for name in ('LICENSE','CREDITS.md'):
+            shutil.copyfile(pathlib.Path('upstream')/name,target/name)
+          (target/'slot2.ini.example').write_text('[SLOT2]\nGBA_ROM_PATH = sd:/roms/gba/Pokemon Emerald.gba\nGBA_SAV_PATH = sd:/roms/gba/saves/Pokemon Emerald-test.sav\n')
+          (target/'TEST-ONLY.txt').write_text('DSi internal SD; IPKE and BPEE only. BACK UP BOTH SAVES, use disposable copies, Nightly bootstrap. Compare boot without plugin, then with plugin. Check MIGRATE FROM EMERALD and list only. NEVER confirm a migration: GBA disk writeback is disabled. Not hardware validated. Original SD-Transporter and nds-bootstrap contributors credited in CREDITS.md. Source base: 75610fa9905ac252609081287121e8d4c44febed; corresponding changes in integration.patch.\n')
+          (target/'build-report.json').write_text(json.dumps({'hardware_tested':False,'loader_static_stack_margins':gaps,'nds_sha256':hashlib.sha256(b).hexdigest(),'plugin_sha256':hashlib.sha256(p).hexdigest()},indent=2))
+          (target/'SHA256SUMS.txt').write_text(''.join(hashlib.sha256(f.read_bytes()).hexdigest()+'  '+str(f.relative_to(target))+'\n' for f in sorted(target.rglob('*')) if f.is_file() and f.name!='SHA256SUMS.txt'))
+          print(gaps)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DSi-NBP003-test-candidate
+          path: out/DSi-test/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NBP003-build-diagnostics
+          path: |
+            out/build.log
+            out/*.symbols
+            out/integration.patch
+            out/image-digest.json
+          if-no-files-found: ignore

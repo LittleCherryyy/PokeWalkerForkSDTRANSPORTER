@@ -560,11 +560,11 @@ jobs:
           replace(main,'#include "slot2_prepare.h"','#include "slot2_prepare.h"\n#include "nbp_swap.h"')
           replace(main,'const bool nbpPrepared = slot2Prepare(conf, clusterSav, st.st_ino);',r'''const bool nbpSwapped = conf->sdFound && !conf->bootstrapOnFlashcard && !conf->gameOnFlashcard && !conf->saveOnFlashcard && !conf->b4dsMode && nbpswap::applyRequest(conf,clusterSav,st.st_ino);
             const bool nbpPrepared = slot2Prepare(conf, clusterSav, st.st_ino);''')
-          replace(main,'fwrite(record,1,sizeof(record),trace);\n                fclose(trace);','fwrite(record,1,sizeof(record),trace);\n                nbpswap::makeCatalog(trace,conf);\n                fclose(trace);')
-          replace(main,'  myConsoleDemoInit();\n            consoleClear();\n            iprintf("NBP012 SLOT-2 DIAGNOSTIC\\n\\n");','  scanKeys();\n            if (keysHeld() & KEY_SELECT) {\n            myConsoleDemoInit();\n            consoleClear();\n            iprintf("NBP012 SLOT-2 DIAGNOSTIC\\n\\n");') if False else None
+          replace(main,'fwrite(record,1,sizeof(record),trace);\n      fclose(trace);','fwrite(record,1,sizeof(record),trace);\n      nbpswap::makeCatalog(trace,conf);\n      fclose(trace);')
+          replace(main,'  myConsoleDemoInit();\n  consoleClear();\n  iprintf("NBP012 SLOT-2 DIAGNOSTIC\\n\\n");','  scanKeys();\n  if (keysHeld() & KEY_SELECT) {\n  myConsoleDemoInit();\n  consoleClear();\n  iprintf("NBP012 SLOT-2 DIAGNOSTIC\\n\\n");') if False else None
           # Remove mandatory prompt only; SELECT retains diagnostic.
-          replace(main,'myConsoleDemoInit();\n            consoleClear();\n            iprintf("NBP012 SLOT-2 DIAGNOSTIC\\n\\n");','scanKeys();\n            if (keysHeld() & KEY_SELECT) {\n            myConsoleDemoInit();\n            consoleClear();\n            iprintf("NBP012 SLOT-2 DIAGNOSTIC\\n\\n");')
-          replace(main,'consoleClear();\n            if (!nbpPrepared) return -42;','consoleClear();\n            }\n            if (!nbpPrepared) return -42;')
+          replace(main,'myConsoleDemoInit();\n  consoleClear();\n  iprintf("NBP012 SLOT-2 DIAGNOSTIC\\n\\n");','scanKeys();\n  if (keysHeld() & KEY_SELECT) {\n  myConsoleDemoInit();\n  consoleClear();\n  iprintf("NBP012 SLOT-2 DIAGNOSTIC\\n\\n");')
+          replace(main,'consoleClear();\n  if (!nbpPrepared) return -42;','consoleClear();\n  }\n  if (!nbpPrepared) return -42;')
           replace(main,'fprintf(nbp,"writeback=%d history=%d\\n",','fprintf(nbp,"swap applied=%d\\n",nbpSwapped);\n\tfprintf(nbp,"writeback=%d history=%d\\n",')
           # ARM7 catalog commands use the existing preallocated trace file; all I/O under the menu save mutex.
           with flush.open('a') as fp: fp.write(r'''

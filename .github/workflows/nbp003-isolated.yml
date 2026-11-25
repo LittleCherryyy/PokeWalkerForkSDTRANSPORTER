@@ -245,6 +245,11 @@ jobs:
                 c->reserved4[1]++;
               }''')
           replace(flush,'\tc->flushedSeq = seq;\n\tc->flushes++;','\t/* Never acknowledge a failed flush; leave dirty sector queued. */\n\tif (!failed) {c->flushedSeq = seq; c->flushes++;}')
+          # The shared ARM7 source is also built into the SDK5 engine, where
+          # checked IO is unavailable and the Slot-2 provider is not supported.
+          replace(flush,'void slot2EmuWrite(void) {','void slot2EmuWrite(void) {\n#ifdef TWLSDK\n\treturn;\n#else')
+          assert flush.read_text().endswith('\n}\n')
+          flush.write_text(flush.read_text()[:-3]+'\n#endif\n}\n')
           subprocess.run(['git','-C','upstream','add','-N',str(hdr.relative_to(root))],check=True)
           pathlib.Path('out/integration.patch').write_bytes(subprocess.check_output(['git','-C','upstream','diff','--binary']))
           # Regression: the old partial-sector return count rejects this real blob.

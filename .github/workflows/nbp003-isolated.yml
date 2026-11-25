@@ -1,4 +1,4 @@
-name: NBP010 explicit Slot-2 writeback config
+name: NBP011 live Slot-2 persistence telemetry
 on:
   push:
     branches: [experimental/nbp003-build-only]
@@ -92,16 +92,16 @@ jobs:
             const bool writeback=(conf->slot2Reserved0 & 2u)!=0;
             if (writeback) {
               if (!romCluster || romCluster==saveCluster || (conf->saveOnFlashcard))
-                return slot2Skip(conf,"NBP010: unsafe save/ROM alias or unsupported DS save volume");
+                return slot2Skip(conf,"NBP011: unsafe save/ROM alias or unsupported DS save volume");
               FILE *test=fopen(conf->slot2SavePath,"r+b");
-              if (!test) return slot2Skip(conf,"NBP010: GBA save is not writable");
+              if (!test) return slot2Skip(conf,"NBP011: GBA save is not writable");
               fclose(test);
             }
             conf->slot2Reserved0 = nbpS2packCluster((u32)pluginStat.st_ino, (conf->slot2Reserved0 & 1u) | (writeback?2u:0u));
             if (!conf->slot2Reserved0) return slot2Skip(conf, "NBP2: invalid FAT cluster");
             FILE *status = fopen("sd:/_nds/nds-bootstrap/slot2-status.txt","w");
             if (status) {
-              fprintf(status,"NBP010: launcher preparation passed; runtime not confirmed\nDS game=%.4s\nGBA game=%c%c%c%c\nGBA save size=%lu\nPlugin cluster=%lu\nGBA disk writeback=%s\nGBA ROM=%s\nGBA SAVE=%s\n",
+              fprintf(status,"NBP011: launcher preparation passed; runtime not confirmed\nDS game=%.4s\nGBA game=%c%c%c%c\nGBA save size=%lu\nPlugin cluster=%lu\nGBA disk writeback=%s\nGBA ROM=%s\nGBA SAVE=%s\n",
                 (const char *)tid,(int)(gameCode&255),(int)((gameCode>>8)&255),(int)((gameCode>>16)&255),(int)(gameCode>>24),
                 (unsigned long)size,(unsigned long)pluginStat.st_ino,writeback?"enabled by WRITEBACK=1":"disabled",
                 conf->slot2RomPath ? conf->slot2RomPath : "",conf->slot2SavePath);
@@ -122,33 +122,33 @@ jobs:
              * returns dataPos+length instead of dataPos+remaining at a partial
              * final sector; comparing that result against length rejects valid files. */
             if (!gen5CheckedIO(h,&plugin,0,sizeof(h),false)) {
-              dbg_printf("NBP010 header IO failed\n");slot2Disable(ce9);return;
+              dbg_printf("NBP011 header IO failed\n");slot2Disable(ce9);return;
             }
             if (!nbpS2header(h)) {
-              dbg_printf("NBP010 header invalid: ");dbg_hexa(nbpS2le(h));dbg_printf("\n");slot2Disable(ce9);return;
+              dbg_printf("NBP011 header invalid: ");dbg_hexa(nbpS2le(h));dbg_printf("\n");slot2Disable(ce9);return;
             }
             for (u32 pos=0;pos<NBP_S2_CODE;) {
               u32 n=512u-((NBP_S2_HEADER+pos)&511u);
               if (n>NBP_S2_CODE-pos) n=NBP_S2_CODE-pos;
               if (!gen5CheckedIO(payload+pos,&plugin,NBP_S2_HEADER+pos,n,false)) {
-                dbg_printf("NBP010 payload IO failed at: ");dbg_hexa(pos);dbg_printf("\n");
+                dbg_printf("NBP011 payload IO failed at: ");dbg_hexa(pos);dbg_printf("\n");
                 toncset(payload,0,NBP_S2_CODE);slot2Disable(ce9);return;
               }
               pos+=n;
             }
             const u32 actualCrc=nbpS2crc(payload,NBP_S2_CODE);
-            dbg_printf("NBP010 payload CRC: ");dbg_hexa(actualCrc);dbg_printf("\n");
+            dbg_printf("NBP011 payload CRC: ");dbg_hexa(actualCrc);dbg_printf("\n");
             if (actualCrc!=NBP_S2_CRC) {
-              dbg_printf("NBP010 payload CRC mismatch\n");
+              dbg_printf("NBP011 payload CRC mismatch\n");
               toncset(payload,0,NBP_S2_CODE);slot2Disable(ce9);return;
             }''')
-          replace(boot,'\tce7->slot2SaveCluster = slot2SaveCluster;','\tce7->slot2SaveCluster = (slot2Reserved0 & 2u) ? slot2SaveCluster : 0;\n\tdbg_printf("NBP010 writeback cluster: ");dbg_hexa(ce7->slot2SaveCluster);dbg_printf("\\n");')
+          replace(boot,'\tce7->slot2SaveCluster = slot2SaveCluster;','\tce7->slot2SaveCluster = (slot2Reserved0 & 2u) ? slot2SaveCluster : 0;\n\tdbg_printf("NBP011 writeback cluster: ");dbg_hexa(ce7->slot2SaveCluster);dbg_printf("\\n");')
           replace(hook,'#include "slot2_emu.h"','#include "slot2_emu.h"\n#include "nbp_slot2.h"')
           replace(hook,'\treturn slot2SaveCluster && ndsHeader->unitCode == 0','\textern u32 slot2Reserved0;\n\treturn nbpS2cluster(slot2Reserved0) && slot2SaveCluster && ndsHeader->unitCode == 0')
           # Boot marker independent of Slot-2 preparation. Prompt at the existing
           # launcher/bootloader boundary, not during gameplay.
           replace(main,'\tif (!slot2Prepare(conf, clusterSav, st.st_ino)) return -42;',r'''  const bool nbpPrepared = slot2Prepare(conf, clusterSav, st.st_ino);
-            const char *nbpVolumes[] = {"sd:/NBP010-BOOT.TXT","fat:/NBP010-BOOT.TXT"};
+            const char *nbpVolumes[] = {"sd:/NBP011-BOOT.TXT","fat:/NBP011-BOOT.TXT"};
             bool nbpLogged = false;
             for (int i=0;i<2;i++) {
               if ((i==0 && !conf->sdFound) || (i==1 && !conf->bootstrapOnFlashcard && !conf->gameOnFlashcard)) continue;
@@ -162,7 +162,7 @@ jobs:
             }
             myConsoleDemoInit();
             consoleClear();
-            iprintf("NBP010 SLOT-2 DIAGNOSTIC\n\n");
+            iprintf("NBP011 SLOT-2 DIAGNOSTIC\n\n");
             iprintf("SD:%d B4DS:%d BOOT-FAT:%d\n",conf->sdFound,conf->b4dsMode,conf->bootstrapOnFlashcard);
             iprintf("GAME-FAT:%d SAVE-FAT:%d\n",conf->gameOnFlashcard,conf->saveOnFlashcard);
             iprintf("GBA save cluster: %lu\n",(unsigned long)conf->slot2SaveCluster);
@@ -176,11 +176,11 @@ jobs:
             if (!nbpPrepared) return -42;''')
           replace(main,'\tbootstrapOnFlashcard = conf->bootstrapOnFlashcard;\n\n\tif (status == 0) {',r'''  bootstrapOnFlashcard = conf->bootstrapOnFlashcard;
             if (status == 0) {
-              const char *volumes[] = {"sd:/NBP010-BOOT.TXT","fat:/NBP010-BOOT.TXT"};
+              const char *volumes[] = {"sd:/NBP011-BOOT.TXT","fat:/NBP011-BOOT.TXT"};
               for (int i=0;i<2;i++) {
                 if ((i==0 && !conf->sdFound) || (i==1 && !conf->bootstrapOnFlashcard && !conf->gameOnFlashcard)) continue;
                 FILE *nbp=fopen(volumes[i],"w");
-                if (nbp) {fputs("NBP010 launcher started\n",nbp);fclose(nbp);}
+                if (nbp) {fputs("NBP011 launcher started\n",nbp);fclose(nbp);}
               }
               /* Existing upstream debug log uses raw SD file access in loader.
                * Enable only for console-SD boot, after confirming file creation. */
@@ -199,18 +199,18 @@ jobs:
           replace(main,'\tdbg_printf("version: " VER_NUMBER "\\n");', '\tif (conf->logging) conf->valueBits |= BIT(7);\n\telse conf->valueBits &= ~BIT(7);\n\tdbg_printf("version: " VER_NUMBER "\\n");')
           replace(main,'iprintf("Boot log: %s\\n",conf->logging?"enabled":"disabled");','iprintf("Boot log bit: %d\\n",(conf->valueBits & BIT(7)) != 0);')
           replace(main,'iprintf("GBA save cluster: %lu\\n",(unsigned long)conf->slot2SaveCluster);','iprintf("Loader:%d DSiFeat:%d\\n",conf->loaderType,dsiFeatures());\n\tiprintf("GBA save cluster: %lu\\n",(unsigned long)conf->slot2SaveCluster);')
-          replace(boot,'static void slot2Disable(cardengineArm9 *ce9) {','static void slot2Disable(cardengineArm9 *ce9) {\n\tdbg_printf("NBP010 slot2 disabled\\n");') if False else None
+          replace(boot,'static void slot2Disable(cardengineArm9 *ce9) {','static void slot2Disable(cardengineArm9 *ce9) {\n\tdbg_printf("NBP011 slot2 disabled\\n");') if False else None
           replace(boot,'#include "nbp_slot2.h"','#include "nbp_slot2.h"\n#include "debug_file.h"\nextern bool gen5CheckedIO(void *buffer,aFile *file,u32 offset,u32 length,bool writing);')
-          replace(boot,'\tif (!slot2EmuBase) {\n\t\tce9->slot2EmuEntry = 0;', '\tdbg_printf("NBP010 slot2 base: "); dbg_hexa(slot2EmuBase); dbg_printf("\\n");\n\tif (!slot2EmuBase) {\n\t\tce9->slot2EmuEntry = 0;')
+          replace(boot,'\tif (!slot2EmuBase) {\n\t\tce9->slot2EmuEntry = 0;', '\tdbg_printf("NBP011 slot2 base: "); dbg_hexa(slot2EmuBase); dbg_printf("\\n");\n\tif (!slot2EmuBase) {\n\t\tce9->slot2EmuEntry = 0;')
           replace(boot,'\t\t\treturn;\n\t\t}\n\n\tc->version', '\t\t\treturn;\n\t\t}\n\n\tc->version') if False else None
           # Separate I/O and CRC errors are emitted by the checked loader above.
-          replace(boot,'\tc->magic = SLOT2EMU_MAGIC;', '\tdbg_printf("NBP010 provider loaded, entry: ");dbg_hexa(ce9->slot2EmuEntry);dbg_printf("\\n");\n\tc->magic = SLOT2EMU_MAGIC;')
-          replace(boot,'\tslot2PatchArm7(ndsHeader);','\tdbg_printf("NBP010 ARM7 patches: ");dbg_hexa(slot2PatchArm7(ndsHeader));dbg_printf("\\n");')
-          replace(boot,'static void slot2Disable(cardengineArm9 *ce9) {','static void slot2Disable(cardengineArm9 *ce9) {\n\tdbg_printf("NBP010 slot2 disabled\\n");')
-          replace(boot,'\tce7->slot2EmuControl = 0;','\tce7->slot2EmuControl = 0;\n\tdbg_printf("NBP010 ce9 bits: ");dbg_hexa(ce9->valueBits);dbg_printf(" save cluster: ");dbg_hexa(slot2SaveCluster);dbg_printf(" packed provider: ");dbg_hexa(slot2Reserved0);dbg_printf("\\n");')
-          replace(boot,'\tconst Slot2EmuControl *c = slot2Control();','\tconst Slot2EmuControl *c = slot2Control();\n\tdbg_printf("NBP010 prefill code: ");dbg_hexa(c->gameCode);dbg_printf("\\n");')
-          replace(boot,'\tif (slot2Reserved0 & 1) {','\tdbg_printf("NBP010 history bypass verified opt-in: ");dbg_hexa(slot2Reserved0 & 1);dbg_printf("\\n");\n\tif (slot2Reserved0 & 1) {')
-          replace(boot,'\t\tc->reserved3 = palParkPatchArm9((void *)ndsHeader->arm9destination, arm9Size);','\t\tc->reserved3 = palParkPatchArm9((void *)ndsHeader->arm9destination, arm9Size);\n\t\tdbg_printf("NBP010 history signature patched: ");dbg_hexa(c->reserved3);dbg_printf("\\n");')
+          replace(boot,'\tc->magic = SLOT2EMU_MAGIC;', '\tdbg_printf("NBP011 provider loaded, entry: ");dbg_hexa(ce9->slot2EmuEntry);dbg_printf("\\n");\n\tc->magic = SLOT2EMU_MAGIC;')
+          replace(boot,'\tslot2PatchArm7(ndsHeader);','\tdbg_printf("NBP011 ARM7 patches: ");dbg_hexa(slot2PatchArm7(ndsHeader));dbg_printf("\\n");')
+          replace(boot,'static void slot2Disable(cardengineArm9 *ce9) {','static void slot2Disable(cardengineArm9 *ce9) {\n\tdbg_printf("NBP011 slot2 disabled\\n");')
+          replace(boot,'\tce7->slot2EmuControl = 0;','\tce7->slot2EmuControl = 0;\n\tdbg_printf("NBP011 ce9 bits: ");dbg_hexa(ce9->valueBits);dbg_printf(" save cluster: ");dbg_hexa(slot2SaveCluster);dbg_printf(" packed provider: ");dbg_hexa(slot2Reserved0);dbg_printf("\\n");')
+          replace(boot,'\tconst Slot2EmuControl *c = slot2Control();','\tconst Slot2EmuControl *c = slot2Control();\n\tdbg_printf("NBP011 prefill code: ");dbg_hexa(c->gameCode);dbg_printf("\\n");')
+          replace(boot,'\tif (slot2Reserved0 & 1) {','\tdbg_printf("NBP011 history bypass verified opt-in: ");dbg_hexa(slot2Reserved0 & 1);dbg_printf("\\n");\n\tif (slot2Reserved0 & 1) {')
+          replace(boot,'\t\tc->reserved3 = palParkPatchArm9((void *)ndsHeader->arm9destination, arm9Size);','\t\tc->reserved3 = palParkPatchArm9((void *)ndsHeader->arm9destination, arm9Size);\n\t\tdbg_printf("NBP011 history signature patched: ");dbg_hexa(c->reserved3);dbg_printf("\\n");')
           replace(main,'iprintf("Plugin cluster: %lu\\n",(unsigned long)nbpS2cluster(conf->slot2Reserved0));','iprintf("Plugin cluster: %lu\\n",(unsigned long)nbpS2cluster(conf->slot2Reserved0));\n\tiprintf("History opt-in: %d\\n",(int)(conf->slot2Reserved0 & 1));')
           replace(main,'iprintf("History opt-in: %d\\n",(int)(conf->slot2Reserved0 & 1));','iprintf("History opt-in: %d\\n",(int)(conf->slot2Reserved0 & 1));\n\tiprintf("Writeback test: %d\\n",(int)((conf->slot2Reserved0 & 2)!=0));')
           flush=root/'bootstrap/retail/cardenginei/arm7/source/slot2_file.c'
@@ -237,7 +237,88 @@ jobs:
           flush.write_text(flush.read_text()[:-3]+'\n#endif\n}\n')
           config=root/'bootstrap/retail/arm9/source/conf_sd.cpp'
           assert blobhash(config.read_bytes())=='225429454e43f57b332f3955bb3b7cdadae3ffba'
-          replace(config,'&& palParkVerifyHeader(conf->ndsPath)) conf->slot2Reserved0 = 1;','&& palParkVerifyHeader(conf->ndsPath)) conf->slot2Reserved0 = 1;\n\tif (slot2_config.fetch("SLOT2", "WRITEBACK", "0") == "1") conf->slot2Reserved0 |= 2u;')
+          replace(config,'&& palParkVerifyHeader(conf->ndsPath)) conf->slot2Reserved0 = 1;','&& palParkVerifyHeader(conf->ndsPath)) conf->slot2Reserved0 = 1;\n\tif (slot2_config.fetch("SLOT2", "WRITEBACK", "1") == "1") conf->slot2Reserved0 |= 2u;')
+          # Dedicated preallocated telemetry file (one sector); no FAT allocation in game.
+          replace(main,'const bool nbpPrepared = slot2Prepare(conf, clusterSav, st.st_ino);',r'''const bool nbpPrepared = slot2Prepare(conf, clusterSav, st.st_ino);
+            if (conf->slot2SaveCluster && nbpS2cluster(conf->slot2Reserved0) && conf->sdFound && !conf->bootstrapOnFlashcard && !conf->gameOnFlashcard && !conf->saveOnFlashcard) {
+              FILE *trace=fopen("sd:/NBP011.BIN","wb");
+              if (trace) {
+                unsigned char record[512]={0};
+                memcpy(record,"NBP011-PENDING",14);
+                fwrite(record,1,sizeof(record),trace);
+                fclose(trace);
+              }
+            }''')
+          replace(main,'saveCluster=%lu romCluster=%lu pluginCluster=%lu\n','saveCluster=%lu romCluster=%lu pluginCluster=%lu\n') if False else None
+          replace(main,'(unsigned long)conf->slot2SaveCluster,(unsigned long)conf->slot2RomCluster,(unsigned long)nbpS2cluster(conf->slot2Reserved0));', '(unsigned long)conf->slot2SaveCluster,(unsigned long)conf->slot2RomCluster,(unsigned long)nbpS2cluster(conf->slot2Reserved0));\n\tfprintf(nbp,"writeback=%d history=%d\\n",(int)((conf->slot2Reserved0&2)!=0),(int)(conf->slot2Reserved0&1));')
+          replace(boot,'\tce7->slot2EmuControl = (u32)c;',r'''  ce7->slot2EmuControl = (u32)c;
+            aFile trace;
+            getBootFileCluster(&trace,"NBP011.BIN",false);
+            extern u32 saveFileCluster, storedFileCluster;
+            const u32 tc=trace.firstCluster;
+            if (tc>=2 && tc<0x0ffffff0u && tc!=slot2SaveCluster && tc!=slot2RomCluster && tc!=cluster && tc!=saveFileCluster && tc!=storedFileCluster)
+              ce7->slot2Reserved0=tc;
+            dbg_printf("NBP011 trace cluster: ");dbg_hexa(ce7->slot2Reserved0);dbg_printf("\n");''')
+          # Keep write acknowledgement conditional on no dirty data being left.
+          replace(flush,'if (!failed) {c->flushedSeq = seq; c->flushes++;}', 'if (!failed) {bool pending=false; for(u32 i=0;i<sectors;i++) if(c->dirty[i]) pending=true; if(!pending && c->writeSeq==seq) {c->flushedSeq = seq; c->flushes++;}}')
+          replace(flush,'if (!c || c->writeSeq == c->flushedSeq) return false;',r'''if (!c) return false;
+            if (c->writeSeq == c->flushedSeq) {
+              bool dirty=false;
+              for(u32 i=0;i<SLOT2EMU_SECTORS;i++) if(c->dirty[i]) dirty=true;
+              if(!dirty) return false;
+            }''')
+          with flush.open('a') as fp: fp.write(r'''
+          /* Binary telemetry: little-endian u32 words, one preallocated sector.
+           * Called only under the existing save mutex and SD NDMA selection. */
+          #ifndef TWLSDK
+          extern u32 slot2Reserved0;
+          static u32 traceTick=0, traceSeq=~0u, traceFlushed=~0u, traceErrors=~0u, traceBuild=~0u;
+          static volatile Slot2EmuControl *traceControl(void) {
+            volatile Slot2EmuControl *c=(volatile Slot2EmuControl *)slot2EmuControl;
+            return slot2Reserved0>=2 && slot2Reserved0<0x0ffffff0u && c && c->magic==SLOT2EMU_MAGIC && c->version==SLOT2EMU_VERSION ? c : 0;
+          }
+          bool slot2TraceDue(bool force) {
+            volatile Slot2EmuControl *c=traceControl();
+            if(!c) return false;
+            if(!force && ++traceTick<120) return false;
+            traceTick=0;
+            return force || c->writeSeq!=traceSeq || c->flushedSeq!=traceFlushed || c->reserved4[0]!=traceErrors || c->blobBuild!=traceBuild;
+          }
+          void slot2TraceWrite(void) {
+            volatile Slot2EmuControl *c=traceControl();
+            if(!c) return;
+            static u32 rec[128] __attribute__((aligned(4)));
+            for(unsigned i=0;i<128;i++) rec[i]=0;
+            rec[0]=0x3154424e; /* NBT1 */
+            rec[1]=11; rec[2]=slot2SaveCluster; rec[3]=slot2EmuControl;
+            rec[4]=c->magic; rec[5]=c->blobBuild; rec[6]=c->installs;
+            rec[7]=c->writeSeq; rec[8]=c->flushedSeq; rec[9]=c->flushes;
+            rec[10]=c->reserved4[0]; rec[11]=c->reserved4[1];
+            rec[12]=c->aborts; rec[13]=c->unhandled; rec[14]=c->bulkReads;
+            rec[15]=c->bulkPrograms; rec[16]=c->bulkVerifies; rec[17]=c->reserved3;
+            for(unsigned i=0;i<32;i++) if(c->dirty[i]) rec[18]|=1u<<i;
+            rec[19]=c->gameCode; rec[20]=c->flashSize; rec[21]=c->saveSize;
+            aFile log; getFileFromCluster(&log,slot2Reserved0,false);
+            if(gen5CheckedIO(rec,&log,0,512,true)) {
+              traceSeq=rec[7];traceFlushed=rec[8];traceErrors=rec[10];traceBuild=rec[5];
+            }
+          }
+          #else
+          bool slot2TraceDue(bool force) { (void)force; return false; }
+          void slot2TraceWrite(void) {}
+          #endif
+          ''')
+          engine=root/'bootstrap/retail/cardenginei/arm7/source/cardengine.c'
+          assert blobhash(engine.read_bytes())=='c3a22ad1909a51ea6e88a74b70a9ee6d1d9315a4'
+          replace(engine,'static void slot2EmuFlush(bool force) {', 'extern bool slot2TraceDue(bool force);\nextern void slot2TraceWrite(void);\nstatic void slot2EmuFlush(bool force) {')
+          replace(engine,'\tif ((!slot2 && !walker) || !tryLockMutex(&saveMutex)) return;\n\tvirtualFilesWriteLocked(slot2, walker, force);\n\tunlockMutex(&saveMutex);',r'''  const bool trace=slot2TraceDue(force);
+            if ((!slot2 && !walker && !trace) || !tryLockMutex(&saveMutex)) return;
+            virtualFilesWriteLocked(slot2, walker, force);
+            if (trace && (valueBits & b_dsiSD) && !isSdEjected()) {
+              driveInitialize(); sdmmc_set_ndma_slot(4);
+              saveTimer=1; slot2TraceWrite(); sdmmc_set_ndma_slot(0);
+            }
+            unlockMutex(&saveMutex);''')
           subprocess.run(['git','-C','upstream','add','-N',str(hdr.relative_to(root))],check=True)
           pathlib.Path('out/integration.patch').write_bytes(subprocess.check_output(['git','-C','upstream','diff','--binary']))
           # Regression: the old partial-sector return count rejects this real blob.
@@ -271,7 +352,7 @@ jobs:
             find retail -type f \( -name "*.o" -o -name "*.elf" -o -name "*.d" \) -delete
             rm -f retail/bin/nds-bootstrap.nds
             test -x /src/out/lzss
-            make -C retail -j2 DEVKITARM="$PWD/portable-ds-rules" LEGACY_DEVKITARM="$DEVKITPRO/devkitARM" LEGACY_LIBNDS="$DEVKITPRO/libnds" LIBDIRS="$DEVKITPRO/libnds" PYTHON=python3 GIT_VER=nbp010 LZSS=/src/out/lzss all
+            make -C retail -j2 DEVKITARM="$PWD/portable-ds-rules" LEGACY_DEVKITARM="$DEVKITPRO/devkitARM" LEGACY_LIBNDS="$DEVKITPRO/libnds" LIBDIRS="$DEVKITPRO/libnds" PYTHON=python3 GIT_VER=nbp011 LZSS=/src/out/lzss all
             for d in bootloader bootloader2 bootloaderi bootloaderi2; do
               arm-none-eabi-nm -n retail/$d/*.elf > /src/out/$d.symbols
             done
@@ -302,25 +383,25 @@ jobs:
           shutil.copyfile(out/'integration.patch',target/'integration.patch')
           for name in ('LICENSE','CREDITS.md'):
             shutil.copyfile(pathlib.Path('upstream')/name,target/name)
-          (target/'slot2.ini.example').write_text('[SLOT2]\nGBA_ROM_PATH = sd:/roms/gba/Pokemon Emerald.gba\nGBA_SAV_PATH = sd:/roms/gba/saves/Pokemon Emerald.sav\nWRITEBACK = 0\n')
+          (target/'slot2.ini.example').write_text('[SLOT2]\nGBA_ROM_PATH = sd:/roms/gba/Pokemon Emerald.gba\nGBA_SAV_PATH = sd:/roms/gba/saves/Pokemon Emerald.sav\nWRITEBACK = 1\n')
           # Use upstream per-path opt-in; no change to verification or signature rules.
           pearl='sd:/roms/nds/Pokemon - Pearl Version (patched).nds'
           key=hashlib.sha1(pearl.encode()).hexdigest()
           (target/'migration.ini.example').write_text('['+key+']\nBYPASS_LIMITS = 1\n')
-          (target/'TEST-ONLY.txt').write_text('NBP010: DSi internal SD; Diamond/Pearl/Platinum/HeartGold/SoulSilver, Ruby/Sapphire/Emerald/FireRed/LeafGreen families, regional builds accepted but not hardware validated. Prefer same-language games. GBA save: 131072 bytes or 131088 with RTC. BACK UP BOTH SAVES, use disposable copies, Nightly bootstrap. Compare boot without plugin, then with plugin. Check MIGRATE FROM the chosen GBA game and list only. Photograph NBP010 diagnostic screen, press START to launch. Send NBP010-BOOT.TXT and NDSBTSRP.LOG from SD root plus slot2-error.txt or slot2-status.txt in _nds/nds-bootstrap/. Optional history bypass for verified supported Diamond/Pearl/Platinum revisions: copy migration.ini.example as sd:/_nds/nds-bootstrap/migration.ini (merge rather than overwrite existing entries). Example matches the exact patched Pearl path from the hardware report. Launcher checks title/revision/header CRC; bootloader requires a unique exact ARM9 routine signature. No global clock changes. Writeback defaults OFF. To test persistence select any disposable GBA save in slot2.ini and add WRITEBACK = 1 in [SLOT2]. No filename or backup-file requirement. Back up the DS save too. On the diagnostic screen verify Writeback test: 1. Migrate only on disposable copies, finish Pal Park, save in-game, wait for idle writes and compare GBA save after shutdown. This is not an atomic cross-save transaction; power loss/IO errors may leave a partial write. Keep originals untouched. Not hardware validated. Original SD-Transporter and nds-bootstrap contributors credited in CREDITS.md. Source base: 75610fa9905ac252609081287121e8d4c44febed; corresponding changes in integration.patch.\n')
-          (target/'build-report.json').write_text(json.dumps({'hardware_tested':False,'build':'NBP010','writeback':'explicit WRITEBACK=1; checked 512-byte write/readback','ds_families':['ADA','APA','CPU','IPK','IPG'],'gba_families':['AXV','AXP','BPE','BPR','BPG'],'loader_static_stack_margins':gaps,'nds_sha256':hashlib.sha256(b).hexdigest(),'plugin_sha256':hashlib.sha256(p).hexdigest()},indent=2))
+          (target/'TEST-ONLY.txt').write_text('NBP011: DSi internal SD; Diamond/Pearl/Platinum/HeartGold/SoulSilver, Ruby/Sapphire/Emerald/FireRed/LeafGreen families, regional builds accepted but not hardware validated. Prefer same-language games. GBA save: 131072 bytes or 131088 with RTC. BACK UP BOTH SAVES, use disposable copies, Nightly bootstrap. Compare boot without plugin, then with plugin. Check MIGRATE FROM the chosen GBA game and list only. Photograph NBP011 diagnostic screen, press START to launch. Send NBP011-BOOT.TXT and NDSBTSRP.LOG from SD root plus slot2-error.txt or slot2-status.txt in _nds/nds-bootstrap/. Optional history bypass for verified supported Diamond/Pearl/Platinum revisions: copy migration.ini.example as sd:/_nds/nds-bootstrap/migration.ini (merge rather than overwrite existing entries). Example matches the exact patched Pearl path from the hardware report. Launcher checks title/revision/header CRC; bootloader requires a unique exact ARM9 routine signature. No global clock changes. Writeback defaults ON in this test build; WRITEBACK = 0 disables it. Select a disposable GBA save in slot2.ini. No filename or backup-file requirement. Send the 512-byte NBP011.BIN from the SD root, captured after the migration and after waiting at least five seconds in-game. It records live ARM9 and ARM7 counters. Back up the DS save too. On the diagnostic screen verify Writeback test: 1. Migrate only on disposable copies, finish Pal Park, save in-game, wait for idle writes and compare GBA save after shutdown. This is not an atomic cross-save transaction; power loss/IO errors may leave a partial write. Keep originals untouched. Not hardware validated. Original SD-Transporter and nds-bootstrap contributors credited in CREDITS.md. Source base: 75610fa9905ac252609081287121e8d4c44febed; corresponding changes in integration.patch.\n')
+          (target/'build-report.json').write_text(json.dumps({'hardware_tested':False,'build':'NBP011','writeback':'default on for test; WRITEBACK=0 disables; checked 512-byte write/readback and runtime telemetry','ds_families':['ADA','APA','CPU','IPK','IPG'],'gba_families':['AXV','AXP','BPE','BPR','BPG'],'loader_static_stack_margins':gaps,'nds_sha256':hashlib.sha256(b).hexdigest(),'plugin_sha256':hashlib.sha256(p).hexdigest()},indent=2))
           (target/'SHA256SUMS.txt').write_text(''.join(hashlib.sha256(f.read_bytes()).hexdigest()+'  '+str(f.relative_to(target))+'\n' for f in sorted(target.rglob('*')) if f.is_file() and f.name!='SHA256SUMS.txt'))
           print(gaps)
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: DSi-NBP010-test-candidate
+          name: DSi-NBP011-test-candidate
           path: out/DSi-test/
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: NBP010-build-diagnostics
+          name: NBP011-build-diagnostics
           path: |
             out/build.log
             out/*.symbols

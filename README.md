@@ -1,20 +1,20 @@
 # Virtual Slot-2 — Pokéwalker Virtual Plus
 
-**v0.1.0-beta | NBP016 + TWLM03 | Nintendo DSi (SD interno)**
+**v0.1.0-beta | NBP016 + TWLM03 | Nintendo DSi (internal SD)**
 
-Módulo independente do ecossistema Pokéwalker Virtual, dedicado à migração nativa de Pokémon da terceira para a quarta geração através do Pal Park. Não necessita de Wi-Fi, aplicativo Android ou cartucho GBA físico. Esta branch preserva a versão confirmada pelo usuário em hardware em 25/11/2026.
+An independent module within the Pokéwalker Virtual ecosystem, dedicated to native Pokémon migration from Generation III to Generation IV through Pal Park. No Wi-Fi, Android application, or physical GBA cartridge is required. This branch preserves the version confirmed working by the user on real hardware on November 25, 2026.
 
-- [Instalação, uso e limitações](virtual-slot2/README.md)
-- [Histórico de versões](virtual-slot2/CHANGELOG.md)
-- [Manifesto da versão e builds reproduzíveis](virtual-slot2/release.json)
-- [Bootstrap NBP016 — download](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45546143437/artifacts/14991950123)
-- [TWiLight TWLM03 — DSi/NES — download](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45546166642/artifacts/14990769748)
+- [Installation, usage and limitations](virtual-slot2/README.md)
+- [Version history](virtual-slot2/CHANGELOG.md)
+- [Release manifest and reproducible build information](virtual-slot2/release.json)
+- [NBP016 bootstrap — download](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45546143437/artifacts/14991950123)
+- [TWLM03 TWiLight Menu++ — DSi/NES — download](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45546166642/artifacts/14990769748)
 
-O código do Pokéwalker Wi-Fi continua separado na [main](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/tree/main) e nas branches de desenvolvimento originais. Os bootstraps ainda não foram unificados. Nenhum ROM ou save comercial é distribuído.
+The Wi-Fi Pokéwalker code remains separate on [main](https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/tree/main) and the original development branches. The two bootstrap implementations have not yet been unified. No commercial ROMs or save files are distributed.
 
-Projeto derivado de [SD Transporter](https://github.com/Shinygati/SD-Transporter), com créditos a nds-bootstrap, TWiLight Menu++ e seus colaboradores. Veja [ATTRIBUTION.md](ATTRIBUTION.md), [CREDITS-UPSTREAM.md](CREDITS-UPSTREAM.md) e [LICENSE](LICENSE).
+Derived from [SD Transporter](https://github.com/Shinygati/SD-Transporter), with credit to nds-bootstrap, TWiLight Menu++ and their contributors. See [ATTRIBUTION.md](ATTRIBUTION.md), [CREDITS-UPSTREAM.md](CREDITS-UPSTREAM.md) and [LICENSE](LICENSE).
 
-## Contexto do projeto principal
+## Main project context
 
 # Pokéwalker Virtual — SD Transporter fork
 

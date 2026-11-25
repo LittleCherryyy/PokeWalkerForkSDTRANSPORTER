@@ -570,8 +570,8 @@ jobs:
           with flush.open('a') as fp: fp.write(r'''
           #ifndef TWLSDK
           #include "nbp_slot2.h"
-          static u32 swapHead[128] __attribute__((aligned(4)));
-          static u32 swapPair[128] __attribute__((aligned(4)));
+          #define swapHead nbpSector
+          #define swapPair nbpSector
           static bool swapReadHead(aFile* f) {
             if(!traceControl())return false;
             getFileFromCluster(f,slot2Reserved0,false);
@@ -592,7 +592,9 @@ jobs:
               volatile Slot2EmuControl* c=traceControl();
               if(!c||!slot2SaveCluster||c->writeSeq!=c->flushedSeq)return 0;
               for(u32 i=0;i<SLOT2EMU_SECTORS;i++)if(c->dirty[i])return 0;
-              swapHead[3]=index;swapHead[4]=swapPair[0];
+              const u32 crc=swapPair[0];
+              if(!swapReadHead(&f)||index>=swapHead[2])return 0;
+              swapHead[3]=index;swapHead[4]=crc;
               return gen5CheckedIO(swapHead,&f,512,512,true);
             }
             return 0;
@@ -675,6 +677,10 @@ jobs:
           replace(igm,'MenuItem menuItems[8];','MenuItem menuItems[9];')
           replace(igm,'menuItems[menuItemCount++] = MENU_QUIT;','if(!exception){swapCommand(0x54435753,0,0);if(sharedAddr[0]>0&&sharedAddr[0]<=96)menuItems[menuItemCount++]=MENU_SWAP;}\n\tmenuItems[menuItemCount++] = MENU_QUIT;')
           replace(igm,'case MENU_RESET:\n\t\t\t\t\tif (boolQuestion(igmText.resetGameMessage)) {','case MENU_SWAP:\n\t\t\t\t\tif(swapMenu())sharedAddr[4]=0x42525753;\n\t\t\t\t\tbreak;\n\t\t\t\tcase MENU_RESET:\n\t\t\t\t\tif (boolQuestion(igmText.resetGameMessage)) {')
+          # All three paths hold the same save mutex; reuse one sector scratch.
+          replace(flush,'static aFile slot2Save;','#ifndef TWLSDK\nstatic u32 nbpSector[128] __attribute__((aligned(4)));\n#endif\nstatic aFile slot2Save;')
+          replace(flush,'static unsigned char snapshot[512] __attribute__((aligned(4)));','unsigned char *snapshot=(unsigned char*)nbpSector;')
+          replace(flush,'static u32 rec[128] __attribute__((aligned(4)));','u32 *rec=nbpSector;')
           subprocess.run(['git','-C','upstream','add','-N',str(swap.relative_to(root))],check=True)
           subprocess.run(['git','-C','upstream','add','-N',str(hdr.relative_to(root))],check=True)
           pathlib.Path('out/integration.patch').write_bytes(subprocess.check_output(['git','-C','upstream','diff','--binary']))

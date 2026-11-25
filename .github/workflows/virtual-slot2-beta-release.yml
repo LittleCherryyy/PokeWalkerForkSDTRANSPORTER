@@ -1,0 +1,125 @@
+name: Publish Virtual Slot-2 v0.1.0-beta
+on:
+  push:
+    branches: ['virtual-slot2/v0.1.0-beta']
+    paths: ['.github/workflows/virtual-slot2-beta-release.yml']
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: write
+concurrency:
+  group: virtual-slot2-v0.1.0-beta-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/virtual-slot2/v0.1.0-beta'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: virtual-slot2-v0.1.0-beta
+    steps:
+      - name: Download original build artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to overwrite."
+            exit 1
+          fi
+          gh run download 45546143437 --repo "$GITHUB_REPOSITORY" --name DSi-NBP016-test-candidate --dir original/bootstrap
+          gh run download 45546166642 --repo "$GITHUB_REPOSITORY" --name TWLM03-dsimenu-test --dir original/menu
+      - name: Verify and package original binaries without rebuilding
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd original/bootstrap && sha256sum -c SHA256SUMS.txt)
+          python3 - <<'PY'
+          import hashlib, json, pathlib, shutil, zipfile
+          b=pathlib.Path("original/bootstrap")
+          m=pathlib.Path("original/menu")
+          out=pathlib.Path("dist")
+          stage=pathlib.Path("package")
+          out.mkdir()
+          def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
+          br=json.loads((b/"build-report.json").read_text())
+          mr=json.loads((m/"build-report.json").read_text())
+          assert br["build"]=="NBP016"
+          assert mr["theme"]=="dsimenutheme"
+          files=[(b/"_nds/nds-bootstrap-nightly.nds",br["nds_sha256"],"_nds/nds-bootstrap-nightly.nds"),
+                 (b/"_nds/nds-bootstrap/plugins/virtual_slot2.nbp",br["plugin_sha256"],"_nds/nds-bootstrap/plugins/virtual_slot2.nbp"),
+                 (m/"_nds/TWiLightMenu/dsimenu.srldr",mr["sha256"],"_nds/TWiLightMenu/dsimenu.srldr")]
+          for src,expected,relative in files:
+              assert sha(src)==expected,(src,"hash mismatch")
+              dst=stage/relative
+              dst.parent.mkdir(parents=True,exist_ok=True)
+              shutil.copyfile(src,dst)
+          for origin,name in [(b,"bootstrap"),(m,"twilight")]:
+              dst=stage/"source-and-credits"/name
+              dst.mkdir(parents=True)
+              for p in origin.iterdir():
+                  if p.is_file(): shutil.copyfile(p,dst/p.name)
+          for name in ("slot2.ini.example","migration.ini.example"):
+              shutil.copyfile(b/name,stage/name)
+          (stage/"README.txt").write_text(
+              "Virtual Slot-2 v0.1.0-beta\nNBP016 + TWLM03 | Nintendo DSi with internal SD\n\n"
+              "Copy the _nds directory to the SD root. Select the Nightly bootstrap.\n"
+              "Keep existing INI files. Use the supplied examples only if needed.\n"
+              "Initially insert a compatible GBA ROM via its Y menu, or configure slot2.ini.\n"
+              "Save the DS game, open L + Down + Select, and choose Virtual Slot-2.\n"
+              "Up/Down changes edition; Left/Right changes save; A confirms and restarts;\n"
+              "B cancels. Allow all writes to finish before powering off.\n\n"
+              "User-confirmed working on DSi. Full compatibility across all titles,\n"
+              "regions and hacks is not established. Back up both saves.\n"
+              "No Wi-Fi or Android app is required. No commercial games are included.\n"
+              "Original build reports are preserved unchanged; they predate hardware confirmation.\n"
+              "Original source provenance, credits and license are included.\n"
+              "Upstream: https://github.com/Shinygati/SD-Transporter\n"
+              "Pinned upstream commit: 75610fa9905ac252609081287121e8d4c44febed\n",
+              encoding="utf-8")
+          (stage/"SHA256SUMS.txt").write_text("".join(f"{sha(p)}  {p.relative_to(stage).as_posix()}\n" for p in sorted(stage.rglob("*")) if p.is_file()),encoding="utf-8")
+          archive=out/"Virtual-Slot2-v0.1.0-beta-DSi.zip"
+          with zipfile.ZipFile(archive,"w",zipfile.ZIP_DEFLATED) as z:
+              for p in sorted(stage.rglob("*")):
+                  if p.is_file(): z.write(p,p.relative_to(stage).as_posix())
+          with zipfile.ZipFile(archive) as z:
+              assert z.testzip() is None
+              for src,expected,relative in files:
+                  assert hashlib.sha256(z.read(relative)).hexdigest()==expected
+          (out/"SHA256SUMS.txt").write_text(f"{sha(archive)}  {archive.name}\n")
+          print(archive.name,sha(archive))
+          PY
+      - name: Publish beta release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<'EOF'
+          ## Virtual Slot-2 v0.1.0-beta
+
+          First user-confirmed working beta for the Nintendo DSi (internal SD), using **NBP016 + TWLM03**. An independent module of Pokéwalker Virtual Plus. No Wi-Fi, Android companion app or physical GBA cartridge is required.
+
+          ### Features
+          - Virtual GBA Slot-2 cartridge with native Pal Park migration.
+          - In-game edition/save selector: Up/Down selects the edition; Left/Right selects the save.
+          - Verified GBA save writeback before cartridge changes and automatic bootstrap restart.
+          - Opt-in migration limit bypass for supported titles and revisions.
+          - Clean DS game settings menu; initial insertion via the GBA ROM menu remains available.
+
+          ### Installation
+          Download the DSi ZIP and extract its _nds folder to the SD card root. Select the Nightly bootstrap. Keep existing INI files and saves. See README.txt inside the archive for setup and controls.
+
+          ### Validation and limitations
+          Confirmed working by the user on a real Nintendo DSi. Earlier tests confirmed Emerald-to-Pearl migration and writeback; FireRed recognition and Ruby, Sapphire and LeafGreen operation were reported. Full migration coverage for all Generation IV titles, regions and ROM hacks is not yet established. Flashcards/B4DS are not supported by this provider. This is a beta; back up both saves.
+
+          ### Build provenance
+          These binaries are the original tested artifacts, not a new build:
+          - NBP016: https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45546143437
+          - TWLM03 DSi theme: https://github.com/LittleCherryyy/PokeWalkerForkSDTRANSPORTER/actions/runs/45546166642
+
+          Original source: [Shinygati/SD-Transporter](https://github.com/Shinygati/SD-Transporter), commit 75610fa9905ac252609081287121e8d4c44febed. Credit to its contributors, nds-bootstrap and TWiLight Menu++ contributors. Original credits, GPLv3 license and integration patch are included. No commercial ROMs or saves are distributed.
+          EOF
+          gh release create "$TAG" dist/Virtual-Slot2-v0.1.0-beta-DSi.zip dist/SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Virtual Slot-2 v0.1.0-beta (NBP016 + TWLM03)" \
+            --prerelease --notes-file release-notes.md
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,tagName,isPrerelease,assets

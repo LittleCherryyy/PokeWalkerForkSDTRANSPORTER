@@ -1,4 +1,4 @@
-name: NBP004 all Gen IV Slot-2 diagnostic
+name: NBP005 visible boot and Slot-2 trace
 on:
   push:
     branches: [experimental/nbp003-build-only]
@@ -60,6 +60,8 @@ jobs:
           hdr=pay.parent/'nbp_slot2.h'
           assert not hdr.exists()
           hdr.write_text(header)
+          main=root/'bootstrap/retail/arm9/source/main.cpp'
+          assert blobhash(main.read_bytes())=='d75bc0535e1e8c79cd59c4a708ddff3704e7cd0e'
           def replace(p,a,b):
             s=p.read_text(); assert s.count(a)==1,(p,a);p.write_text(s.replace(a,b,1))
           replace(prep,'#include "configuration.h"','#include "configuration.h"\n#include "../../common/include/nbp_slot2.h"')
@@ -115,6 +117,61 @@ jobs:
           replace(boot,'\tce7->slot2SaveCluster = slot2SaveCluster;','\tce7->slot2SaveCluster = 0; /* no GBA disk writeback */')
           replace(hook,'#include "slot2_emu.h"','#include "slot2_emu.h"\n#include "nbp_slot2.h"')
           replace(hook,'\treturn slot2SaveCluster && ndsHeader->unitCode == 0','\textern u32 slot2Reserved0;\n\treturn nbpS2cluster(slot2Reserved0) && slot2SaveCluster && ndsHeader->unitCode == 0')
+          # Boot marker independent of Slot-2 preparation. Prompt at the existing
+          # launcher/bootloader boundary, not during gameplay.
+          replace(main,'\tif (!slot2Prepare(conf, clusterSav, st.st_ino)) return -42;',r'''  const bool nbpPrepared = slot2Prepare(conf, clusterSav, st.st_ino);
+            const char *nbpVolumes[] = {"sd:/NBP005-BOOT.TXT","fat:/NBP005-BOOT.TXT"};
+            bool nbpLogged = false;
+            for (int i=0;i<2;i++) {
+              if ((i==0 && !conf->sdFound) || (i==1 && !conf->bootstrapOnFlashcard && !conf->gameOnFlashcard)) continue;
+              FILE *nbp = fopen(nbpVolumes[i],"a");
+              if (!nbp) continue;
+              fprintf(nbp,"prepare called=%d\nSD=%d B4DS=%d bootFlash=%d gameFlash=%d saveFlash=%d\nNDS=%s\nGBA_ROM=%s\nGBA_SAV=%s\nsaveCluster=%lu romCluster=%lu pluginCluster=%lu\n",
+                nbpPrepared,conf->sdFound,conf->b4dsMode,conf->bootstrapOnFlashcard,conf->gameOnFlashcard,conf->saveOnFlashcard,
+                conf->ndsPath,conf->slot2RomPath?conf->slot2RomPath:"",conf->slot2SavePath?conf->slot2SavePath:"",
+                (unsigned long)conf->slot2SaveCluster,(unsigned long)conf->slot2RomCluster,(unsigned long)nbpS2cluster(conf->slot2Reserved0));
+              if (fclose(nbp)==0) nbpLogged=true;
+            }
+            myConsoleDemoInit();
+            consoleClear();
+            iprintf("NBP005 SLOT-2 DIAGNOSTIC\n\n");
+            iprintf("SD:%d B4DS:%d BOOT-FAT:%d\n",conf->sdFound,conf->b4dsMode,conf->bootstrapOnFlashcard);
+            iprintf("GAME-FAT:%d SAVE-FAT:%d\n",conf->gameOnFlashcard,conf->saveOnFlashcard);
+            iprintf("GBA save cluster: %lu\n",(unsigned long)conf->slot2SaveCluster);
+            iprintf("Plugin cluster: %lu\n",(unsigned long)nbpS2cluster(conf->slot2Reserved0));
+            iprintf("Boot report: %s\n",nbpLogged?"written":"not written");
+            iprintf("Boot log: %s\n",conf->logging?"enabled":"disabled");
+            iprintf("\nTake photo. START to launch.\n");
+            while (keysHeld() & KEY_START) {swiWaitForVBlank();scanKeys();}
+            do {swiWaitForVBlank();scanKeys();} while (!(keysDown() & KEY_START));
+            consoleClear();
+            if (!nbpPrepared) return -42;''')
+          replace(main,'\tbootstrapOnFlashcard = conf->bootstrapOnFlashcard;\n\n\tif (status == 0) {',r'''  bootstrapOnFlashcard = conf->bootstrapOnFlashcard;
+            if (status == 0) {
+              const char *volumes[] = {"sd:/NBP005-BOOT.TXT","fat:/NBP005-BOOT.TXT"};
+              for (int i=0;i<2;i++) {
+                if ((i==0 && !conf->sdFound) || (i==1 && !conf->bootstrapOnFlashcard && !conf->gameOnFlashcard)) continue;
+                FILE *nbp=fopen(volumes[i],"w");
+                if (nbp) {fputs("NBP005 launcher started\n",nbp);fclose(nbp);}
+              }
+              /* Existing upstream debug log uses raw SD file access in loader.
+               * Enable only for console-SD boot, after confirming file creation. */
+              if (conf->sdFound && !conf->b4dsMode && !conf->bootstrapOnFlashcard && !conf->gameOnFlashcard) {
+                FILE *probe=fopen("sd:/NDSBTSRP.LOG","a");
+                if (probe) {fclose(probe);conf->logging=true;}
+              }
+            }
+
+            if (status == 0) {''')
+          replace(main,'\t\tfprintf(loggingFile, "LOGGING MODE\\n");', '\t\tif (!loggingFile) {conf->logging=false;} else {\n\t\tfprintf(loggingFile, "LOGGING MODE\\n");')
+          replace(main,'\t\tfor (int i = 0; i < 1000; i++) {','\t\tif (loggingFile) {\n\t\tfor (int i = 0; i < 1000; i++) {')
+          replace(main,'\t\tfclose(loggingFile);\n\t} else {\n\t\tremove(logFilePath);','\t\tfclose(loggingFile);\n\t\t} else {conf->logging=false;}\n\t\t}\n\t} else {\n\t\tremove(logFilePath);')
+          replace(boot,'#include "nbp_slot2.h"','#include "nbp_slot2.h"\n#include "debug_file.h"')
+          replace(boot,'\tif (!slot2EmuBase) {\n\t\tce9->slot2EmuEntry = 0;', '\tdbg_printf("NBP005 slot2 base: "); dbg_hexa(slot2EmuBase); dbg_printf("\\n");\n\tif (!slot2EmuBase) {\n\t\tce9->slot2EmuEntry = 0;')
+          replace(boot,'\t\t\treturn;\n\t\t}\n\n\tc->version', '\t\t\treturn;\n\t\t}\n\n\tc->version') if False else None
+          replace(boot,'toncset(payload,0,NBP_S2_CODE);slot2Disable(ce9);return;', 'dbg_printf("NBP005 provider read/CRC failed\\n");toncset(payload,0,NBP_S2_CODE);slot2Disable(ce9);return;')
+          replace(boot,'\tc->magic = SLOT2EMU_MAGIC;', '\tdbg_printf("NBP005 provider loaded, entry: ");dbg_hexa(ce9->slot2EmuEntry);dbg_printf("\\n");\n\tc->magic = SLOT2EMU_MAGIC;')
+          replace(boot,'\tslot2PatchArm7(ndsHeader);','\tdbg_printf("NBP005 ARM7 patches: ");dbg_hexa(slot2PatchArm7(ndsHeader));dbg_printf("\\n");')
           subprocess.run(['git','-C','upstream','add','-N',str(hdr.relative_to(root))],check=True)
           pathlib.Path('out/integration.patch').write_bytes(subprocess.check_output(['git','-C','upstream','diff','--binary']))
           print('Pinned sources verified, external provider packaged:',len(pkg))
@@ -136,7 +193,7 @@ jobs:
             find retail -type f \( -name "*.o" -o -name "*.elf" -o -name "*.d" \) -delete
             rm -f retail/bin/nds-bootstrap.nds
             test -x /src/out/lzss
-            make -C retail -j2 DEVKITARM="$PWD/portable-ds-rules" LEGACY_DEVKITARM="$DEVKITPRO/devkitARM" LEGACY_LIBNDS="$DEVKITPRO/libnds" LIBDIRS="$DEVKITPRO/libnds" PYTHON=python3 GIT_VER=nbp004 LZSS=/src/out/lzss all
+            make -C retail -j2 DEVKITARM="$PWD/portable-ds-rules" LEGACY_DEVKITARM="$DEVKITPRO/devkitARM" LEGACY_LIBNDS="$DEVKITPRO/libnds" LIBDIRS="$DEVKITPRO/libnds" PYTHON=python3 GIT_VER=nbp005 LZSS=/src/out/lzss all
             for d in bootloader bootloader2 bootloaderi bootloaderi2; do
               arm-none-eabi-nm -n retail/$d/*.elf > /src/out/$d.symbols
             done
@@ -168,20 +225,20 @@ jobs:
           for name in ('LICENSE','CREDITS.md'):
             shutil.copyfile(pathlib.Path('upstream')/name,target/name)
           (target/'slot2.ini.example').write_text('[SLOT2]\nGBA_ROM_PATH = sd:/roms/gba/Pokemon Emerald.gba\nGBA_SAV_PATH = sd:/roms/gba/saves/Pokemon Emerald-test.sav\n')
-          (target/'TEST-ONLY.txt').write_text('NBP004: DSi internal SD; Diamond/Pearl/Platinum/HeartGold/SoulSilver, Ruby/Sapphire/Emerald/FireRed/LeafGreen families, regional builds accepted but not hardware validated. Prefer same-language games. GBA save: 131072 bytes or 131088 with RTC. BACK UP BOTH SAVES, use disposable copies, Nightly bootstrap. Compare boot without plugin, then with plugin. Check MIGRATE FROM the chosen GBA game and list only. Check slot2-error.txt or slot2-status.txt in _nds/nds-bootstrap/. NEVER confirm a migration: GBA disk writeback is disabled. Not hardware validated. Original SD-Transporter and nds-bootstrap contributors credited in CREDITS.md. Source base: 75610fa9905ac252609081287121e8d4c44febed; corresponding changes in integration.patch.\n')
-          (target/'build-report.json').write_text(json.dumps({'hardware_tested':False,'build':'NBP004','ds_families':['ADA','APA','CPU','IPK','IPG'],'gba_families':['AXV','AXP','BPE','BPR','BPG'],'loader_static_stack_margins':gaps,'nds_sha256':hashlib.sha256(b).hexdigest(),'plugin_sha256':hashlib.sha256(p).hexdigest()},indent=2))
+          (target/'TEST-ONLY.txt').write_text('NBP005: DSi internal SD; Diamond/Pearl/Platinum/HeartGold/SoulSilver, Ruby/Sapphire/Emerald/FireRed/LeafGreen families, regional builds accepted but not hardware validated. Prefer same-language games. GBA save: 131072 bytes or 131088 with RTC. BACK UP BOTH SAVES, use disposable copies, Nightly bootstrap. Compare boot without plugin, then with plugin. Check MIGRATE FROM the chosen GBA game and list only. Photograph NBP005 diagnostic screen, press START to launch. Send NBP005-BOOT.TXT and NDSBTSRP.LOG from SD root plus slot2-error.txt or slot2-status.txt in _nds/nds-bootstrap/. NEVER confirm a migration: GBA disk writeback is disabled. Not hardware validated. Original SD-Transporter and nds-bootstrap contributors credited in CREDITS.md. Source base: 75610fa9905ac252609081287121e8d4c44febed; corresponding changes in integration.patch.\n')
+          (target/'build-report.json').write_text(json.dumps({'hardware_tested':False,'build':'NBP005','ds_families':['ADA','APA','CPU','IPK','IPG'],'gba_families':['AXV','AXP','BPE','BPR','BPG'],'loader_static_stack_margins':gaps,'nds_sha256':hashlib.sha256(b).hexdigest(),'plugin_sha256':hashlib.sha256(p).hexdigest()},indent=2))
           (target/'SHA256SUMS.txt').write_text(''.join(hashlib.sha256(f.read_bytes()).hexdigest()+'  '+str(f.relative_to(target))+'\n' for f in sorted(target.rglob('*')) if f.is_file() and f.name!='SHA256SUMS.txt'))
           print(gaps)
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: DSi-NBP004-test-candidate
+          name: DSi-NBP005-test-candidate
           path: out/DSi-test/
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: NBP004-build-diagnostics
+          name: NBP005-build-diagnostics
           path: |
             out/build.log
             out/*.symbols

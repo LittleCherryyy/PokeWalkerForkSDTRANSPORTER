@@ -1,4 +1,4 @@
-name: TWLM01 GBA source save selector
+name: TWLM02 separate Pokemon ROM and save selector
 on:
   push:
     branches: [experimental/nbp003-build-only]
@@ -41,9 +41,8 @@ jobs:
           h=root/'universal/include/common/pokeSlots.h'
           check(h,'8d43fa7b690fdb54963c5ffcbdbf4b3af902ceb0')
           replace(h,'#include <string>','#include <string>\n#include <vector>\n#include <algorithm>\n#include <dirent.h>')
-          replace(h,'} // namespace pokeSlots',r'''/* TWLM01: select a paired Pokemon GBA ROM/save from the DS Y menu.
-           * Only reads directories/config on entry, and saves INI on A. */
-          struct GbaSource { std::string rom, save; };
+          replace(h,'} // namespace pokeSlots',r'''/* TWLM02: ROM and save are independent choices; commit both only on Save+A. */
+          struct GbaRom { std::string path; int family; };
           inline std::string baseName(const std::string& p) {
               const size_t slash=p.find_last_of('/');
               return slash==std::string::npos?p:p.substr(slash+1);
@@ -52,117 +51,190 @@ jobs:
               const size_t slash=p.find_last_of('/');
               return slash==std::string::npos?"":p.substr(0,slash);
           }
-          inline bool pokemonGbaRom(const std::string& p) {
-              if(p.compare(0,4,"sd:/")!=0) return false;
+          inline int gbaFamily(const std::string& p) {
+              if(p.compare(0,4,"sd:/")!=0) return -1;
               unsigned char h[0xC0];
-              FILE* f=fopen(p.c_str(),"rb"); if(!f) return false;
+              FILE* f=fopen(p.c_str(),"rb"); if(!f) return -1;
               bool ok=fread(h,1,sizeof(h),f)==sizeof(h); fclose(f);
-              if(!ok||h[0xB2]!=0x96) return false;
-              const char* code=(const char*)h+0xAC;
-              return !memcmp(code,"AXV",3)||!memcmp(code,"AXP",3)||!memcmp(code,"BPE",3)||!memcmp(code,"BPR",3)||!memcmp(code,"BPG",3);
+              if(!ok||h[0xB2]!=0x96) return -1;
+              static const char* const codes[]={"AXV","AXP","BPE","BPR","BPG"};
+              for(int i=0;i<5;i++) if(!memcmp(h+0xAC,codes[i],3)) return i;
+              return -1;
           }
           inline bool pokemonGbaSave(const std::string& p) {
               struct stat st;
               return p.compare(0,4,"sd:/")==0 && !stat(p.c_str(),&st) && S_ISREG(st.st_mode) &&
                      (st.st_size==0x20000||st.st_size==0x20010);
           }
+          inline bool saveExtension(const std::string& n) {
+              size_t d=n.find_last_of('.');
+              if(d==std::string::npos||strncasecmp(n.c_str()+d,".sav",4)) return false;
+              for(size_t i=d+4;i<n.size();i++) if(n[i]<'0'||n[i]>'9') return false;
+              return true;
+          }
           inline bool saveNameMatches(const std::string& name,const std::string& romStem) {
-              const size_t dot=name.find_last_of('.');
-              if(dot==std::string::npos||strncasecmp(name.c_str()+dot,".sav",4)) return false;
-              const std::string ext=name.substr(dot+4);
-              for(char ch:ext) if(ch<'0'||ch>'9') return false;
-              const std::string stem=name.substr(0,dot);
-              if(strncasecmp(stem.c_str(),romStem.c_str(),romStem.size())) return false;
+              if(!saveExtension(name)) return false;
+              const std::string stem=withExtension(name,"");
+              if(stem.size()<romStem.size()||strncasecmp(stem.c_str(),romStem.c_str(),romStem.size())) return false;
               if(stem.size()==romStem.size()) return true;
               const char sep=stem[romStem.size()];
               return sep==' '||sep=='-'||sep=='_'||sep=='.'||sep=='(';
+          }
+          inline int namedFamily(const std::string& name) {
+              std::string n;
+              for(unsigned char c:name) {
+                  if(c>='A'&&c<='Z') c+='a'-'A';
+                  if((c>='a'&&c<='z')||(c>='0'&&c<='9')) n+=(char)c;
+              }
+              if(n.compare(0,7,"pokemon")!=0) return -1;
+              static const char* const names[]={"ruby","sapphire","emerald","firered","leafgreen"};
+              for(int i=0;i<5;i++) if(n.compare(7,strlen(names[i]),names[i])==0) return i;
+              return -1;
           }
           inline void uniquePath(std::vector<std::string>& v,const std::string& p) {
               if(p.empty()||p.compare(0,4,"sd:/")!=0) return;
               for(const auto& q:v) if(sameFile(p,q)) return;
               v.push_back(p);
           }
-          inline void scanNames(const std::string& dir,std::vector<std::string>& files) {
+          inline void scanNames(const std::string& dir,std::vector<std::string>& dirs,std::vector<std::string>& files,unsigned depth) {
+              if(depth>6||dirs.size()>=128||files.size()>=1024) return;
+              for(const auto& d:dirs) if(sameFile(d,dir)) return;
               DIR* d=opendir(dir.c_str()); if(!d) return;
+              dirs.push_back(dir);
+              std::vector<std::string> children;
               struct dirent* e;
-              while((e=readdir(d))) {
+              while(files.size()<1024&&(e=readdir(d))) {
                   std::string n=e->d_name;
                   if(n=="."||n==".."||n.empty()||n[0]=='.'||n.find('/')!=std::string::npos) continue;
+                  std::string p=dir+"/"+n;
+                  struct stat st; if(stat(p.c_str(),&st)) continue;
+                  if(S_ISDIR(st.st_mode)) {if(children.size()<128) children.push_back(p);continue;}
+                  if(!S_ISREG(st.st_mode)) continue;
                   const size_t dot=n.find_last_of('.');
-                  if(dot==std::string::npos) continue;
-                  if(!strcasecmp(n.c_str()+dot,".gba")||!strncasecmp(n.c_str()+dot,".sav",4)) uniquePath(files,dir+"/"+n);
+                  if(dot!=std::string::npos&&(!strcasecmp(n.c_str()+dot,".gba")||saveExtension(n))) uniquePath(files,p);
               }
               closedir(d);
+              for(const auto& p:children) scanNames(p,dirs,files,depth+1);
           }
-          inline std::vector<GbaSource> gbaSources() {
-              std::vector<GbaSource> out;
-              const std::string curRom=readIni(kSlot2Ini,"SLOT2","GBA_ROM_PATH");
-              const std::string curSave=readIni(kSlot2Ini,"SLOT2","GBA_SAV_PATH");
-              if(pokemonGbaRom(curRom)&&pokemonGbaSave(curSave)) out.push_back({curRom,curSave});
-              std::vector<std::string> roots,dirs,files,roms;
-              uniquePath(roots,parentDir(curRom)); uniquePath(roots,"sd:/roms/gba");
-              for(const auto& r:roots) {uniquePath(dirs,r);uniquePath(dirs,r+"/saves");uniquePath(dirs,r+"/save");}
-              uniquePath(dirs,"sd:/_nds/TWiLightMenu/saves");
-              for(const auto& d:dirs) scanNames(d,files);
-              for(const auto& p:files) {
-                  const std::string n=baseName(p);
-                  if(n.size()>=4&&!strcasecmp(n.c_str()+n.size()-4,".gba")&&pokemonGbaRom(p)) uniquePath(roms,p);
-              }
-              uniquePath(roms,pokemonGbaRom(curRom)?curRom:"");
-              std::sort(files.begin(),files.end(),[](const std::string&a,const std::string&b){return strcasecmp(a.c_str(),b.c_str())<0;});
-              for(const auto& save:files) {
-                  if(!pokemonGbaSave(save)) continue;
-                  if(sameFile(save,curSave)&&!out.empty()) continue;
-                  size_t best=0; std::string match; bool ambiguous=false;
-                  for(const auto& rom:roms) {
-                      const std::string stem=withExtension(baseName(rom),"");
-                      if(!saveNameMatches(baseName(save),stem)) continue;
-                      if(stem.size()>best){best=stem.size();match=rom;ambiguous=false;}
-                      else if(stem.size()==best&&!sameFile(match,rom)) ambiguous=true;
+          inline std::string shortName(const std::string& path) {
+              std::string n=withExtension(baseName(path),"");
+              if(n.size()>=10&&!strncasecmp(n.c_str(),"Pokemon - ",10)) n=n.substr(10);
+              size_t v=n.find(" Version"); if(v!=std::string::npos) n.erase(v,8);
+              if(n.size()>23) n=n.substr(0,9)+"~"+n.substr(n.size()-13);
+              return n;
+          }
+          struct GbaSelector {
+              std::vector<GbaRom> roms;
+              std::vector<std::string> allSaves,saves;
+              std::string currentRom,currentSave;
+              size_t ri=0,si=0;
+              bool committed=false;
+              std::string result;
+              explicit GbaSelector(bool enabled) {
+                  if(!enabled) return;
+                  currentRom=readIni(kSlot2Ini,"SLOT2","GBA_ROM_PATH");
+                  currentSave=readIni(kSlot2Ini,"SLOT2","GBA_SAV_PATH");
+                  std::vector<std::string> dirs,files;
+                  scanNames("sd:/roms/gba",dirs,files,0);
+                  std::string rd=parentDir(currentRom),sd=parentDir(currentSave);
+                  if(!rd.empty()&&rd!="sd:") scanNames(rd,dirs,files,0);
+                  if(!sd.empty()&&sd!="sd:") scanNames(sd,dirs,files,0);
+                  scanNames("sd:/_nds/TWiLightMenu/saves",dirs,files,0);
+                  uniquePath(files,currentRom); uniquePath(files,currentSave);
+                  std::sort(files.begin(),files.end(),[](const std::string&a,const std::string&b){return strcasecmp(a.c_str(),b.c_str())<0;});
+                  for(const auto& p:files) {
+                      std::string n=baseName(p);
+                      if(n.size()>=4&&!strcasecmp(n.c_str()+n.size()-4,".gba")) {
+                          int f=gbaFamily(p); if(f>=0) roms.push_back({p,f});
+                      } else if(saveExtension(n)&&pokemonGbaSave(p)) allSaves.push_back(p);
                   }
-                  if(!match.empty()&&!ambiguous&&out.size()<128) out.push_back({match,save});
+                  for(size_t i=0;i<roms.size();i++) if(sameFile(roms[i].path,currentRom)) ri=i;
+                  refreshSaves();
+                  committed=!roms.empty()&&!saves.empty()&&sameFile(roms[ri].path,currentRom)&&sameFile(saves[si],currentSave);
               }
-              return out;
-          }
-          inline std::string gbaSourceLabel(const std::vector<GbaSource>& list,size_t index,bool pending) {
-              if(list.empty()) return "GBA save: none found";
-              const GbaSource& src=list[index];
-              std::string n=baseName(src.save);
-              if(n.compare(0,10,"Pokemon - ")==0) n=n.substr(10);
-              if(n.size()>25) n=n.substr(0,11)+"..."+n.substr(n.size()-11);
-              return std::string(pending?"A: ":"GBA ")+std::to_string(index+1)+"/"+std::to_string(list.size())+": "+n;
-          }
-          inline std::string applyGbaSource(const std::vector<GbaSource>& list,size_t index) {
-              if(list.empty()) return "GBA save: none found";
-              const auto& src=list[index];
-              if(!pokemonGbaRom(src.rom)||!pokemonGbaSave(src.save)) return "GBA source no longer valid";
-              if(!writeIni(kSlot2Ini,"SLOT2","GBA_ROM_PATH",src.rom,"GBA_SAV_PATH",src.save)) return "Could not write settings";
-              return gbaSourceLabel(list,index,false);
-          }
+              int familyForSave(const std::string& p) const {
+                  size_t best=0; int family=-1;
+                  for(const auto& r:roms) {
+                      const std::string stem=withExtension(baseName(r.path),"");
+                      if(!saveNameMatches(baseName(p),stem)) continue;
+                      if(stem.size()>best){best=stem.size();family=r.family;}
+                      else if(stem.size()==best&&family!=r.family) family=-2;
+                  }
+                  return best?family:namedFamily(baseName(p));
+              }
+              void refreshSaves() {
+                  saves.clear();si=0;
+                  if(roms.empty()) return;
+                  const auto& r=roms[ri];
+                  const std::string stem=withExtension(baseName(r.path),"");
+                  // Exact variants first, then saves of the same base Pokemon game.
+                  for(int pass=0;pass<2;pass++) for(const auto& p:allSaves) {
+                      int f=familyForSave(p);
+                      if(f!=r.family&&!(sameFile(r.path,currentRom)&&sameFile(p,currentSave))) continue;
+                      const bool exact=saveNameMatches(baseName(p),stem);
+                      if(exact==(pass==0)) uniquePath(saves,p);
+                  }
+                  if(sameFile(r.path,currentRom)) for(size_t i=0;i<saves.size();i++) if(sameFile(saves[i],currentSave)) si=i;
+              }
+              void stepRom(int dir) {
+                  if(roms.empty()) return;
+                  ri=(ri+roms.size()+(dir>0?1:roms.size()-1))%roms.size();
+                  committed=false;result.clear();refreshSaves();
+              }
+              void stepSave(int dir) {
+                  if(saves.empty()) return;
+                  si=(si+saves.size()+(dir>0?1:saves.size()-1))%saves.size();
+                  committed=false;result.clear();
+              }
+              std::string romLabel() const {
+                  if(roms.empty()) return "GBA ROM: none found";
+                  return "ROM "+std::to_string(ri+1)+"/"+std::to_string(roms.size())+": "+shortName(roms[ri].path);
+              }
+              std::string saveLabel() const {
+                  if(!result.empty()) return result;
+                  if(saves.empty()) return "GBA save: none found";
+                  return std::string(committed?"Save ":"A Save ")+std::to_string(si+1)+"/"+std::to_string(saves.size())+": "+shortName(saves[si]);
+              }
+              void apply() {
+                  result.clear();
+                  if(roms.empty()||saves.empty()) {result="GBA save: none found";return;}
+                  if(gbaFamily(roms[ri].path)!=roms[ri].family||!pokemonGbaSave(saves[si])) {result="GBA source no longer valid";return;}
+                  if(!writeIni(kSlot2Ini,"SLOT2","GBA_ROM_PATH",roms[ri].path,"GBA_SAV_PATH",saves[si])) {result="Could not write settings";return;}
+                  currentRom=roms[ri].path;currentSave=saves[si];committed=true;
+              }
+          };
           } // namespace pokeSlots''')
           themes=[('dsimenutheme','72eefa9c4ff3ed6d2454b40e7ad923321a04e877','[CURPOS]','FontPalette::dialog'),('r4theme','60e83d8444fe338cbdfa7373960f6c407b385491','','highlighted'),('aktheme','f2774557c2981850667b1fbcafb856acf6358862','[cursorPosOnScreen]','highlighted')]
           for theme,sha,idx,palette in themes:
               p=root/f'romsel_{theme}/arm9/source/perGameSettings.cpp'; check(p,sha)
-              replace(p,'\tstd::string migrationText = pokeSlots::migrationLabel(pokeRomPath);',f'''\tconst bool gbaSelector = !ms().secondaryDevice && showPerGameSettings && !isHomebrew{idx} && !isDSiWare{idx} && !isNdz{idx} && pokeSlots::isTransferSource(gameTid{idx}) && perGameOps < 25;
-          	if (gbaSelector) perGameOp[++perGameOps] = 24;
-          	std::vector<pokeSlots::GbaSource> gbaSources = gbaSelector ? pokeSlots::gbaSources() : std::vector<pokeSlots::GbaSource>();
-          	size_t gbaSourceIndex=0;
-          	std::string gbaSourceText=pokeSlots::gbaSourceLabel(gbaSources,0,false);
+              replace(p,'\tstd::string migrationText = pokeSlots::migrationLabel(pokeRomPath);',f'''\tconst bool gbaSelector = !ms().secondaryDevice && showPerGameSettings && !isHomebrew{idx} && !isDSiWare{idx} && !isNdz{idx} && pokeSlots::isTransferSource(gameTid{idx}) && perGameOps < 24;
+          	if (gbaSelector) {{ perGameOp[++perGameOps] = 24; perGameOp[++perGameOps] = 25; }}
+          	pokeSlots::GbaSelector gbaSource(gbaSelector);
           	std::string migrationText = pokeSlots::migrationLabel(pokeRomPath);''')
               replace(p,f'\t\t\tcase 23:\n\t\t\t\tprintSmall(false, 0, perGameOpYpos, walkerText, Alignment::center, {palette});\n\t\t\t\tbreak;',f'''\t\t\tcase 23:
           				printSmall(false, 0, perGameOpYpos, walkerText, Alignment::center, {palette});
           				break;
           			case 24:
-          				printSmall(false, 0, perGameOpYpos, gbaSourceText, Alignment::center, {palette});
+          				printSmall(false, 0, perGameOpYpos, gbaSource.romLabel(), Alignment::center, {palette});
+          				break;
+          			case 25:
+          				printSmall(false, 0, perGameOpYpos, gbaSource.saveLabel(), Alignment::center, {palette});
           				break;''')
               replace(p,'\t\t\tif (held & KEY_LEFT) {\n\t\t\t\tswitch (perGameOp[perGameSettings_cursorPosition]) {','''\t\t\tif (held & KEY_LEFT) {
           				switch (perGameOp[perGameSettings_cursorPosition]) {
-          					case 24:
-          						if (!gbaSources.empty()) { gbaSourceIndex=(gbaSourceIndex+gbaSources.size()-1)%gbaSources.size(); gbaSourceText=pokeSlots::gbaSourceLabel(gbaSources,gbaSourceIndex,true); }
-          						break;''')
+          					case 24: gbaSource.stepRom(-1); break;
+          					case 25: gbaSource.stepSave(-1); break;''')
               replace(p,'\t\t\t\t\tcase 22:\n\t\t\t\t\t\tif (pressed & KEY_A) migrationText = pokeSlots::toggleMigrationBypass(pokeRomPath);','''\t\t\t\t\tcase 24:
-          						if (pressed & KEY_A) gbaSourceText=pokeSlots::applyGbaSource(gbaSources,gbaSourceIndex);
-          						else if (!gbaSources.empty()) { gbaSourceIndex=(gbaSourceIndex+1)%gbaSources.size(); gbaSourceText=pokeSlots::gbaSourceLabel(gbaSources,gbaSourceIndex,true); }
+          						if (pressed & KEY_A) {
+          							if (perGameOp[perGameSettings_cursorPosition+1]==25) {
+          								perGameSettings_cursorPosition++;
+          								if (perGameSettings_cursorPosition>firstPerGameOpShown+3) firstPerGameOpShown++;
+          							}
+          						} else gbaSource.stepRom(1);
+          						break;
+          					case 25:
+          						if (pressed & KEY_A) gbaSource.apply();
+          						else gbaSource.stepSave(1);
           						break;
           					case 22:
           						if (pressed & KEY_A) migrationText = pokeSlots::toggleMigrationBypass(pokeRomPath);''')
@@ -211,18 +283,18 @@ jobs:
           shutil.copyfile(out/'menu-selector.patch',pkg/'menu-selector.patch')
           for n in ('LICENSE','CREDITS.md'):
               shutil.copyfile(root/n,pkg/n)
-          (pkg/'README-TEST.txt').write_text('TWLM01: replace only the matching theme .srldr (back up original). Y on any Gen IV Pokemon on SD; GBA save row below bypass where present. Left/right previews, A confirms and writes both paths to global slot2.ini; B without A discards preview. Scans current GBA ROM folder, sd:/roms/gba, saves/ and save/ and TWiLightMenu/saves. Matches valid Pokemon GBA ROM headers and 128 KiB saves (+16 RTC) by longest filename stem, includes current configured pair. No recursive scanning, ambiguous matches omitted, up to 128 pairs. No save data is edited by the selector. Keep NBP011 bootstrap unchanged. Hardware test pending. Source: Shinygati/SD-Transporter 75610fa9905ac252609081287121e8d4c44febed. See patch and credits.\n')
+          (pkg/'README-TEST.txt').write_text('TWLM02: replace only the matching theme .srldr. Y on Gen IV Pokemon on SD. Choose ROM with left/right then A moves to Save; choose save with left/right and A commits both paths to global slot2.ini. B without Save+A discards preview. Scans sd:/roms/gba recursively (depth 6), configured ROM/save directories and TWiLightMenu/saves; bounded to 128 directories and 1024 candidate files. All Pokemon GBA ROMs retaining AXV/AXP/BPE/BPR/BPG header families are listed even without saves. Save candidates are 128 KiB or +16 RTC, ranked by matching variant filename then same base game by filename; no content-level save family verification. Names shortened for display; copies and patched variants are not deduplicated by game ID. Generic unmatched saves are omitted except the current configured pair. Does not edit save contents. Keep NBP011 bootstrap unchanged. Hardware test pending. Source: Shinygati/SD-Transporter 75610fa9905ac252609081287121e8d4c44febed; see patch and credits.\n')
           (pkg/'build-report.json').write_text(json.dumps({'theme':theme,'sha256':hashlib.sha256(b).hexdigest(),'hardware_tested':False},indent=2))
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: TWLM01-${{ matrix.target }}-test
+          name: TWLM02-${{ matrix.target }}-test
           path: out/package
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: TWLM01-${{ matrix.target }}-diagnostics
+          name: TWLM02-${{ matrix.target }}-diagnostics
           path: |
             out/build.log
             out/menu-selector.patch

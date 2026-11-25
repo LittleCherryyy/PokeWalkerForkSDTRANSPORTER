@@ -1,4 +1,4 @@
-name: NBP003 isolated Slot-2 build
+name: NBP004 all Gen IV Slot-2 diagnostic
 on:
   push:
     branches: [experimental/nbp003-build-only]
@@ -63,9 +63,18 @@ jobs:
           def replace(p,a,b):
             s=p.read_text(); assert s.count(a)==1,(p,a);p.write_text(s.replace(a,b,1))
           replace(prep,'#include "configuration.h"','#include "configuration.h"\n#include "../../common/include/nbp_slot2.h"')
-          replace(prep,'\tconf->slot2SaveCluster = saveCluster;',r'''  /* Diagnostic: only HG USA + Emerald USA, no GBA writeback. */
-            if (memcmp(nds + 12, "IPKE", 4) || gameCode != 0x45455042u || size != 0x20000u || !romCluster)
-              return slot2Skip(conf, "NBP2: requires IPKE + BPEE ROM + 128 KiB GBA save");
+          replace(prep,'\tconf->slot2SaveCluster = saveCluster;',r'''  /* NBP004: all Gen IV game families, all Gen III Pokemon families.
+             * No language/revision whitelist; runtime compatibility not established. */
+            const unsigned char *tid = nds + 12;
+            if (memcmp(tid,"ADA",3) && memcmp(tid,"APA",3) && memcmp(tid,"CPU",3) &&
+                memcmp(tid,"IPK",3) && memcmp(tid,"IPG",3))
+              return slot2Skip(conf, "NBP004: not a Generation IV Pokemon title");
+            const u32 gbaFamily = gameCode & 0xffffffu;
+            if (gbaFamily != 0x565841u && gbaFamily != 0x505841u &&
+                gbaFamily != 0x455042u && gbaFamily != 0x525042u && gbaFamily != 0x475042u)
+              return slot2Skip(conf, "NBP004: GBA game code is not Ruby/Sapphire/Emerald/FireRed/LeafGreen");
+            if (size != 0x20000u && size != 0x20010u)
+              return slot2Skip(conf, "NBP004: Pokemon GBA save must be 131072 or 131088 bytes");
             struct stat pluginStat;
             if (stat(NBP_S2_PATH, &pluginStat) || !S_ISREG(pluginStat.st_mode) || pluginStat.st_size != NBP_S2_TOTAL
              || pluginStat.st_ino < 2 || pluginStat.st_ino > NBP_S2_CLUSTER_MAX
@@ -79,7 +88,18 @@ jobs:
             if (!pluginOk || !nbpS2header(pluginHeader)) return slot2Skip(conf, "NBP2: provider header mismatch");
             conf->slot2Reserved0 = nbpS2packCluster((u32)pluginStat.st_ino, 0);
             if (!conf->slot2Reserved0) return slot2Skip(conf, "NBP2: invalid FAT cluster");
+            FILE *status = fopen("sd:/_nds/nds-bootstrap/slot2-status.txt","w");
+            if (status) {
+              fprintf(status,"NBP004: launcher preparation passed; runtime not confirmed\nDS game=%.4s\nGBA game=%c%c%c%c\nGBA save size=%lu\nPlugin cluster=%lu\nGBA disk writeback=disabled\nGBA ROM=%s\nGBA SAVE=%s\n",
+                (const char *)tid,(int)(gameCode&255),(int)((gameCode>>8)&255),(int)((gameCode>>16)&255),(int)(gameCode>>24),
+                (unsigned long)size,(unsigned long)pluginStat.st_ino,
+                conf->slot2RomPath ? conf->slot2RomPath : "",conf->slot2SavePath);
+              fclose(status);
+            }
             conf->slot2SaveCluster = saveCluster;''')
+          replace(prep,'\tif (!haveSave && !haveRom) return true; /* no cartridge selected */',r'''  remove("sd:/_nds/nds-bootstrap/slot2-status.txt");
+            remove(SLOT2_ERROR_PATH);
+            if (!haveSave && !haveRom) return slot2Skip(conf,"NBP004: no GBA cartridge configured (check slot2.ini)");''')
           replace(boot,'#include "slot2_emu_payload.h"','#include "nbp_slot2.h"')
           replace(boot,'\ttonccpy((u8 *)slot2EmuBase + SLOT2EMU_BLOB_OFF, slot2EmuBlob, sizeof(slot2EmuBlob));',r'''  const u32 cluster = nbpS2cluster(slot2Reserved0);
             if (!cluster || NBP_S2_CODE > SLOT2EMU_BLOB_MAX) {slot2Disable(ce9);return;}
@@ -116,7 +136,7 @@ jobs:
             find retail -type f \( -name "*.o" -o -name "*.elf" -o -name "*.d" \) -delete
             rm -f retail/bin/nds-bootstrap.nds
             test -x /src/out/lzss
-            make -C retail -j2 DEVKITARM="$PWD/portable-ds-rules" LEGACY_DEVKITARM="$DEVKITPRO/devkitARM" LEGACY_LIBNDS="$DEVKITPRO/libnds" LIBDIRS="$DEVKITPRO/libnds" PYTHON=python3 GIT_VER=nbp003 LZSS=/src/out/lzss all
+            make -C retail -j2 DEVKITARM="$PWD/portable-ds-rules" LEGACY_DEVKITARM="$DEVKITPRO/devkitARM" LEGACY_LIBNDS="$DEVKITPRO/libnds" LIBDIRS="$DEVKITPRO/libnds" PYTHON=python3 GIT_VER=nbp004 LZSS=/src/out/lzss all
             for d in bootloader bootloader2 bootloaderi bootloaderi2; do
               arm-none-eabi-nm -n retail/$d/*.elf > /src/out/$d.symbols
             done
@@ -148,20 +168,20 @@ jobs:
           for name in ('LICENSE','CREDITS.md'):
             shutil.copyfile(pathlib.Path('upstream')/name,target/name)
           (target/'slot2.ini.example').write_text('[SLOT2]\nGBA_ROM_PATH = sd:/roms/gba/Pokemon Emerald.gba\nGBA_SAV_PATH = sd:/roms/gba/saves/Pokemon Emerald-test.sav\n')
-          (target/'TEST-ONLY.txt').write_text('DSi internal SD; IPKE and BPEE only. BACK UP BOTH SAVES, use disposable copies, Nightly bootstrap. Compare boot without plugin, then with plugin. Check MIGRATE FROM EMERALD and list only. NEVER confirm a migration: GBA disk writeback is disabled. Not hardware validated. Original SD-Transporter and nds-bootstrap contributors credited in CREDITS.md. Source base: 75610fa9905ac252609081287121e8d4c44febed; corresponding changes in integration.patch.\n')
-          (target/'build-report.json').write_text(json.dumps({'hardware_tested':False,'loader_static_stack_margins':gaps,'nds_sha256':hashlib.sha256(b).hexdigest(),'plugin_sha256':hashlib.sha256(p).hexdigest()},indent=2))
+          (target/'TEST-ONLY.txt').write_text('NBP004: DSi internal SD; Diamond/Pearl/Platinum/HeartGold/SoulSilver, Ruby/Sapphire/Emerald/FireRed/LeafGreen families, regional builds accepted but not hardware validated. Prefer same-language games. GBA save: 131072 bytes or 131088 with RTC. BACK UP BOTH SAVES, use disposable copies, Nightly bootstrap. Compare boot without plugin, then with plugin. Check MIGRATE FROM the chosen GBA game and list only. Check slot2-error.txt or slot2-status.txt in _nds/nds-bootstrap/. NEVER confirm a migration: GBA disk writeback is disabled. Not hardware validated. Original SD-Transporter and nds-bootstrap contributors credited in CREDITS.md. Source base: 75610fa9905ac252609081287121e8d4c44febed; corresponding changes in integration.patch.\n')
+          (target/'build-report.json').write_text(json.dumps({'hardware_tested':False,'build':'NBP004','ds_families':['ADA','APA','CPU','IPK','IPG'],'gba_families':['AXV','AXP','BPE','BPR','BPG'],'loader_static_stack_margins':gaps,'nds_sha256':hashlib.sha256(b).hexdigest(),'plugin_sha256':hashlib.sha256(p).hexdigest()},indent=2))
           (target/'SHA256SUMS.txt').write_text(''.join(hashlib.sha256(f.read_bytes()).hexdigest()+'  '+str(f.relative_to(target))+'\n' for f in sorted(target.rglob('*')) if f.is_file() and f.name!='SHA256SUMS.txt'))
           print(gaps)
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: DSi-NBP003-test-candidate
+          name: DSi-NBP004-test-candidate
           path: out/DSi-test/
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: NBP003-build-diagnostics
+          name: NBP004-build-diagnostics
           path: |
             out/build.log
             out/*.symbols

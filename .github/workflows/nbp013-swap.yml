@@ -1,0 +1,797 @@
+name: NBP013 fix in-game menu startup handshake
+on:
+  push:
+    branches: [experimental/nbp003-build-only]
+    paths: [.github/workflows/nbp013-swap.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Fetch pinned public source and apply diagnostic provider patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          git init upstream
+          git -C upstream remote add origin https://github.com/Shinygati/SD-Transporter.git
+          git -C upstream fetch --depth=1 origin 75610fa9905ac252609081287121e8d4c44febed
+          git -C upstream checkout --detach FETCH_HEAD
+          python3 - <<'PY'
+          import pathlib, hashlib, re, struct, zlib, subprocess, difflib
+          root=pathlib.Path('upstream')
+          files={
+          'bootstrap/retail/arm9/include/slot2_prepare.h':'2dc9bbd804bd195156da3b6ada357ba1f6cdff3f',
+          'bootstrap/retail/bootloaderi/source/arm7/slot2emu_boot.c':'c99afbaf6b6de77eb35b93468d71ad18dbae6b22',
+          'bootstrap/retail/bootloaderi/source/arm7/hook_arm9.c':'dd943b31f9fcdec288274666fb4ac138af2bc96e',
+          'bootstrap/retail/common/include/slot2_emu_payload.h':'7ea3155bf70c423db0573ff6ce304f64cbad37fd'}
+          def blobhash(b): return hashlib.sha1(b'blob '+str(len(b)).encode()+b'\0'+b).hexdigest()
+          for p,sha in files.items(): assert blobhash((root/p).read_bytes())==sha,p
+          prep,boot,hook,pay=map(lambda p:root/p,files)
+          code=bytes(int(v,16) for v in re.findall(r'0x([0-9a-fA-F]{2})\b',re.search(r'slot2EmuBlob\[7572\][^=]*=\s*\{([^}]+)\}',pay.read_text(),re.S)[1]))
+          assert len(code)==7572 and zlib.crc32(code)==0x7a10ef46
+          pkg=struct.pack('<4s7I',b'NBP2',1,32,0x4d453253,0,7572,0x7a10ef46,0)+code
+          pathlib.Path('out/virtual_slot2.nbp').write_bytes(pkg)
+          header=r'''/* SPDX-License-Identifier: GPL-3.0-or-later */
+          #ifndef NBP_SLOT2_H
+          #define NBP_SLOT2_H
+          #define NBP_S2_PATH "sd:/_nds/nds-bootstrap/plugins/virtual_slot2.nbp"
+          #define NBP_S2_HEADER 32u
+          #define NBP_S2_CODE 7572u
+          #define NBP_S2_CRC 0x7a10ef46u
+          #define NBP_S2_TOTAL (NBP_S2_HEADER + NBP_S2_CODE)
+          #define NBP_S2_CLUSTER_MAX 0x0fffffefu
+          static inline unsigned int nbpS2le(const unsigned char *p) {
+            return (unsigned int)p[0]|((unsigned int)p[1]<<8)|((unsigned int)p[2]<<16)|((unsigned int)p[3]<<24);
+          }
+          static inline unsigned int nbpS2crc(const unsigned char *p,unsigned int n) {
+            unsigned int c=~0u; while(n--) {c^=*p++; for(unsigned int i=0;i<8;i++) c=(c>>1)^(0xedb88320u&(0u-(c&1u)));} return ~c;
+          }
+          static inline int nbpS2header(const unsigned char *h) {
+            return nbpS2le(h)==0x3250424eu && nbpS2le(h+4)==1u && nbpS2le(h+8)==32u && nbpS2le(h+12)==0x4d453253u && nbpS2le(h+16)==0u && nbpS2le(h+20)==NBP_S2_CODE && nbpS2le(h+24)==NBP_S2_CRC && nbpS2le(h+28)==0u;
+          }
+          static inline unsigned int nbpS2packCluster(unsigned int c,unsigned int flags) {return c>=2u && c<=NBP_S2_CLUSTER_MAX ? (c<<2)|(flags&3u):0u;}
+          static inline unsigned int nbpS2cluster(unsigned int v) {unsigned int c=v>>2;return c>=2u && c<=NBP_S2_CLUSTER_MAX?c:0u;}
+          #endif
+          '''
+          hdr=pay.parent/'nbp_slot2.h'
+          assert not hdr.exists()
+          hdr.write_text(header)
+          main=root/'bootstrap/retail/arm9/source/main.cpp'
+          assert blobhash(main.read_bytes())=='d75bc0535e1e8c79cd59c4a708ddff3704e7cd0e'
+          def replace(p,a,b):
+            s=p.read_text(); assert s.count(a)==1,(p,a);p.write_text(s.replace(a,b,1))
+          replace(prep,'#include "configuration.h"','#include "configuration.h"\n#include "../../common/include/nbp_slot2.h"')
+          replace(prep,'\tconf->slot2SaveCluster = saveCluster;',r'''  /* NBP004: all Gen IV game families, all Gen III Pokemon families.
+             * No language/revision whitelist; runtime compatibility not established. */
+            const unsigned char *tid = nds + 12;
+            if (memcmp(tid,"ADA",3) && memcmp(tid,"APA",3) && memcmp(tid,"CPU",3) &&
+                memcmp(tid,"IPK",3) && memcmp(tid,"IPG",3))
+              return slot2Skip(conf, "NBP004: not a Generation IV Pokemon title");
+            const u32 gbaFamily = gameCode & 0xffffffu;
+            if (gbaFamily != 0x565841u && gbaFamily != 0x505841u &&
+                gbaFamily != 0x455042u && gbaFamily != 0x525042u && gbaFamily != 0x475042u)
+              return slot2Skip(conf, "NBP004: GBA game code is not Ruby/Sapphire/Emerald/FireRed/LeafGreen");
+            if (size != 0x20000u && size != 0x20010u)
+              return slot2Skip(conf, "NBP004: Pokemon GBA save must be 131072 or 131088 bytes");
+            struct stat pluginStat;
+            if (stat(NBP_S2_PATH, &pluginStat) || !S_ISREG(pluginStat.st_mode) || pluginStat.st_size != NBP_S2_TOTAL
+             || pluginStat.st_ino < 2 || pluginStat.st_ino > NBP_S2_CLUSTER_MAX
+             || (u32)pluginStat.st_ino == saveCluster || (u32)pluginStat.st_ino == romCluster
+             || (u32)pluginStat.st_ino == dsSaveCluster || (u32)pluginStat.st_ino == dsRomCluster)
+              return slot2Skip(conf, "NBP2: external provider missing or invalid");
+            unsigned char pluginHeader[NBP_S2_HEADER];
+            f = fopen(NBP_S2_PATH, "rb");
+            const bool pluginOk = f && fread(pluginHeader,1,sizeof(pluginHeader),f)==sizeof(pluginHeader);
+            if (f) fclose(f);
+            if (!pluginOk || !nbpS2header(pluginHeader)) return slot2Skip(conf, "NBP2: provider header mismatch");
+            /* Explicit experimental opt-in in slot2.ini, no filename constraint. */
+            const bool writeback=(conf->slot2Reserved0 & 2u)!=0;
+            if (writeback) {
+              if (!romCluster || romCluster==saveCluster || (conf->saveOnFlashcard))
+                return slot2Skip(conf,"NBP013: unsafe save/ROM alias or unsupported DS save volume");
+              FILE *test=fopen(conf->slot2SavePath,"r+b");
+              if (!test) return slot2Skip(conf,"NBP013: GBA save is not writable");
+              fclose(test);
+            }
+            conf->slot2Reserved0 = nbpS2packCluster((u32)pluginStat.st_ino, (conf->slot2Reserved0 & 1u) | (writeback?2u:0u));
+            if (!conf->slot2Reserved0) return slot2Skip(conf, "NBP2: invalid FAT cluster");
+            FILE *status = fopen("sd:/_nds/nds-bootstrap/slot2-status.txt","w");
+            if (status) {
+              fprintf(status,"NBP013: launcher preparation passed; runtime not confirmed\nDS game=%.4s\nGBA game=%c%c%c%c\nGBA save size=%lu\nPlugin cluster=%lu\nGBA disk writeback=%s\nGBA ROM=%s\nGBA SAVE=%s\n",
+                (const char *)tid,(int)(gameCode&255),(int)((gameCode>>8)&255),(int)((gameCode>>16)&255),(int)(gameCode>>24),
+                (unsigned long)size,(unsigned long)pluginStat.st_ino,writeback?"enabled by WRITEBACK=1":"disabled",
+                conf->slot2RomPath ? conf->slot2RomPath : "",conf->slot2SavePath);
+              fclose(status);
+            }
+            conf->slot2SaveCluster = saveCluster;''')
+          replace(prep,'\tif (!haveSave && !haveRom) return true; /* no cartridge selected */',r'''  remove("sd:/_nds/nds-bootstrap/slot2-status.txt");
+            remove(SLOT2_ERROR_PATH);
+            if (!haveSave && !haveRom) return slot2Skip(conf,"NBP004: no GBA cartridge configured (check slot2.ini)");''')
+          replace(boot,'#include "slot2_emu_payload.h"','#include "nbp_slot2.h"')
+          replace(boot,'\ttonccpy((u8 *)slot2EmuBase + SLOT2EMU_BLOB_OFF, slot2EmuBlob, sizeof(slot2EmuBlob));',r'''  const u32 cluster = nbpS2cluster(slot2Reserved0);
+            if (!cluster || NBP_S2_CODE > SLOT2EMU_BLOB_MAX) {slot2Disable(ce9);return;}
+            aFile plugin;
+            getFileFromCluster(&plugin,cluster,false);
+            u8 h[NBP_S2_HEADER];
+            u8 *payload=(u8 *)slot2EmuBase+SLOT2EMU_BLOB_OFF;
+            /* Use the existing checked uncached sector reader. Legacy fileRead
+             * returns dataPos+length instead of dataPos+remaining at a partial
+             * final sector; comparing that result against length rejects valid files. */
+            if (!gen5CheckedIO(h,&plugin,0,sizeof(h),false)) {
+              dbg_printf("NBP013 header IO failed\n");slot2Disable(ce9);return;
+            }
+            if (!nbpS2header(h)) {
+              dbg_printf("NBP013 header invalid: ");dbg_hexa(nbpS2le(h));dbg_printf("\n");slot2Disable(ce9);return;
+            }
+            for (u32 pos=0;pos<NBP_S2_CODE;) {
+              u32 n=512u-((NBP_S2_HEADER+pos)&511u);
+              if (n>NBP_S2_CODE-pos) n=NBP_S2_CODE-pos;
+              if (!gen5CheckedIO(payload+pos,&plugin,NBP_S2_HEADER+pos,n,false)) {
+                dbg_printf("NBP013 payload IO failed at: ");dbg_hexa(pos);dbg_printf("\n");
+                toncset(payload,0,NBP_S2_CODE);slot2Disable(ce9);return;
+              }
+              pos+=n;
+            }
+            const u32 actualCrc=nbpS2crc(payload,NBP_S2_CODE);
+            dbg_printf("NBP013 payload CRC: ");dbg_hexa(actualCrc);dbg_printf("\n");
+            if (actualCrc!=NBP_S2_CRC) {
+              dbg_printf("NBP013 payload CRC mismatch\n");
+              toncset(payload,0,NBP_S2_CODE);slot2Disable(ce9);return;
+            }''')
+          replace(boot,'\tce7->slot2SaveCluster = slot2SaveCluster;','\tce7->slot2SaveCluster = (slot2Reserved0 & 2u) ? slot2SaveCluster : 0;\n\tdbg_printf("NBP013 writeback cluster: ");dbg_hexa(ce7->slot2SaveCluster);dbg_printf("\\n");')
+          replace(hook,'#include "slot2_emu.h"','#include "slot2_emu.h"\n#include "nbp_slot2.h"')
+          replace(hook,'\treturn slot2SaveCluster && ndsHeader->unitCode == 0','\textern u32 slot2Reserved0;\n\treturn nbpS2cluster(slot2Reserved0) && slot2SaveCluster && ndsHeader->unitCode == 0')
+          # Boot marker independent of Slot-2 preparation. Prompt at the existing
+          # launcher/bootloader boundary, not during gameplay.
+          replace(main,'\tif (!slot2Prepare(conf, clusterSav, st.st_ino)) return -42;',r'''  const bool nbpPrepared = slot2Prepare(conf, clusterSav, st.st_ino);
+            const char *nbpVolumes[] = {"sd:/NBP013-BOOT.TXT","fat:/NBP013-BOOT.TXT"};
+            bool nbpLogged = false;
+            for (int i=0;i<2;i++) {
+              if ((i==0 && !conf->sdFound) || (i==1 && !conf->bootstrapOnFlashcard && !conf->gameOnFlashcard)) continue;
+              FILE *nbp = fopen(nbpVolumes[i],"a");
+              if (!nbp) continue;
+              fprintf(nbp,"prepare called=%d\nSD=%d B4DS=%d bootFlash=%d gameFlash=%d saveFlash=%d\nNDS=%s\nGBA_ROM=%s\nGBA_SAV=%s\nsaveCluster=%lu romCluster=%lu pluginCluster=%lu\n",
+                nbpPrepared,conf->sdFound,conf->b4dsMode,conf->bootstrapOnFlashcard,conf->gameOnFlashcard,conf->saveOnFlashcard,
+                conf->ndsPath,conf->slot2RomPath?conf->slot2RomPath:"",conf->slot2SavePath?conf->slot2SavePath:"",
+                (unsigned long)conf->slot2SaveCluster,(unsigned long)conf->slot2RomCluster,(unsigned long)nbpS2cluster(conf->slot2Reserved0));
+              if (fclose(nbp)==0) nbpLogged=true;
+            }
+            myConsoleDemoInit();
+            consoleClear();
+            iprintf("NBP013 SLOT-2 DIAGNOSTIC\n\n");
+            iprintf("SD:%d B4DS:%d BOOT-FAT:%d\n",conf->sdFound,conf->b4dsMode,conf->bootstrapOnFlashcard);
+            iprintf("GAME-FAT:%d SAVE-FAT:%d\n",conf->gameOnFlashcard,conf->saveOnFlashcard);
+            iprintf("GBA save cluster: %lu\n",(unsigned long)conf->slot2SaveCluster);
+            iprintf("Plugin cluster: %lu\n",(unsigned long)nbpS2cluster(conf->slot2Reserved0));
+            iprintf("Boot report: %s\n",nbpLogged?"written":"not written");
+            iprintf("Boot log: %s\n",conf->logging?"enabled":"disabled");
+            iprintf("\nTake photo. START to launch.\n");
+            while (keysHeld() & KEY_START) {swiWaitForVBlank();scanKeys();}
+            do {swiWaitForVBlank();scanKeys();} while (!(keysDown() & KEY_START));
+            consoleClear();
+            if (!nbpPrepared) return -42;''')
+          replace(main,'\tbootstrapOnFlashcard = conf->bootstrapOnFlashcard;\n\n\tif (status == 0) {',r'''  bootstrapOnFlashcard = conf->bootstrapOnFlashcard;
+            if (status == 0) {
+              const char *volumes[] = {"sd:/NBP013-BOOT.TXT","fat:/NBP013-BOOT.TXT"};
+              for (int i=0;i<2;i++) {
+                if ((i==0 && !conf->sdFound) || (i==1 && !conf->bootstrapOnFlashcard && !conf->gameOnFlashcard)) continue;
+                FILE *nbp=fopen(volumes[i],"w");
+                if (nbp) {fputs("NBP013 launcher started\n",nbp);fclose(nbp);}
+              }
+              /* Existing upstream debug log uses raw SD file access in loader.
+               * Enable only for console-SD boot, after confirming file creation. */
+              if (conf->sdFound && !conf->b4dsMode && !conf->bootstrapOnFlashcard && !conf->gameOnFlashcard) {
+                FILE *probe=fopen("sd:/NDSBTSRP.LOG","a");
+                if (probe) {fclose(probe);conf->logging=true;}
+              }
+            }
+
+            if (status == 0) {''')
+          replace(main,'\t\tfprintf(loggingFile, "LOGGING MODE\\n");', '\t\tif (!loggingFile) {conf->logging=false;} else {\n\t\tfprintf(loggingFile, "LOGGING MODE\\n");')
+          replace(main,'\t\tfor (int i = 0; i < 1000; i++) {','\t\tif (loggingFile) {\n\t\tfor (int i = 0; i < 1000; i++) {')
+          replace(main,'\t\tfclose(loggingFile);\n\t} else {\n\t\tremove(logFilePath);','\t\tfclose(loggingFile);\n\t\t} else {conf->logging=false;}\n\t\t}\n\t} else {\n\t\tremove(logFilePath);')
+          # Logging bit was originally packed during loadFromSD, before the
+          # diagnostic launcher set conf->logging. Synchronize after opening log.
+          replace(main,'\tdbg_printf("version: " VER_NUMBER "\\n");', '\tif (conf->logging) conf->valueBits |= BIT(7);\n\telse conf->valueBits &= ~BIT(7);\n\tdbg_printf("version: " VER_NUMBER "\\n");')
+          replace(main,'iprintf("Boot log: %s\\n",conf->logging?"enabled":"disabled");','iprintf("Boot log bit: %d\\n",(conf->valueBits & BIT(7)) != 0);')
+          replace(main,'iprintf("GBA save cluster: %lu\\n",(unsigned long)conf->slot2SaveCluster);','iprintf("Loader:%d DSiFeat:%d\\n",conf->loaderType,dsiFeatures());\n\tiprintf("GBA save cluster: %lu\\n",(unsigned long)conf->slot2SaveCluster);')
+          replace(boot,'static void slot2Disable(cardengineArm9 *ce9) {','static void slot2Disable(cardengineArm9 *ce9) {\n\tdbg_printf("NBP013 slot2 disabled\\n");') if False else None
+          replace(boot,'#include "nbp_slot2.h"','#include "nbp_slot2.h"\n#include "debug_file.h"\nextern bool gen5CheckedIO(void *buffer,aFile *file,u32 offset,u32 length,bool writing);')
+          replace(boot,'\tif (!slot2EmuBase) {\n\t\tce9->slot2EmuEntry = 0;', '\tdbg_printf("NBP013 slot2 base: "); dbg_hexa(slot2EmuBase); dbg_printf("\\n");\n\tif (!slot2EmuBase) {\n\t\tce9->slot2EmuEntry = 0;')
+          replace(boot,'\t\t\treturn;\n\t\t}\n\n\tc->version', '\t\t\treturn;\n\t\t}\n\n\tc->version') if False else None
+          # Separate I/O and CRC errors are emitted by the checked loader above.
+          replace(boot,'\tc->magic = SLOT2EMU_MAGIC;', '\tdbg_printf("NBP013 provider loaded, entry: ");dbg_hexa(ce9->slot2EmuEntry);dbg_printf("\\n");\n\tc->magic = SLOT2EMU_MAGIC;')
+          replace(boot,'\tslot2PatchArm7(ndsHeader);','\tdbg_printf("NBP013 ARM7 patches: ");dbg_hexa(slot2PatchArm7(ndsHeader));dbg_printf("\\n");')
+          replace(boot,'static void slot2Disable(cardengineArm9 *ce9) {','static void slot2Disable(cardengineArm9 *ce9) {\n\tdbg_printf("NBP013 slot2 disabled\\n");')
+          replace(boot,'\tce7->slot2EmuControl = 0;','\tce7->slot2EmuControl = 0;\n\tdbg_printf("NBP013 ce9 bits: ");dbg_hexa(ce9->valueBits);dbg_printf(" save cluster: ");dbg_hexa(slot2SaveCluster);dbg_printf(" packed provider: ");dbg_hexa(slot2Reserved0);dbg_printf("\\n");')
+          replace(boot,'\tconst Slot2EmuControl *c = slot2Control();','\tconst Slot2EmuControl *c = slot2Control();\n\tdbg_printf("NBP013 prefill code: ");dbg_hexa(c->gameCode);dbg_printf("\\n");')
+          replace(boot,'\tif (slot2Reserved0 & 1) {','\tdbg_printf("NBP013 history bypass verified opt-in: ");dbg_hexa(slot2Reserved0 & 1);dbg_printf("\\n");\n\tif (slot2Reserved0 & 1) {')
+          replace(boot,'\t\tc->reserved3 = palParkPatchArm9((void *)ndsHeader->arm9destination, arm9Size);','\t\tc->reserved3 = palParkPatchArm9((void *)ndsHeader->arm9destination, arm9Size);\n\t\tdbg_printf("NBP013 history signature patched: ");dbg_hexa(c->reserved3);dbg_printf("\\n");')
+          replace(main,'iprintf("Plugin cluster: %lu\\n",(unsigned long)nbpS2cluster(conf->slot2Reserved0));','iprintf("Plugin cluster: %lu\\n",(unsigned long)nbpS2cluster(conf->slot2Reserved0));\n\tiprintf("History opt-in: %d\\n",(int)(conf->slot2Reserved0 & 1));')
+          replace(main,'iprintf("History opt-in: %d\\n",(int)(conf->slot2Reserved0 & 1));','iprintf("History opt-in: %d\\n",(int)(conf->slot2Reserved0 & 1));\n\tiprintf("Writeback test: %d\\n",(int)((conf->slot2Reserved0 & 2)!=0));')
+          flush=root/'bootstrap/retail/cardenginei/arm7/source/slot2_file.c'
+          assert blobhash(flush.read_bytes())=='b694238f6d51ec386b5d5bd8bcd1af0ed25f5b00'
+          replace(flush,'#include "slot2_emu.h"','#include "slot2_emu.h"\n#include "tonccpy.h"\nextern bool gen5CheckedIO(void *buffer,aFile *file,u32 offset,u32 length,bool writing);')
+          replace(flush,'static Slot2EmuControl *control(void)', 'static volatile Slot2EmuControl *control(void)')
+          # Control is uncached shared ARM9/ARM7 RAM.
+          assert flush.read_text().count('Slot2EmuControl *c = control();')==2
+          flush.write_text(flush.read_text().replace('Slot2EmuControl *c = control();','volatile Slot2EmuControl *c = control();'))
+          replace(flush,'\tconst u32 sectors = c->flashSize / SLOT2EMU_SECTOR;', '\tif (c->flashSize != 0x20000u || (slot2SaveSize != 0x20000u && slot2SaveSize != 0x20010u) || c->saveSize != slot2SaveSize) return;\n\tconst u32 sectors = c->flashSize / SLOT2EMU_SECTOR;\n\tstatic unsigned char snapshot[512] __attribute__((aligned(4)));\n\tbool failed=false;')
+          replace(flush,'\t\tfileWrite((char *)(c->mirror + i * SLOT2EMU_SECTOR), &slot2Save, i * SLOT2EMU_SECTOR, SLOT2EMU_SECTOR);',r'''    for (u32 part=0;part<SLOT2EMU_SECTOR;part+=512) {
+                const u32 off=i*SLOT2EMU_SECTOR+part;
+                tonccpy(snapshot,(const void *)(c->mirror+off),512);
+                if (!gen5CheckedIO(snapshot,&slot2Save,off,512,true)) {
+                  c->dirty[i]=1; c->reserved4[0]++; failed=true; break;
+                }
+                c->reserved4[1]++;
+              }''')
+          replace(flush,'\tc->flushedSeq = seq;\n\tc->flushes++;','\t/* Never acknowledge a failed flush; leave dirty sector queued. */\n\tif (!failed) {c->flushedSeq = seq; c->flushes++;}')
+          # The shared ARM7 source is also built into the SDK5 engine, where
+          # checked IO is unavailable and the Slot-2 provider is not supported.
+          replace(flush,'void slot2EmuWrite(void) {','void slot2EmuWrite(void) {\n#ifdef TWLSDK\n\treturn;\n#else')
+          assert flush.read_text().endswith('\n}\n')
+          flush.write_text(flush.read_text()[:-3]+'\n#endif\n}\n')
+          config=root/'bootstrap/retail/arm9/source/conf_sd.cpp'
+          assert blobhash(config.read_bytes())=='225429454e43f57b332f3955bb3b7cdadae3ffba'
+          replace(config,'&& palParkVerifyHeader(conf->ndsPath)) conf->slot2Reserved0 = 1;','&& palParkVerifyHeader(conf->ndsPath)) conf->slot2Reserved0 = 1;\n\tif (slot2_config.fetch("SLOT2", "WRITEBACK", "1") == "1") conf->slot2Reserved0 |= 2u;')
+          # Dedicated preallocated telemetry file (one sector); no FAT allocation in game.
+          replace(main,'const bool nbpPrepared = slot2Prepare(conf, clusterSav, st.st_ino);',r'''const bool nbpPrepared = slot2Prepare(conf, clusterSav, st.st_ino);
+            if (conf->slot2SaveCluster && nbpS2cluster(conf->slot2Reserved0) && conf->sdFound && !conf->bootstrapOnFlashcard && !conf->gameOnFlashcard && !conf->saveOnFlashcard) {
+              FILE *trace=fopen("sd:/NBP013.BIN","wb");
+              if (trace) {
+                unsigned char record[512]={0};
+                memcpy(record,"NBP013-PENDING",14);
+                fwrite(record,1,sizeof(record),trace);
+                fclose(trace);
+              }
+            }''')
+          replace(main,'saveCluster=%lu romCluster=%lu pluginCluster=%lu\n','saveCluster=%lu romCluster=%lu pluginCluster=%lu\n') if False else None
+          replace(main,'(unsigned long)conf->slot2SaveCluster,(unsigned long)conf->slot2RomCluster,(unsigned long)nbpS2cluster(conf->slot2Reserved0));', '(unsigned long)conf->slot2SaveCluster,(unsigned long)conf->slot2RomCluster,(unsigned long)nbpS2cluster(conf->slot2Reserved0));\n\tfprintf(nbp,"writeback=%d history=%d\\n",(int)((conf->slot2Reserved0&2)!=0),(int)(conf->slot2Reserved0&1));')
+          replace(boot,'\tce7->slot2EmuControl = (u32)c;',r'''  ce7->slot2EmuControl = (u32)c;
+            aFile trace;
+            getBootFileCluster(&trace,"NBP013.BIN",false);
+            extern u32 saveFileCluster, storedFileCluster;
+            const u32 tc=trace.firstCluster;
+            if (tc>=2 && tc<0x0ffffff0u && tc!=slot2SaveCluster && tc!=slot2RomCluster && tc!=cluster && tc!=saveFileCluster && tc!=storedFileCluster)
+              ce7->slot2Reserved0=tc;
+            dbg_printf("NBP013 trace cluster: ");dbg_hexa(ce7->slot2Reserved0);dbg_printf("\n");''')
+          # Keep write acknowledgement conditional on no dirty data being left.
+          replace(flush,'if (!failed) {c->flushedSeq = seq; c->flushes++;}', 'if (!failed) {bool pending=false; for(u32 i=0;i<sectors;i++) if(c->dirty[i]) pending=true; if(!pending && c->writeSeq==seq) {c->flushedSeq = seq; c->flushes++;}}')
+          replace(flush,'if (!c || c->writeSeq == c->flushedSeq) return false;',r'''if (!c) return false;
+            if (c->writeSeq == c->flushedSeq) {
+              bool dirty=false;
+              for(u32 i=0;i<SLOT2EMU_SECTORS;i++) if(c->dirty[i]) dirty=true;
+              if(!dirty) return false;
+            }''')
+          with flush.open('a') as fp: fp.write(r'''
+          /* Binary telemetry: little-endian u32 words, one preallocated sector.
+           * Called only under the existing save mutex and SD NDMA selection. */
+          #ifndef TWLSDK
+          extern u32 slot2Reserved0;
+          static u32 traceTick=0, traceSeq=~0u, traceFlushed=~0u, traceErrors=~0u, traceBuild=~0u;
+          static volatile Slot2EmuControl *traceControl(void) {
+            volatile Slot2EmuControl *c=(volatile Slot2EmuControl *)slot2EmuControl;
+            return slot2Reserved0>=2 && slot2Reserved0<0x0ffffff0u && c && c->magic==SLOT2EMU_MAGIC && c->version==SLOT2EMU_VERSION ? c : 0;
+          }
+          bool slot2TraceDue(bool force) {
+            volatile Slot2EmuControl *c=traceControl();
+            if(!c) return false;
+            if(!force && ++traceTick<120) return false;
+            traceTick=0;
+            return force || c->writeSeq!=traceSeq || c->flushedSeq!=traceFlushed || c->reserved4[0]!=traceErrors || c->blobBuild!=traceBuild;
+          }
+          void slot2TraceWrite(void) {
+            volatile Slot2EmuControl *c=traceControl();
+            if(!c) return;
+            static u32 rec[128] __attribute__((aligned(4)));
+            for(unsigned i=0;i<128;i++) rec[i]=0;
+            rec[0]=0x3154424e; /* NBT1 */
+            rec[1]=13; rec[2]=slot2SaveCluster; rec[3]=slot2EmuControl;
+            rec[4]=c->magic; rec[5]=c->blobBuild; rec[6]=c->installs;
+            rec[7]=c->writeSeq; rec[8]=c->flushedSeq; rec[9]=c->flushes;
+            rec[10]=c->reserved4[0]; rec[11]=c->reserved4[1];
+            rec[12]=c->aborts; rec[13]=c->unhandled; rec[14]=c->bulkReads;
+            rec[15]=c->bulkPrograms; rec[16]=c->bulkVerifies; rec[17]=c->reserved3;
+            for(unsigned i=0;i<32;i++) if(c->dirty[i]) rec[18]|=1u<<i;
+            rec[19]=c->gameCode; rec[20]=c->flashSize; rec[21]=c->saveSize;
+            aFile log; getFileFromCluster(&log,slot2Reserved0,false);
+            if(gen5CheckedIO(rec,&log,0,512,true)) {
+              traceSeq=rec[7];traceFlushed=rec[8];traceErrors=rec[10];traceBuild=rec[5];
+            }
+          }
+          #else
+          bool slot2TraceDue(bool force) { (void)force; return false; }
+          void slot2TraceWrite(void) {}
+          #endif
+          ''')
+          engine=root/'bootstrap/retail/cardenginei/arm7/source/cardengine.c'
+          assert blobhash(engine.read_bytes())=='c3a22ad1909a51ea6e88a74b70a9ee6d1d9315a4'
+          replace(engine,'static void slot2EmuFlush(bool force) {', 'extern bool slot2TraceDue(bool force);\nextern void slot2TraceWrite(void);\nstatic void slot2EmuFlush(bool force) {')
+          replace(engine,'\tif ((!slot2 && !walker) || !tryLockMutex(&saveMutex)) return;\n\tvirtualFilesWriteLocked(slot2, walker, force);\n\tunlockMutex(&saveMutex);',r'''  const bool trace=slot2TraceDue(force);
+            if ((!slot2 && !walker && !trace) || !tryLockMutex(&saveMutex)) return;
+            virtualFilesWriteLocked(slot2, walker, force);
+            if (trace && (valueBits & b_dsiSD) && !isSdEjected()) {
+              driveInitialize(); sdmmc_set_ndma_slot(4);
+              saveTimer=1; slot2TraceWrite(); sdmmc_set_ndma_slot(0);
+            }
+            unlockMutex(&saveMutex);''')
+          # Catalog protocol: telemetry sector 0; request/header sector 1; pair records start sector 2.
+          swap=main.parent/'nbp_swap.h'
+          swap.write_text(r'''#pragma once
+          #include <vector>
+          #include <algorithm>
+          #include <dirent.h>
+          #include <strings.h>
+          #include <easysave/ini.hpp>
+          namespace nbpswap {
+          static const char* kSlot2Ini="sd:/_nds/nds-bootstrap/slot2.ini";
+          static const char* kFile="sd:/NBP013.BIN";
+          static const u32 MAGIC=0x32505753u, MAX=96;
+          inline bool sameFile(const std::string&a,const std::string&b) {return !a.empty()&&!strcasecmp(a.c_str(),b.c_str());}
+          inline std::string withExtension(const std::string&n,const char*e) {size_t d=n.find_last_of('.');return (d==std::string::npos?n:n.substr(0,d))+e;}
+          inline std::string readIni(const char* f,const char*s,const char*k){easysave::ini i(f);return i.fetch(s,k,"");}
+          inline bool writeIni(const char*,const char*,const char*,const std::string&,const char*,const std::string&){return false;}
+          struct GbaRom { std::string path; int family; };
+          inline std::string baseName(const std::string& p) {
+              const size_t slash=p.find_last_of('/');
+              return slash==std::string::npos?p:p.substr(slash+1);
+          }
+          inline std::string parentDir(const std::string& p) {
+              const size_t slash=p.find_last_of('/');
+              return slash==std::string::npos?"":p.substr(0,slash);
+          }
+          inline int gbaFamily(const std::string& p) {
+              if(p.compare(0,4,"sd:/")!=0) return -1;
+              unsigned char h[0xC0];
+              FILE* f=fopen(p.c_str(),"rb"); if(!f) return -1;
+              bool ok=fread(h,1,sizeof(h),f)==sizeof(h); fclose(f);
+              if(!ok||h[0xB2]!=0x96) return -1;
+              static const char* const codes[]={"AXV","AXP","BPE","BPR","BPG"};
+              for(int i=0;i<5;i++) if(!memcmp(h+0xAC,codes[i],3)) return i;
+              return -1;
+          }
+          inline bool pokemonGbaSave(const std::string& p) {
+              struct stat st;
+              return p.compare(0,4,"sd:/")==0 && !stat(p.c_str(),&st) && S_ISREG(st.st_mode) &&
+                     (st.st_size==0x20000||st.st_size==0x20010);
+          }
+          inline bool saveExtension(const std::string& n) {
+              size_t d=n.find_last_of('.');
+              if(d==std::string::npos||strncasecmp(n.c_str()+d,".sav",4)) return false;
+              for(size_t i=d+4;i<n.size();i++) if(n[i]<'0'||n[i]>'9') return false;
+              return true;
+          }
+          inline bool saveNameMatches(const std::string& name,const std::string& romStem) {
+              if(!saveExtension(name)) return false;
+              const std::string stem=withExtension(name,"");
+              if(stem.size()<romStem.size()||strncasecmp(stem.c_str(),romStem.c_str(),romStem.size())) return false;
+              if(stem.size()==romStem.size()) return true;
+              const char sep=stem[romStem.size()];
+              return sep==' '||sep=='-'||sep=='_'||sep=='.'||sep=='(';
+          }
+          inline int namedFamily(const std::string& name) {
+              std::string n;
+              for(unsigned char c:name) {
+                  if(c>='A'&&c<='Z') c+='a'-'A';
+                  if((c>='a'&&c<='z')||(c>='0'&&c<='9')) n+=(char)c;
+              }
+              if(n.compare(0,7,"pokemon")!=0) return -1;
+              static const char* const names[]={"ruby","sapphire","emerald","firered","leafgreen"};
+              for(int i=0;i<5;i++) if(n.compare(7,strlen(names[i]),names[i])==0) return i;
+              return -1;
+          }
+          inline void uniquePath(std::vector<std::string>& v,const std::string& p) {
+              if(p.empty()||p.compare(0,4,"sd:/")!=0) return;
+              for(const auto& q:v) if(sameFile(p,q)) return;
+              v.push_back(p);
+          }
+          inline void scanNames(const std::string& dir,std::vector<std::string>& dirs,std::vector<std::string>& files,unsigned depth) {
+              if(depth>6||dirs.size()>=128||files.size()>=1024) return;
+              for(const auto& d:dirs) if(sameFile(d,dir)) return;
+              DIR* d=opendir(dir.c_str()); if(!d) return;
+              dirs.push_back(dir);
+              std::vector<std::string> children;
+              struct dirent* e;
+              while(files.size()<1024&&(e=readdir(d))) {
+                  std::string n=e->d_name;
+                  if(n=="."||n==".."||n.empty()||n[0]=='.'||n.find('/')!=std::string::npos) continue;
+                  std::string p=dir+"/"+n;
+                  struct stat st; if(stat(p.c_str(),&st)) continue;
+                  if(S_ISDIR(st.st_mode)) {if(children.size()<128) children.push_back(p);continue;}
+                  if(!S_ISREG(st.st_mode)) continue;
+                  const size_t dot=n.find_last_of('.');
+                  if(dot!=std::string::npos&&(!strcasecmp(n.c_str()+dot,".gba")||saveExtension(n))) uniquePath(files,p);
+              }
+              closedir(d);
+              for(const auto& p:children) scanNames(p,dirs,files,depth+1);
+          }
+          inline std::string shortName(const std::string& path) {
+              std::string n=withExtension(baseName(path),"");
+              if(n.size()>=10&&!strncasecmp(n.c_str(),"Pokemon - ",10)) n=n.substr(10);
+              size_t v=n.find(" Version"); if(v!=std::string::npos) n.erase(v,8);
+              if(n.size()>23) n=n.substr(0,9)+"~"+n.substr(n.size()-13);
+              return n;
+          }
+          struct GbaSelector {
+              std::vector<GbaRom> roms;
+              std::vector<std::string> allSaves,saves;
+              std::string currentRom,currentSave;
+              size_t ri=0,si=0;
+              bool committed=false;
+              std::string result;
+              explicit GbaSelector(bool enabled) {
+                  if(!enabled) return;
+                  currentRom=readIni(kSlot2Ini,"SLOT2","GBA_ROM_PATH");
+                  currentSave=readIni(kSlot2Ini,"SLOT2","GBA_SAV_PATH");
+                  std::vector<std::string> dirs,files;
+                  scanNames("sd:/roms/gba",dirs,files,0);
+                  std::string rd=parentDir(currentRom),sd=parentDir(currentSave);
+                  if(!rd.empty()&&rd!="sd:") scanNames(rd,dirs,files,0);
+                  if(!sd.empty()&&sd!="sd:") scanNames(sd,dirs,files,0);
+                  scanNames("sd:/_nds/TWiLightMenu/saves",dirs,files,0);
+                  uniquePath(files,currentRom); uniquePath(files,currentSave);
+                  std::sort(files.begin(),files.end(),[](const std::string&a,const std::string&b){return strcasecmp(a.c_str(),b.c_str())<0;});
+                  for(const auto& p:files) {
+                      std::string n=baseName(p);
+                      if(n.size()>=4&&!strcasecmp(n.c_str()+n.size()-4,".gba")) {
+                          int f=gbaFamily(p); if(f>=0) roms.push_back({p,f});
+                      } else if(saveExtension(n)&&pokemonGbaSave(p)) allSaves.push_back(p);
+                  }
+                  for(size_t i=0;i<roms.size();i++) if(sameFile(roms[i].path,currentRom)) ri=i;
+                  refreshSaves();
+                  committed=!roms.empty()&&!saves.empty()&&sameFile(roms[ri].path,currentRom)&&sameFile(saves[si],currentSave);
+              }
+              int familyForSave(const std::string& p) const {
+                  size_t best=0; int family=-1;
+                  for(const auto& r:roms) {
+                      const std::string stem=withExtension(baseName(r.path),"");
+                      if(!saveNameMatches(baseName(p),stem)) continue;
+                      if(stem.size()>best){best=stem.size();family=r.family;}
+                      else if(stem.size()==best&&family!=r.family) family=-2;
+                  }
+                  return best?family:namedFamily(baseName(p));
+              }
+              void refreshSaves() {
+                  saves.clear();si=0;
+                  if(roms.empty()) return;
+                  const auto& r=roms[ri];
+                  const std::string stem=withExtension(baseName(r.path),"");
+                  // Exact variants first, then saves of the same base Pokemon game.
+                  for(int pass=0;pass<2;pass++) for(const auto& p:allSaves) {
+                      int f=familyForSave(p);
+                      if(f!=r.family&&!(sameFile(r.path,currentRom)&&sameFile(p,currentSave))) continue;
+                      const bool exact=saveNameMatches(baseName(p),stem);
+                      if(exact==(pass==0)) uniquePath(saves,p);
+                  }
+                  if(sameFile(r.path,currentRom)) for(size_t i=0;i<saves.size();i++) if(sameFile(saves[i],currentSave)) si=i;
+              }
+              void stepRom(int dir) {
+                  if(roms.empty()) return;
+                  ri=(ri+roms.size()+(dir>0?1:roms.size()-1))%roms.size();
+                  committed=false;result.clear();refreshSaves();
+              }
+              void stepSave(int dir) {
+                  if(saves.empty()) return;
+                  si=(si+saves.size()+(dir>0?1:saves.size()-1))%saves.size();
+                  committed=false;result.clear();
+              }
+              std::string romLabel() const {
+                  if(roms.empty()) return "GBA ROM: none found";
+                  return "ROM "+std::to_string(ri+1)+"/"+std::to_string(roms.size())+": "+shortName(roms[ri].path);
+              }
+              std::string saveLabel() const {
+                  if(!result.empty()) return result;
+                  if(saves.empty()) return "GBA save: none found";
+                  return std::string(committed?"Save ":"A Save ")+std::to_string(si+1)+"/"+std::to_string(saves.size())+": "+shortName(saves[si]);
+              }
+              void apply() {
+                  result.clear();
+                  if(roms.empty()||saves.empty()) {result="GBA save: none found";return;}
+                  if(gbaFamily(roms[ri].path)!=roms[ri].family||!pokemonGbaSave(saves[si])) {result="GBA source no longer valid";return;}
+                  if(!writeIni(kSlot2Ini,"SLOT2","GBA_ROM_PATH",roms[ri].path,"GBA_SAV_PATH",saves[si])) {result="Could not write settings";return;}
+                  currentRom=roms[ri].path;currentSave=saves[si];committed=true;
+              }
+          };
+          struct Header {u32 magic,token,count,index,recordCrc; unsigned char pad[492];};
+          struct Pair {u32 crc;char rom[220],save[220],romLabel[32],saveLabel[32];u32 pad;};
+          static_assert(sizeof(Header)==512&&sizeof(Pair)==512,"swap ABI");
+          inline u32 token(configuration* c) {
+            std::string s=std::string(c->ndsPath)+"\n"+(c->slot2RomPath?c->slot2RomPath:"")+"\n"+(c->slot2SavePath?c->slot2SavePath:"");
+            return nbpS2crc((const unsigned char*)s.data(),s.size());
+          }
+          inline bool sane(const char*p,size_t n){return memchr(p,0,n)&&!strncmp(p,"sd:/",4)&&!strchr(p,'\n')&&!strchr(p,'\r')&&!strchr(p,'"');}
+          inline bool writeSelection(const Pair& p) {
+            const char* tmp="sd:/_nds/nds-bootstrap/slot2.nbp-tmp";
+            const char* bak="sd:/_nds/nds-bootstrap/slot2.nbp-bak";
+            if(access(kSlot2Ini,F_OK)!=0) return false;
+            easysave::ini i(kSlot2Ini);
+            i.set("SLOT2","GBA_ROM_PATH",p.rom);i.set("SLOT2","GBA_SAV_PATH",p.save);
+            i.set("SLOT2","GBA_GAME","");
+            FILE* f=fopen(tmp,"w");if(!f)return false;fclose(f);
+            i.update_filename(tmp);i.flush();
+            if(readIni(tmp,"SLOT2","GBA_ROM_PATH")!=p.rom||readIni(tmp,"SLOT2","GBA_SAV_PATH")!=p.save){remove(tmp);return false;}
+            remove(bak);
+            if(rename(kSlot2Ini,bak)!=0){remove(tmp);return false;}
+            if(rename(tmp,kSlot2Ini)!=0){rename(bak,kSlot2Ini);return false;}
+            return true;
+          }
+          inline bool applyRequest(configuration* c,u32 dsSave,u32 dsRom) {
+            FILE* f=fopen(kFile,"rb");if(!f)return false;
+            Header h={};Pair p={};
+            bool ok=!fseek(f,512,SEEK_SET)&&fread(&h,1,sizeof(h),f)==sizeof(h)&&h.magic==MAGIC&&h.token==token(c)&&h.count<=MAX&&h.index<h.count&&
+              !fseek(f,1024+h.index*512,SEEK_SET)&&fread(&p,1,sizeof(p),f)==sizeof(p);
+            fclose(f);
+            if(!ok||p.crc!=h.recordCrc||p.crc!=nbpS2crc((unsigned char*)&p+4,508)||!sane(p.rom,sizeof(p.rom))||!sane(p.save,sizeof(p.save))||gbaFamily(p.rom)<0||!pokemonGbaSave(p.save))return false;
+            struct stat rs,ss;
+            if(stat(p.rom,&rs)||stat(p.save,&ss)||rs.st_ino==ss.st_ino||ss.st_ino==dsSave||ss.st_ino==dsRom||rs.st_ino==dsSave||rs.st_ino==dsRom)return false;
+            if(!writeSelection(p))return false;
+            free(c->slot2RomPath);free(c->slot2SavePath);free(c->slot2GameKey);
+            c->slot2RomPath=strdup(p.rom);c->slot2SavePath=strdup(p.save);c->slot2GameKey=strdup("");
+            return true;
+          }
+          inline void label(char* out,const std::string& path) {
+            std::string n=shortName(path);size_t i=0;
+            for(unsigned char c:n){if(i>=28)break;out[i++]=(c>=32&&c<=126)?c:'?';}out[i]=0;
+          }
+          inline void makeCatalog(FILE* f,configuration* c) {
+            Header h={};h.magic=MAGIC;h.token=token(c);h.index=~0u;
+            if(fwrite(&h,1,512,f)!=512)return;
+            GbaSelector sel(true);
+            for(size_t r=0;r<sel.roms.size()&&h.count<MAX;r++) {
+              sel.ri=r;sel.refreshSaves();
+              for(const auto& save:sel.saves) {
+                const auto& rom=sel.roms[r].path;
+                if(rom.size()>=220||save.size()>=220||h.count>=MAX)continue;
+                Pair p={};strcpy(p.rom,rom.c_str());strcpy(p.save,save.c_str());
+                label(p.romLabel,rom);label(p.saveLabel,save);
+                p.crc=nbpS2crc((unsigned char*)&p+4,508);
+                if(fwrite(&p,1,512,f)!=512)break;
+                h.count++;
+              }
+            }
+            if(!fseek(f,512,SEEK_SET))fwrite(&h,1,512,f);
+          }
+          } // namespace nbpswap
+          ''')
+          replace(main,'#include "slot2_prepare.h"','#include "slot2_prepare.h"\n#include "nbp_swap.h"')
+          replace(main,'const bool nbpPrepared = slot2Prepare(conf, clusterSav, st.st_ino);',r'''const bool nbpSwapped = conf->sdFound && !conf->bootstrapOnFlashcard && !conf->gameOnFlashcard && !conf->saveOnFlashcard && !conf->b4dsMode && nbpswap::applyRequest(conf,clusterSav,st.st_ino);
+            const bool nbpPrepared = slot2Prepare(conf, clusterSav, st.st_ino);''')
+          replace(main,'fwrite(record,1,sizeof(record),trace);\n      fclose(trace);','fwrite(record,1,sizeof(record),trace);\n      nbpswap::makeCatalog(trace,conf);\n      fclose(trace);')
+          replace(main,'  myConsoleDemoInit();\n  consoleClear();\n  iprintf("NBP013 SLOT-2 DIAGNOSTIC\\n\\n");','  scanKeys();\n  if (keysHeld() & KEY_SELECT) {\n  myConsoleDemoInit();\n  consoleClear();\n  iprintf("NBP013 SLOT-2 DIAGNOSTIC\\n\\n");') if False else None
+          # Remove mandatory prompt only; SELECT retains diagnostic.
+          replace(main,'myConsoleDemoInit();\n  consoleClear();\n  iprintf("NBP013 SLOT-2 DIAGNOSTIC\\n\\n");','scanKeys();\n  if (keysHeld() & KEY_SELECT) {\n  myConsoleDemoInit();\n  consoleClear();\n  iprintf("NBP013 SLOT-2 DIAGNOSTIC\\n\\n");')
+          replace(main,'consoleClear();\n  if (!nbpPrepared) return -42;','consoleClear();\n  }\n  if (!nbpPrepared) return -42;')
+          replace(main,'fprintf(nbp,"writeback=%d history=%d\\n",','fprintf(nbp,"swap applied=%d\\n",nbpSwapped);\n\tfprintf(nbp,"writeback=%d history=%d\\n",')
+          # ARM7 catalog commands use the existing preallocated trace file; all I/O under the menu save mutex.
+          with flush.open('a') as fp: fp.write(r'''
+          #ifndef TWLSDK
+          #include "nbp_slot2.h"
+          #define swapHead nbpSector
+          #define swapPair nbpSector
+          static bool swapReadHead(aFile* f) {
+            if(!traceControl())return false;
+            getFileFromCluster(f,slot2Reserved0,false);
+            return gen5CheckedIO(swapHead,f,512,512,false)&&swapHead[0]==0x32505753u&&swapHead[2]<=96;
+          }
+          u32 nbpSwapIo(u32 op,u32 index,u32 chunk,volatile u32* out) {
+            aFile f;if(!swapReadHead(&f))return 0;
+            if(op==0)return swapHead[2];
+            if(index>=swapHead[2]||!gen5CheckedIO(swapPair,&f,1024+index*512,512,false)||
+               swapPair[0]!=nbpS2crc((const unsigned char*)swapPair+4,508))return 0;
+            if(op==1) {
+              if(chunk>=6)return 0;
+              const unsigned char* p=(const unsigned char*)swapPair+444;
+              for(u32 i=0;i<3;i++){u32 v=0;for(u32 k=0;k<4;k++){u32 off=chunk*12+i*4+k;if(off<64)v|=(u32)p[off]<<(k*8);}out[i]=v;}
+              return 1;
+            }
+            if(op==2) {
+              volatile Slot2EmuControl* c=traceControl();
+              if(!c||!slot2SaveCluster||c->writeSeq!=c->flushedSeq)return 0;
+              for(u32 i=0;i<SLOT2EMU_SECTORS;i++)if(c->dirty[i])return 0;
+              const u32 crc=swapPair[0];
+              if(!swapReadHead(&f)||index>=swapHead[2])return 0;
+              swapHead[3]=index;swapHead[4]=crc;
+              return gen5CheckedIO(swapHead,&f,512,512,true);
+            }
+            return 0;
+          }
+          #else
+          u32 nbpSwapIo(u32 op,u32 index,u32 chunk,volatile u32* out){(void)op;(void)index;(void)chunk;(void)out;return 0;}
+          #endif
+          ''')
+          replace(engine,'static void slot2EmuFlush(bool force) {',r'''extern u32 nbpSwapIo(u32,u32,u32,volatile u32*);
+          u32 nbpSwapMenu(u32 op,u32 index,u32 chunk,volatile u32* out) {
+            if(!(valueBits & b_dsiSD)||isSdEjected())return 0;
+            if(op==2)slot2EmuWriteLocked();
+            driveInitialize();sdmmc_set_ndma_slot(4);
+            u32 result=nbpSwapIo(op,index,chunk,out);
+            sdmmc_set_ndma_slot(0);return result;
+          }
+          static void slot2EmuFlush(bool force) {''')
+          arm7menu=root/'bootstrap/retail/cardenginei/arm7/source/inGameMenu.c'
+          checkmenu=lambda p,sha: None
+          assert blobhash(arm7menu.read_bytes())=='b13c9b72f9dea5d7bd9fa47a8106e84d968c3579'
+          replace(arm7menu,'extern void reset(const bool downloadedSrl);','extern void reset(const bool downloadedSrl);\nextern u32 nbpSwapMenu(u32,u32,u32,volatile u32*);\nextern void forceGameReboot(void);')
+          replace(arm7menu,'bool exitMenu = false;','bool exitMenu = false;\n\t\tbool swapReady=false;')
+          replace(arm7menu,'case 0x54455352: // RSET',r'''case 0x54435753: // SWCT
+                    sharedAddr[0]=nbpSwapMenu(0,0,0,sharedAddr);
+                    break;
+                  case 0x424c5753: // SWLB
+                    if(!nbpSwapMenu(1,sharedAddr[0],sharedAddr[1],sharedAddr))sharedAddr[0]=sharedAddr[1]=sharedAddr[2]=0;
+                    break;
+                  case 0x50415753: // SWAP
+                    swapReady=nbpSwapMenu(2,sharedAddr[0],0,sharedAddr)!=0;
+                    sharedAddr[0]=swapReady;
+                    break;
+                  case 0x42525753: // SWRB
+                    if(swapReady) {
+                      unloadInGameMenu();
+                      forceGameReboot();
+                      while(1);
+                    }
+                    break;
+                  case 0x54455352: // RSET''')
+          igm=root/'bootstrap/retail/cardenginei/arm9_igm/source/inGameMenu.c'
+          assert blobhash(igm.read_bytes())=='3850bcea38f267dfe3a66d6aae15afd410ad575d'
+          replace(igm,'static void drawMainMenu(MenuItem *menuItems, int menuItemCount) {',r'''#define MENU_SWAP ((MenuItem)8)
+          static void swapCommand(u32 cmd,u32 arg,u32 chunk) {
+            sharedAddr[0]=arg;sharedAddr[1]=chunk;sharedAddr[4]=cmd;
+            u32 frames=0;
+            while(sharedAddr[4]==cmd) {
+              while(REG_VCOUNT!=191)mySwiDelay(100);while(REG_VCOUNT==191)mySwiDelay(100);
+              if(++frames==120) {
+                clearScreen(false);
+                print(2,8,(const unsigned char*)"Waiting for SD / ARM7...",FONT_RED,false);
+              }
+            }
+          }
+          static bool swapMenu(void) {
+            // Do not send any command at REDY: ARM7 has not entered MENU yet.
+            if(sharedAddr[4]!=0x554e454d || sharedAddr[5]==0x59444552)return false;
+            swapCommand(0x54435753,0,0);u32 count=sharedAddr[0],idx=0;
+            if(!count||count>96) {
+              clearScreen(false);
+              print(2,8,(const unsigned char*)"No virtual cartridges found",FONT_WHITE,false);
+              print(2,10,(const unsigned char*)"B: Back",FONT_WHITE,false);
+              waitKeys(KEY_B);return false;
+            }
+            do {while(REG_VCOUNT!=191)mySwiDelay(100);while(REG_VCOUNT==191)mySwiDelay(100);}while(KEYS&KEY_A);
+            while(1) {
+              unsigned char names[72];
+              for(u32 n=0;n<6;n++) {swapCommand(0x424c5753,idx,n);for(u32 i=0;i<3;i++){u32 v=sharedAddr[i];for(u32 k=0;k<4;k++)names[n*12+i*4+k]=(v>>(k*8))&255;}}
+              names[28]=0;names[60]=0;
+              clearScreen(false);
+              print(2,0,(const unsigned char*)"Virtual Slot-2",FONT_WHITE,false);
+              printDec(2,2,idx+1,3,FONT_WHITE,false);printDec(8,2,count,3,FONT_WHITE,false);
+              print(2,4,(const unsigned char*)"GBA ROM:",FONT_LIGHT_BLUE,false);print(2,5,names,FONT_WHITE,false);
+              print(2,7,(const unsigned char*)"GBA SAVE:",FONT_LIGHT_BLUE,false);print(2,8,names+32,FONT_WHITE,false);
+              print(2,12,(const unsigned char*)"Left/Right: select",FONT_WHITE,false);
+              print(2,14,(const unsigned char*)"A: Apply & restart",FONT_WHITE,false);
+              print(2,15,(const unsigned char*)"B: Cancel",FONT_WHITE,false);
+              print(2,18,(const unsigned char*)"Save DS game before swap.",FONT_LIGHT_GRAY,false);
+              waitKeys(KEY_LEFT|KEY_RIGHT|KEY_UP|KEY_DOWN|KEY_A|KEY_B);
+              if(KEYS&KEY_B)return false;
+              if(KEYS&KEY_A) {
+                if(!boolQuestion((const unsigned char*)"Restart with this cartridge?"))continue;
+                swapCommand(0x50415753,idx,0);
+                if(sharedAddr[0])return true;
+                clearScreen(false);print(2,8,(const unsigned char*)"Swap failed. Save pending?",FONT_RED,false);
+                print(2,10,(const unsigned char*)"B: Back",FONT_WHITE,false);waitKeys(KEY_B);return false;
+              }
+              if(KEYS&(KEY_LEFT|KEY_UP))idx=(idx+count-1)%count;
+              else if(KEYS&(KEY_RIGHT|KEY_DOWN))idx=(idx+1)%count;
+            }
+          }
+          static void drawMainMenu(MenuItem *menuItems, int menuItemCount) {''')
+          replace(igm,'if(igmText.rtl)\n\t\t\tprintRight(0x1D, i, igmText.menu[menuItems[i]], FONT_WHITE, false);','if(menuItems[i]==MENU_SWAP) print(2,i,(const unsigned char*)"Virtual Slot-2",FONT_WHITE,false);\n\t\telse if(igmText.rtl)\n\t\t\tprintRight(0x1D, i, igmText.menu[menuItems[i]], FONT_WHITE, false);')
+          replace(igm,'MenuItem menuItems[8];','MenuItem menuItems[9];')
+          replace(igm,'menuItems[menuItemCount++] = MENU_QUIT;','if(!exception && consoleModel==0)menuItems[menuItemCount++]=MENU_SWAP;\n\tmenuItems[menuItemCount++] = MENU_QUIT;')
+          replace(igm,'case MENU_RESET:\n\t\t\t\t\tif (boolQuestion(igmText.resetGameMessage)) {','case MENU_SWAP:\n\t\t\t\t\tif(swapMenu())sharedAddr[4]=0x42525753;\n\t\t\t\t\tbreak;\n\t\t\t\tcase MENU_RESET:\n\t\t\t\t\tif (boolQuestion(igmText.resetGameMessage)) {')
+          # All three paths hold the same save mutex; reuse one sector scratch.
+          replace(flush,'static aFile slot2Save;','#ifndef TWLSDK\nstatic u32 nbpSector[128] __attribute__((aligned(4)));\n#endif\nstatic aFile slot2Save;')
+          replace(flush,'static unsigned char snapshot[512] __attribute__((aligned(4)));','unsigned char *snapshot=(unsigned char*)nbpSector;')
+          replace(flush,'static u32 rec[128] __attribute__((aligned(4)));','u32 *rec=nbpSector;')
+          # IGM is shared with B4DS/DSiWare. Do not expose swap there.
+          replace(igm,'if(!exception && consoleModel==0)menuItems[menuItemCount++]=MENU_SWAP;','#ifndef B4DS\n\tif(!exception && consoleModel==0)menuItems[menuItemCount++]=MENU_SWAP;\n\t#endif')
+          # Explicit default response on unsupported ARM7 menu variants.
+          other=root/'bootstrap/retail/cardenginei/arm7_dsiware/source/inGameMenu.c'
+          replace(other,'case 0x54455352: // RSET','case 0x54435753: /* SWCT unsupported */\n\t\t\t\t\tsharedAddr[0]=0;\n\t\t\t\t\tbreak;\n\t\t\t\tcase 0x54455352: // RSET')
+          # Regression guard: no catalog command between REDY and main menu loop.
+          it=igm.read_text()
+          ready=it.index("sharedAddr[5] = 0x59444552")
+          loop=it.index("while (sharedAddr[4] == 0x554E454D)",ready)
+          assert 'swapCommand(' not in it[ready:loop]
+          subprocess.run(['git','-C','upstream','add','-N',str(swap.relative_to(root))],check=True)
+          subprocess.run(['git','-C','upstream','add','-N',str(hdr.relative_to(root))],check=True)
+          pathlib.Path('out/integration.patch').write_bytes(subprocess.check_output(['git','-C','upstream','diff','--binary']))
+          # Regression: the old partial-sector return count rejects this real blob.
+          start=32; length=len(code); first=min(length,512-start)
+          whole=(length-first)//512*512; prefix=first+whole
+          assert prefix==7136 and prefix+length==14708
+          # Verify the exact chunk boundaries, data reconstruction and CRC.
+          pos=0; chunks=[]; rebuilt=bytearray()
+          while pos<len(code):
+              n=min(512-((32+pos)&511),len(code)-pos)
+              assert 0<n<=512 and (32+pos)//512==(32+pos+n-1)//512
+              rebuilt+=pkg[32+pos:32+pos+n];chunks.append(n);pos+=n
+          assert chunks[0]==480 and chunks[-1]==436 and rebuilt==code
+          assert zlib.crc32(rebuilt)==0x7a10ef46
+          print('Pinned sources verified; sector regression passed:',chunks)
+          PY
+      - name: Build in documented legacy SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -static -O2 upstream/bootstrap/lzss.c -o out/lzss
+          file out/lzss
+          docker pull devkitpro/devkitarm:20241104
+          docker image inspect devkitpro/devkitarm:20241104 --format '{{json .RepoDigests}}' > out/image-digest.json
+          docker run --rm -v "$PWD:/src" -w /src/upstream/bootstrap devkitpro/devkitarm:20241104 bash -ec '
+            export DEVKITPRO=/opt/devkitpro
+            export PATH="$DEVKITPRO/devkitARM/bin:$DEVKITPRO/tools/bin:$PATH"
+            arm-none-eabi-gcc --version
+            [[ $(arm-none-eabi-gcc -dumpfullversion) == 14.2.* ]]
+            find retail -type d -name build -prune -exec rm -rf {} +
+            find retail -type f \( -name "*.o" -o -name "*.elf" -o -name "*.d" \) -delete
+            rm -f retail/bin/nds-bootstrap.nds
+            test -x /src/out/lzss
+            make -C retail -j2 DEVKITARM="$PWD/portable-ds-rules" LEGACY_DEVKITARM="$DEVKITPRO/devkitARM" LEGACY_LIBNDS="$DEVKITPRO/libnds" LIBDIRS="$DEVKITPRO/libnds" PYTHON=python3 GIT_VER=nbp013 LZSS=/src/out/lzss all
+            for d in bootloader bootloader2 bootloaderi bootloaderi2; do
+              arm-none-eabi-nm -n retail/$d/*.elf > /src/out/$d.symbols
+            done
+          ' 2>&1 | tee out/build.log
+      - name: Validate and package test candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib, struct, zlib, hashlib, json, shutil
+          out=pathlib.Path('out'); root=pathlib.Path('upstream/bootstrap/retail')
+          nds=root/'bin/nds-bootstrap.nds'; b=nds.read_bytes()
+          assert len(b)>=512 and b[12:16]==b'KBSE'
+          for off in (0x20,0x30):
+            start,entry,dest,size=struct.unpack_from('<4I',b,off)
+            assert size and start>=512 and start+size<=len(b) and dest<=(entry&~1)<dest+size
+          p=(out/'virtual_slot2.nbp').read_bytes()
+          assert len(p)==7604 and struct.unpack_from('<4s7I',p)==(b'NBP2',1,32,0x4d453253,0,7572,0x7a10ef46,0) and zlib.crc32(p[32:])==0x7a10ef46
+          gaps={}
+          for d in ('bootloader','bootloader2','bootloaderi','bootloaderi2'):
+            s={x[2]:int(x[0],16) for l in (out/(d+'.symbols')).read_text().splitlines() if len(x:=l.split())==3}
+            gaps[d]=s['__sp_usr']-s['__bss_end']
+            assert gaps[d]>=4096,(d,gaps[d])
+            if d=='bootloaderi': assert 'slot2EmuBoot' in s and 'slot2EmuBlob' not in s
+          target=out/'DSi-test'; plug=target/'_nds/nds-bootstrap/plugins';plug.mkdir(parents=True)
+          shutil.copyfile(nds,target/'_nds/nds-bootstrap-nightly.nds')
+          shutil.copyfile(out/'virtual_slot2.nbp',plug/'virtual_slot2.nbp')
+          shutil.copyfile(out/'integration.patch',target/'integration.patch')
+          for name in ('LICENSE','CREDITS.md'):
+            shutil.copyfile(pathlib.Path('upstream')/name,target/name)
+          (target/'slot2.ini.example').write_text('[SLOT2]\nGBA_ROM_PATH = sd:/roms/gba/Pokemon Emerald.gba\nGBA_SAV_PATH = sd:/roms/gba/saves/Pokemon Emerald.sav\nWRITEBACK = 1\n')
+          # Use upstream per-path opt-in; no change to verification or signature rules.
+          pearl='sd:/roms/nds/Pokemon - Pearl Version (patched).nds'
+          key=hashlib.sha1(pearl.encode()).hexdigest()
+          (target/'migration.ini.example').write_text('['+key+']\nBYPASS_LIMITS = 1\n')
+          (target/'TEST-ONLY.txt').write_text('NBP013: DSi internal SD; Diamond/Pearl/Platinum/HeartGold/SoulSilver, Ruby/Sapphire/Emerald/FireRed/LeafGreen families, regional builds accepted but not hardware validated. Prefer same-language games. GBA save: 131072 bytes or 131088 with RTC. BACK UP BOTH SAVES, use disposable copies, Nightly bootstrap. Compare boot without plugin, then with plugin. Check MIGRATE FROM the chosen GBA game and list only. Normal boot is direct; hold SELECT at checkpoint for diagnostic screen. Save DS game before opening in-game menu. Virtual Slot-2 lists up to 96 ROM/save pairs; A confirms, checks old GBA flush and reboots the same title. On restart the launcher validates the request and updates slot2.ini. Keep backups; experimental hardware validation required. Send NBP013-BOOT.TXT and NDSBTSRP.LOG from SD root plus slot2-error.txt or slot2-status.txt in _nds/nds-bootstrap/. Optional history bypass for verified supported Diamond/Pearl/Platinum revisions: copy migration.ini.example as sd:/_nds/nds-bootstrap/migration.ini (merge rather than overwrite existing entries). Example matches the exact patched Pearl path from the hardware report. Launcher checks title/revision/header CRC; bootloader requires a unique exact ARM9 routine signature. No global clock changes. Writeback defaults ON in this test build; WRITEBACK = 0 disables it. Select a disposable GBA save in slot2.ini. No filename or backup-file requirement. Send the NBP013.BIN from the SD root, captured after the migration and after waiting at least five seconds in-game. It records live ARM9 and ARM7 counters. Back up the DS save too. On the diagnostic screen verify Writeback test: 1. Migrate only on disposable copies, finish Pal Park, save in-game, wait for idle writes and compare GBA save after shutdown. This is not an atomic cross-save transaction; power loss/IO errors may leave a partial write. Keep originals untouched. Not hardware validated. Original SD-Transporter and nds-bootstrap contributors credited in CREDITS.md. Source base: 75610fa9905ac252609081287121e8d4c44febed; corresponding changes in integration.patch.\n')
+          (target/'build-report.json').write_text(json.dumps({'hardware_tested':False,'build':'NBP013','writeback':'default on for test; WRITEBACK=0 disables; checked 512-byte write/readback and runtime telemetry','ds_families':['ADA','APA','CPU','IPK','IPG'],'gba_families':['AXV','AXP','BPE','BPR','BPG'],'loader_static_stack_margins':gaps,'nds_sha256':hashlib.sha256(b).hexdigest(),'plugin_sha256':hashlib.sha256(p).hexdigest()},indent=2))
+          (target/'SHA256SUMS.txt').write_text(''.join(hashlib.sha256(f.read_bytes()).hexdigest()+'  '+str(f.relative_to(target))+'\n' for f in sorted(target.rglob('*')) if f.is_file() and f.name!='SHA256SUMS.txt'))
+          print(gaps)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DSi-NBP013-test-candidate
+          path: out/DSi-test/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NBP013-build-diagnostics
+          path: |
+            out/build.log
+            out/*.symbols
+            out/integration.patch
+            out/image-digest.json
+          if-no-files-found: ignore

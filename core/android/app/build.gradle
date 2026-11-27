@@ -7,8 +7,10 @@ android {
   applicationId "io.github.sdtransporter.pokewalker"
   minSdk 26
   targetSdk 36
-  versionCode 18
-  versionName "1.9.1-v18-widget-v5-diagnostics"
+  // Monotonic install code lets debug builds update in place without removing
+  // local profiles or their Pokémon.
+  versionCode 40
+  versionName "1.11.1-v40-auto-close-sync-fit-text"
   externalNativeBuild {cmake {arguments "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"}}
   ndk {abiFilters "arm64-v8a", "armeabi-v7a", "x86_64"}
  }

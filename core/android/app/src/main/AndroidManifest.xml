@@ -11,18 +11,16 @@
  <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH"/>
  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
- <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+ <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
+ <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
  <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
  <uses-feature android:name="android.hardware.sensor.stepcounter" android:required="false"/>
  <application android:name=".PokewalkerApp" android:allowBackup="false" android:label="Pokewalker" android:theme="@style/AppTheme" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:usesCleartextTraffic="true" android:enableOnBackInvokedCallback="false">
   <activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
   <activity android:name=".DiagnosticsActivity" android:exported="false"/>
-  <activity android:name=".DSiV4Activity" android:exported="false"/>
-  <activity android:name=".DSiV5Activity" android:exported="false"/>
   <activity android:name=".PrivacyActivity" android:exported="false"/>
   <service android:name=".WalkingService" android:exported="false" android:foregroundServiceType="health|specialUse"><property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-enabled virtual Pokewalker time simulation"/></service>
-  <service android:name=".WidgetTransferService" android:exported="false" android:foregroundServiceType="dataSync"/>
-  <service android:name=".DirectSyncService" android:exported="false" android:foregroundServiceType="dataSync"/>
+  <service android:name=".DirectSyncService" android:exported="false" android:foregroundServiceType="connectedDevice"/>
   <activity android:name=".WidgetConfigActivity" android:exported="true">
    <intent-filter>
     <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE"/>
@@ -31,6 +29,10 @@
   <receiver android:name=".PokewalkerWidgetProvider" android:exported="false">
     <intent-filter>
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+    </intent-filter>
+    <intent-filter>
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+        <data android:scheme="package"/>
     </intent-filter>
     <meta-data android:name="android.appwidget.provider"
         android:resource="@xml/widget_pokewalker_info"/>

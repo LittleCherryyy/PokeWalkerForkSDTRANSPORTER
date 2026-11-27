@@ -1,27 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_fallback_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:padding="12dp"
-    android:background="#ECEDE6">
+    android:foregroundGravity="center"
+    android:background="#10202C">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="POKéWALKER"
-        android:textColor="#30352D"
-        android:textStyle="bold"
-        android:textSize="13sp" />
+    <FrameLayout
+        android:layout_width="160dp"
+        android:layout_height="160dp"
+        android:layout_gravity="center">
 
-    <TextView
-        android:id="@+id/widget_fallback_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:text="Carregando..."
-        android:textColor="#4E5548"
-        android:textSize="11sp" />
-</LinearLayout>
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="Pokéwalker"
+            android:scaleType="fitCenter"
+            android:src="@drawable/walker_shell" />
+
+        <TextView
+            android:id="@+id/widget_fallback_text"
+            android:layout_width="88dp"
+            android:layout_height="61dp"
+            android:layout_gravity="top|center_horizontal"
+            android:layout_marginTop="42dp"
+            android:background="#B8BDAA"
+            android:fontFamily="monospace"
+            android:gravity="center"
+            android:maxLines="3"
+            android:padding="3dp"
+            android:text="ADD WIDGET"
+            android:textColor="#232B1D"
+            android:textSize="9sp"
+            android:textStyle="bold" />
+    </FrameLayout>
+</FrameLayout>

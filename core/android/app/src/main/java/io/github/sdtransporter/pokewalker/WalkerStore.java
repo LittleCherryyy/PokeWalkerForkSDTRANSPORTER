@@ -23,12 +23,15 @@ final class WalkerStore {
     int mode=2,rate=10,boot=-1;
     long sensorLast=-1,sensorElapsed;
     boolean revoked,returnPending,expandedItems,visitBlocked;
-    int classicVolume=2,classicContrast=1;
+    int classicVolume=2,classicContrast=5;
     String battleSession="",battlePeer="";
     boolean battlePaid,battleDone,battleRewarded;
     int battleRewardChoice=-1,battleWinner;
     boolean returnCompleted;
     volatile boolean syncing;
+    /* Runtime-only health of step tracking. Never mix a sensor/permission
+     * problem with error, which protects save integrity and gates activities. */
+    volatile String trackingIssue="";
     private volatile long syncEpoch;
     long beginSync() throws IOException {
         if(syncing)throw new IOException("A sync is already in progress");
@@ -45,6 +48,14 @@ final class WalkerStore {
             return instance;
         }
     }
+    static WalkerStore forProfile(Context context,String id){
+        synchronized(LOCK){
+            get(context);
+            for(WalkerProfiles.Entry entry:profiles.entries)if(entry.id.equals(id))return profiles.store(id);
+            return null;
+        }
+    }
+    static String profileName(Context context,String id){synchronized(LOCK){get(context);return profiles.name(id);}}
     static java.util.ArrayList<WalkerStore> all(Context context){synchronized(LOCK){get(context);return profiles.all();}}
     static java.util.ArrayList<WalkerProfiles.Entry> profileEntries(Context context){synchronized(LOCK){get(context);return new java.util.ArrayList<>(profiles.entries);}}
     static String profileName(Context context){synchronized(LOCK){get(context);return profiles.name(instance.profileId);}}
@@ -53,7 +64,7 @@ final class WalkerStore {
     static int[] visit(Context context,String id)throws IOException{synchronized(LOCK){get(context);return profiles.visit(instance.profileId,id);}}
     static WalkerStore recoverVisits(Context context){synchronized(LOCK){instance=null;profiles=null;return get(context);}}
     static void renameProfile(Context context,String name)throws IOException{synchronized(LOCK){get(context);profiles.rename(instance.profileId,name);}}
-    boolean tracking(){return active()&&mode!=0&&!returnPending&&!syncing&&error.isEmpty();}
+    boolean tracking(){return active()&&mode!=0&&!returnPending&&!syncing&&error.isEmpty()&&trackingIssue.isEmpty();}
     WalkerStore(File directory,String profileId) {
         this.profileId=profileId;
         file=new AtomicFile(new File(directory,"walker-state.bin"));
@@ -69,10 +80,17 @@ final class WalkerStore {
             try{returnPending=in.readBoolean();}catch(EOFException legacy){returnPending=false;}
             if(in.available()>0)trainerKey=in.readUTF();
             if(in.available()>0)expandedItems=in.readBoolean();
-            if(in.available()>0){classicVolume=in.readInt();classicContrast=in.readInt();if(classicVolume<0||classicVolume>2||classicContrast<0||classicContrast>2)throw new IOException("Invalid display settings");}
+            boolean hasClassicSettings=in.available()>0;
+            if(hasClassicSettings){classicVolume=in.readInt();classicContrast=in.readInt();if(classicVolume<0||classicVolume>2||classicContrast<0||classicContrast>9)throw new IOException("Invalid display settings");}
             if(in.available()>0){if(in.readInt()!=0x50425731)throw new IOException("Invalid battle record");battleSession=in.readUTF();battlePeer=in.readUTF();battlePaid=in.readBoolean();battleDone=in.readBoolean();battleRewarded=in.readBoolean();battleRewardChoice=in.readInt();battleWinner=in.readInt();if(!battleSession.isEmpty()&&!battleSession.matches("[a-f0-9]{32}"))throw new IOException("Invalid battle session");if(battleRewardChoice < -1 || battleRewardChoice>0x8218||battleWinner<0||battleWinner>3)throw new IOException("Invalid battle result");}
             /* Optional tail field; older app state files have no checkout CRC. */
             if(in.available()>0)directCheckoutCrc=in.readUTF();
+            if(in.available()>0){if(in.available()!=4||in.readInt()!=0x50425332)throw new IOException("Invalid LCD settings version");}
+            else if(hasClassicSettings){
+                /* Old app builds had only three contrast samples. Preserve the
+                 * visual endpoints while expanding the slider to ten steps. */
+                classicContrast=classicContrast==0?0:classicContrast==1?4:9;
+            }
             if(!directCheckoutCrc.isEmpty()&&!directCheckoutCrc.matches("[a-f0-9]{8}"))throw new IOException("Invalid direct checkout checksum");
             if(!trainerKey.isEmpty()&&!trainerKey.matches("[a-f0-9]{36}"))throw new IOException("Invalid trainer binding");
             if(mode<0||mode>2||rate<1||rate>86400)throw new IOException("Invalid settings");
@@ -88,6 +106,14 @@ final class WalkerStore {
         }
     }
     boolean active(){return data!=null && !revoked && !returnCompleted && !token.isEmpty();}
+    boolean recoverableWriteFailure(){
+        synchronized(LOCK){
+            boolean retryable=error.startsWith("Could not save app state:")||
+                    error.startsWith("Save failed. Keep the app open and retry")||
+                    error.equals("Direct checkout is not durably saved");
+            return retryable&&data!=null&&!visitBlocked&&!syncing&&Native.walkable(data);
+        }
+    }
     void creditPhysical(long total,long elapsed,int bootCount) {
         if(!tracking()||mode!=2)return;
         if(boot!=bootCount||elapsed<sensorElapsed)sensorLast=-1;
@@ -112,6 +138,20 @@ final class WalkerStore {
             byte[] prefix=(fields[0]+"\n"+fields[1]+"\n"+fields[2]+"\n").getBytes(java.nio.charset.StandardCharsets.US_ASCII);
             if(!fields[3].equals(crc(prefix)))throw new IOException("Completed handoff receipt failed verification");
             return true;
+        }
+    }
+    boolean completedReturnMatches(String session,long expectedCrc) throws IOException {
+        if(!completedSession(session))return false;
+        try(DataInputStream in=new DataInputStream(new AtomicFile(receiptFile(session)).openRead())) {
+            String kind=in.readLine(),recordedSession=in.readLine(),recordedCrc=in.readLine();
+            return "PWRETURN1".equals(kind)&&session.equals(recordedSession)&&
+                    recordedCrc!=null&&recordedCrc.equals(String.format(java.util.Locale.ROOT,"%08x",expectedCrc));
+        }
+    }
+    boolean completedReturnSession(String session) throws IOException {
+        if(!completedSession(session))return false;
+        try(DataInputStream in=new DataInputStream(new AtomicFile(receiptFile(session)).openRead())) {
+            return "PWRETURN1".equals(in.readLine())&&session.equals(in.readLine());
         }
     }
     private boolean deletedSession(String session)throws IOException {
@@ -209,7 +249,7 @@ final class WalkerStore {
             if(data!=null)out.write(data);
             out.writeUTF(token);out.writeUTF(host);out.writeUTF(pin);out.writeUTF(pendingToken);
             out.writeInt(mode);out.writeInt(rate);out.writeInt(boot);out.writeLong(sensorLast);
-            out.writeLong(sensorElapsed);out.writeBoolean(revoked);out.writeBoolean(returnPending);out.writeUTF(trainerKey);out.writeBoolean(expandedItems);out.writeInt(classicVolume);out.writeInt(classicContrast);out.writeInt(0x50425731);out.writeUTF(battleSession);out.writeUTF(battlePeer);out.writeBoolean(battlePaid);out.writeBoolean(battleDone);out.writeBoolean(battleRewarded);out.writeInt(battleRewardChoice);out.writeInt(battleWinner);out.writeUTF(directCheckoutCrc);out.flush();
+            out.writeLong(sensorElapsed);out.writeBoolean(revoked);out.writeBoolean(returnPending);out.writeUTF(trainerKey);out.writeBoolean(expandedItems);out.writeInt(classicVolume);out.writeInt(classicContrast);out.writeInt(0x50425731);out.writeUTF(battleSession);out.writeUTF(battlePeer);out.writeBoolean(battlePaid);out.writeBoolean(battleDone);out.writeBoolean(battleRewarded);out.writeInt(battleRewardChoice);out.writeInt(battleWinner);out.writeUTF(directCheckoutCrc);out.writeInt(0x50425332);out.flush();
             return bytes.toByteArray();
     }
     void save() throws IOException {

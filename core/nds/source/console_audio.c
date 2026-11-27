@@ -22,10 +22,6 @@ void consoleAudioStop(void) {
 }
 
 void consoleAudioPlay(const uint8_t *eeprom, int request, int volume) {
-  if (!volume) {
-    consoleAudioStop();
-    return;
-  }
   if (request <= 0)
     return;
   int16_t *samples = pcm[nextBuffer];
@@ -38,7 +34,7 @@ void consoleAudioPlay(const uint8_t *eeprom, int request, int volume) {
   unsigned bytes = count * sizeof(*samples);
   DC_FlushRange(samples, bytes);
   channel = soundPlaySample(samples, SoundFormat_16Bit, bytes, SAMPLE_RATE,
-                            volume == 1 ? 32 : 64, 64, false, 0);
+                            volume <= 0 ? 16 : volume == 1 ? 32 : 64, 64, false, 0);
   nextBuffer ^= 1;
 }
 

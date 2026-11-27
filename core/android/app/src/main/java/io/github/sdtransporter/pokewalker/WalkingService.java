@@ -44,6 +44,9 @@ public final class WalkingService extends Service implements SensorEventListener
         synchronized(WalkerStore.LOCK){
             handler.removeCallbacks(tick);sensors.unregisterListener(this);physical=timers=false;
             ArrayList<WalkerStore> all=WalkerStore.all(this);
+            // A service start is a fresh tracking attempt. Sensor and Android
+            // permission failures are transient and must never poison save state.
+            for(WalkerStore s:all)s.trackingIssue="";
             if(intent!=null&&"pause".equals(intent.getAction())){
                 for(WalkerStore s:all){if(s.tracking()&&s.mode==1)Native.timer(s.data,Native.now(),s.rate);s.mode=0;s.changed();}
                 if(PokewalkerWidgetProvider.hasWidgets(this)){physical=false;timers=false;try{notice(true);}catch(Exception ignored){}handler.post(tick);return START_STICKY;}
@@ -52,17 +55,17 @@ public final class WalkingService extends Service implements SensorEventListener
             boolean sensorOK=Build.VERSION.SDK_INT<29||checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION)==PackageManager.PERMISSION_GRANTED;
             Sensor sensor=sensors.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);sensorOK&=sensor!=null;
             for(WalkerStore s:all){
-                if(s.tracking()&&s.mode==2&&!sensorOK){s.error="Physical step counting is unavailable. Allow activity access or select a time-based mode.";continue;}
+                if(s.tracking()&&s.mode==2&&!sensorOK){s.trackingIssue="Physical step counting is unavailable. Allow activity access or select a time-based mode.";running.remove(s.profileId);continue;}
                 if(!s.tracking()){running.remove(s.profileId);continue;}
                 if(!s.token.equals(running.get(s.profileId))){Native.resume(s.data,Native.now(),s.rate);s.changed();running.put(s.profileId,s.token);}
                 if(s.mode==2){if(s.boot!=boot||SystemClock.elapsedRealtime()<s.sensorElapsed)s.sensorLast=-1;s.boot=boot;physical=true;}else timers=true;
             }
             if(physical&&!sensors.registerListener(this,sensor,SensorManager.SENSOR_DELAY_NORMAL)){
-                for(WalkerStore s:all)if(s.tracking()&&s.mode==2)s.error="The phone step counter could not be enabled.";physical=false;
+                for(WalkerStore s:all)if(s.tracking()&&s.mode==2){s.trackingIssue="The phone step counter could not be enabled.";running.remove(s.profileId);}physical=false;
             }
             boolean widgetOnly=!physical&&!timers&&PokewalkerWidgetProvider.hasWidgets(this);
             if(!physical&&!timers&&!widgetOnly){stopSelf();return START_NOT_STICKY;}
-            try{notice(true);}catch(SecurityException ex){Diagnostics.error(this,"TRACKING_PERMISSION",ex);for(WalkerStore s:all)if(s.tracking())s.error="Tracking permission missing: "+ex.getMessage();stopSelf();return START_NOT_STICKY;}
+            try{notice(true);}catch(SecurityException ex){Diagnostics.error(this,"TRACKING_PERMISSION",ex);for(WalkerStore s:all)if(s.active()&&s.mode!=0)s.trackingIssue="Tracking notification unavailable: "+ex.getMessage();stopSelf();return START_NOT_STICKY;}
             handler.post(tick);
         }
         Diagnostics.event(this,"TRACKING","Service mode: timer="+timers+" physical="+physical+" widget="+PokewalkerWidgetProvider.hasWidgets(this));

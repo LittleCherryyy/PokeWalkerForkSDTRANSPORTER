@@ -18,8 +18,11 @@ final class DirectSyncProtocol {
     static final int OP_CONFIRM_RETURN=3;  // DSi confirms durable write
     static final int OP_PING=4;
     static final int OP_TEST_ECHO=5; // RAM-only, deterministic diagnostic payload
+    static final int OP_ARM_PUSH=6;  // User-authorized DSi -> phone intent, no payload
+    static final int OP_ARM_PULL=7;  // User-authorized phone -> DSi intent, no payload
     static final int OP_OK=0x80;
     static final int OP_ERROR=0x7f;
+    static final int OP_READY=0x81;  // Direction accepted; transfer has not started yet
 
     static final class Frame {
         int op,flags,length;
@@ -47,17 +50,34 @@ final class DirectSyncProtocol {
     private static void p16(byte[] b,int o,int v){b[o]=(byte)(v>>>8);b[o+1]=(byte)v;}
     private static void p32(byte[] b,int o,long v){b[o]=(byte)(v>>>24);b[o+1]=(byte)(v>>>16);b[o+2]=(byte)(v>>>8);b[o+3]=(byte)v;}
 
-    static Frame read(InputStream raw) throws IOException {
+    /** Read only the fixed header so the service can authorize the requested
+     * direction before it accepts any Pokémon bytes from the DSi. */
+    static Frame readHeader(InputStream raw) throws IOException {
         DataInputStream in=new DataInputStream(raw);
         byte[] h=new byte[HEADER];in.readFully(h);
-        for(int i=0;i<MAGIC.length;i++)if(h[i]!=MAGIC[i])throw new IOException("Not an SD Transporter DSi sync client");
+        for(int i=0;i<MAGIC.length;i++)if(h[i]!=MAGIC[i])throw new IOException("Not a Pokéwalker DSi sync client");
         if((h[8]&255)!=VERSION)throw new IOException("Unsupported DSi sync version");
         Frame f=new Frame();
         f.op=h[9]&255;f.flags=u16(h,10);f.length=(int)u32(h,12);f.crc=u32(h,16);
         f.session=ascii(h,20,32).toLowerCase(Locale.ROOT);f.trainer=ascii(h,52,36).toLowerCase(Locale.ROOT);
         if(f.length<0||f.length>WALKER_SIZE)throw new IOException("Invalid DSi sync payload length");
-        if(f.length>0){f.payload=new byte[f.length];in.readFully(f.payload);if(crc(f.payload)!=f.crc)throw new IOException("DSi sync payload checksum mismatch");}
         return f;
+    }
+
+    /** Read and checksum a payload only after readHeader's operation has been
+     * authorized. The fixed header remains attached to the returned frame. */
+    static Frame readPayload(InputStream raw,Frame f) throws IOException {
+        if(f==null)throw new IOException("Missing DSi sync header");
+        if(f.length==0){f.payload=new byte[0];return f;}
+        DataInputStream in=new DataInputStream(raw);
+        byte[] payload=new byte[f.length];in.readFully(payload);
+        if(crc(payload)!=f.crc)throw new IOException("DSi sync payload checksum mismatch");
+        f.payload=payload;
+        return f;
+    }
+
+    static Frame read(InputStream raw) throws IOException {
+        return readPayload(raw,readHeader(raw));
     }
 
     static void write(OutputStream raw,int op,String session,String trainer,byte[] payload,long crcOverride,String error) throws IOException {

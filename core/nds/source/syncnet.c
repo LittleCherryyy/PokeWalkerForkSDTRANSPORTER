@@ -100,7 +100,7 @@ static void closePeer(void) {
   received = headLength = bodyLength = 0;
   responding = draining = 0;
 }
-void syncStop(void) {
+void legacySyncStop(void) {
   closePeer();
   if (listener != NO_SOCKET)
     netClose(listener);
@@ -146,8 +146,8 @@ static int listenNow(void) {
   networkState = 2;
   return 1;
 }
-int syncStart(const char *path, SyncBeforeCheckout before, SyncEvent event) {
-  syncStop();
+int legacySyncStart(const char *path, SyncBeforeCheckout before, SyncEvent event) {
+  legacySyncStop();
   snprintf(selected, sizeof(selected), "%s", path);
   beforeCheckout = before;
   onEvent = event;
@@ -197,15 +197,15 @@ int syncStart(const char *path, SyncBeforeCheckout before, SyncEvent event) {
 #endif
   return 1;
 }
-int syncStartRecovery(const char *path,const unsigned char *baseline,SyncEvent event) {
-  if(!syncStart(path,0,event))return 0;
+int legacySyncStartRecovery(const char *path,const unsigned char *baseline,SyncEvent event) {
+  if(!legacySyncStart(path,0,event))return 0;
   if(baseline)memcpy(snapshot,baseline,WALKER_FILE_SIZE);
   recoveryMode=baseline?1:2;
   return 1;
 }
-int syncBusy(void) { return peer != NO_SOCKET; }
-const char *syncAddress(void) { return address; }
-const char *syncStatus(void) { return statusText; }
+int legacySyncBusy(void) { return peer != NO_SOCKET; }
+const char *legacySyncAddress(void) { return address; }
+const char *legacySyncStatus(void) { return statusText; }
 static void respond(int code, const char *text, const unsigned char *body,
                     unsigned length, const char *token, uint32_t storedCRC) {
   responseLength = length;
@@ -324,7 +324,7 @@ static void handle(void) {
       return;
     }
     char error[160];
-    if (!leaseCheckout(selected, token, snapshot, &loan, error,
+    if (!leaseCheckout(selected, token, snapshot, 0, &loan, error,
                        sizeof(error))) {
       errorResponse(409, error);
       return;
@@ -336,7 +336,7 @@ static void handle(void) {
     respond(200, "OK", snapshot, WALKER_FILE_SIZE, session, 0);
   }
 }
-void syncPoll(void) {
+void legacySyncPoll(void) {
 #ifdef __NDS__
   if (networkState == 1) {
     int state = Wifi_AssocStatus();

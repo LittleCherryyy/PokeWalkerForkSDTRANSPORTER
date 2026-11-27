@@ -1,7 +1,6 @@
 package io.github.sdtransporter.pokewalker;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 
 /** Lightweight Pokéwalker shell skin registry shared by the app and widgets. */
 final class SkinManager {
@@ -10,7 +9,7 @@ final class SkinManager {
     static final String[] NAMES={"Poké Ball","Great Ball","Ultra Ball","Master Ball","Premier Ball","Luxury Ball","Heal Ball","Dive Ball","Dusk Ball","Quick Ball","Repeat Ball","Timer Ball","Nest Ball","Net Ball","Level Ball","Lure Ball","Moon Ball","Friend Ball","Love Ball","Heavy Ball","Fast Ball","Safari Ball","Dream Ball","Beast Ball","Cherish Ball","Sport Ball","Park Ball"};
     static final int[] RES={
         R.drawable.walker_shell_poke,
-        R.drawable.walker_shell_great,
+        R.drawable.walker_shell_great_polished,
         R.drawable.walker_shell_ultra,
         R.drawable.walker_shell_master,
         R.drawable.walker_shell_premier,
@@ -50,14 +49,10 @@ final class SkinManager {
     static void setProfileSkin(Context c,String profileId,String skin){
         if(profileId==null||profileId.isEmpty())return;
         c.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().putString("profile_"+profileId,IDS[indexOf(skin)]).apply();
+        PokewalkerWidgetProvider.updateAll(c);
     }
     static String widgetSkin(Context c,int widgetId,String profileId){
-        SharedPreferences p=c.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
-        String own=p.getString("widget_"+widgetId,null);
-        return own!=null?own:profileSkin(c,profileId);
-    }
-    static void setWidgetSkin(Context c,int widgetId,String skin){
-        c.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().putString("widget_"+widgetId,IDS[indexOf(skin)]).apply();
+        return profileSkin(c,profileId);
     }
     static void clearWidgetSkin(Context c,int widgetId){c.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().remove("widget_"+widgetId).apply();}
 }

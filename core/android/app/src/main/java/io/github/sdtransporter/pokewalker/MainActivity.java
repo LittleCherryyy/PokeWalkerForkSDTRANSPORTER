@@ -10,30 +10,36 @@ import android.os.*;
 import android.view.*;
 import android.widget.*;
 import java.io.*;
-import java.net.*;
-import java.security.SecureRandom;
 public final class MainActivity extends Activity {
     private static final int INK=0xffe9f6f0,MUTED=0xff9ebeb7,MINT=0xff44ddb3,GOLD=0xfffcca66,PANEL=0xff17303b;
     private WalkerStore state;
+    private LinearLayout contentRoot,homeMetrics;
     private LinearLayout panel;
     private TextView stats, appTitle;
+    private TextView homeProfileChip,stepMetric,wattsMetric,partnerMetric,partnerDetail;
     private WalkerPicture picture;
     private String page="home";
+    private TextView syncReceiverStatus, syncConnectionStatus, syncNetworkEvents, syncPhoneWalkerStatus, syncLastEvent;
+    private TextView syncStatusBadge,syncStatusTitle,syncStatusDetail,syncStepTcp,syncStepFrame,syncStepSaved;
     private PhonePeerSession peerSession;
     private Runnable pendingPeerPermission;
     private int[] classic=new int[40];
     private byte[] classicPixels;
     private int[] visitReward;
     private long visitStarted;
+    private long classicLastInputAt;
     private String classicProfile="";
-    private boolean classicOnly=true;
     private int pressedImageButton=-1;
     private boolean imageHeld;
     private final Runnable imageHold=()->{if(page.equals("classic")&&pressedImageButton==1){imageHeld=true;classicPress(3);}};
     private android.media.AudioTrack classicAudio;
-    private final Runnable classicClock=new Runnable(){public void run(){if(page.equals("classic")){classicPress(-1);handler.postDelayed(this,100);}}};
+    private final Runnable classicClock=new Runnable(){public void run(){if(page.equals("classic")){
+        long now=SystemClock.elapsedRealtime();
+        if(classic[0]!=0&&now-classicLastInputAt>=5000L){classicLastInputAt=now;classicPress(3);}
+        else classicPress(-1);
+        handler.postDelayed(this,100);
+    }}};
     private boolean syncBusy;
-    private String syncFailure="";
     private File recoveryExport;
     private final Handler handler=new Handler(Looper.getMainLooper());
     private int generation,encounter,round,rounds,target=-1,attempts,hidden,empty=-1,item;
@@ -43,15 +49,20 @@ public final class MainActivity extends Activity {
     private long battleAnimationStart;
     private long radarDeadline;
     private ProgressBar radarProgress;
-    private final Runnable redraw=new Runnable(){public void run(){if(syncBusy&&!state.syncing){syncBusy=false;home();startTracking(false);}updateHeader();handler.postDelayed(this,500);}};
+    private final Runnable redraw=new Runnable(){public void run(){if(syncBusy&&!state.syncing){syncBusy=false;home();startTracking(false);}updateHeader();refreshSyncReceiverStatus();handler.postDelayed(this,500);}};
     @Override public void onCreate(Bundle bundle){
         super.onCreate(bundle);state=WalkerStore.get(this);
         getWindow().setStatusBarColor(0xff0b1a28);getWindow().setNavigationBarColor(0xff0b1a28);
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(0xff0b1a28);
-        LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(16),dp(12),dp(16),dp(20));scroll.addView(root);
-        appTitle=text("Pokewalker",27,INK);root.addView(appTitle);picture=new WalkerPicture();root.addView(picture,new LinearLayout.LayoutParams(-1,dp(250)));
-        stats=text("",18,MINT);root.addView(stats);
-        panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);root.addView(panel);setContentView(scroll);
+        contentRoot=new LinearLayout(this);contentRoot.setOrientation(LinearLayout.VERTICAL);contentRoot.setPadding(dp(16),dp(12),dp(16),dp(20));scroll.addView(contentRoot);
+        appTitle=text("Pokéwalker",25,INK);appTitle.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);contentRoot.addView(appTitle);
+        homeProfileChip=text("",14,INK);homeProfileChip.setGravity(Gravity.CENTER_VERTICAL);homeProfileChip.setPadding(dp(12),dp(3),dp(12),dp(3));homeProfileChip.setBackground(round(0xff122833,dp(15)));homeProfileChip.setMinHeight(dp(38));contentRoot.addView(homeProfileChip);
+        picture=new WalkerPicture();contentRoot.addView(picture,new LinearLayout.LayoutParams(-1,dp(250)));
+        stats=text("",12,MINT);stats.setGravity(Gravity.CENTER_VERTICAL);stats.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);stats.setPadding(dp(12),0,dp(12),0);stats.setBackground(round(0xff123a3a,dp(12)));stats.setMinHeight(dp(32));contentRoot.addView(stats);
+        homeMetrics=new LinearLayout(this);homeMetrics.setOrientation(LinearLayout.HORIZONTAL);homeMetrics.setGravity(Gravity.CENTER_VERTICAL);homeMetrics.setPadding(dp(8),dp(8),dp(8),dp(8));homeMetrics.setBackground(round(PANEL,dp(14)));
+        addMetric(homeMetrics,"PASSOS",0);addMetricDivider(homeMetrics);addMetric(homeMetrics,"WATTS",1);addMetricDivider(homeMetrics);addMetric(homeMetrics,"PERFIL",2);
+        LinearLayout.LayoutParams metricsLp=new LinearLayout.LayoutParams(-1,-2);metricsLp.topMargin=dp(8);contentRoot.addView(homeMetrics,metricsLp);
+        panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);contentRoot.addView(panel);setContentView(scroll);
         // Keep controls clear of gesture navigation, system bars and cutouts.
         scroll.setOnApplyWindowInsetsListener((view,insets)->{
             if(Build.VERSION.SDK_INT>=30){
@@ -79,15 +90,58 @@ public final class MainActivity extends Activity {
         picture.setContentDescription("Pokewalker. Tap to open original-style controls.");
         home();handler.post(redraw);
         startTracking(false);
-        if(getIntent().getBooleanExtra("widget_open_connect",false))handler.post(this::connectMenu);
+        handler.post(()->{try{DirectSyncService.restoreAfterPackageUpdate(this);}catch(RuntimeException ex){toast("Não foi possível retomar o receptor: "+ex.getMessage());}});
+        handler.post(()->handleWidgetIntent(getIntent()));
     }
-    @Override protected void onResume(){super.onResume();if(page.equals("classic")){handler.removeCallbacks(classicClock);handler.post(classicClock);}WalkerStore selected=WalkerStore.get(this);boolean changed=state!=selected;state=selected;syncBusy=peerSession==null&&state.syncing;if(changed){syncFailure="";home();}}
+    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);handler.post(()->handleWidgetIntent(intent));}
+    private void handleWidgetIntent(Intent intent){
+        if(intent==null)return;
+        if(intent.getBooleanExtra("widget_open_error",false))widgetErrorScreen(intent.getStringExtra("widget_profile_id"));
+        else if(intent.getBooleanExtra("widget_open_sync",false)){
+            if(selectWidgetProfile(intent.getStringExtra("widget_profile_id"))){
+                // A widget tap can resume a phone-side return after Android
+                // reclaimed the process. Keep the Pokémon locked until the
+                // SD Transporter confirms the same session, and re-arm only
+                // the listener/direction here; this does not send any data.
+                if(state.returnPending&&(!DirectSyncService.enabled(this)||
+                   DirectSyncService.armedOperation(this)!=DirectSyncProtocol.OP_ARM_PULL))
+                    startConsoleReceiver();
+                syncScreen();handler.postDelayed(()->{if(page.equals("sync"))syncScreen();},400);
+            }
+        }else if(intent.getBooleanExtra("widget_open_connect",false)&&selectWidgetProfile(intent.getStringExtra("widget_profile_id")))connectMenu();
+    }
+    private boolean selectWidgetProfile(String profileId){
+        if(profileId==null||profileId.isEmpty()||profileId.equals(state.profileId))return true;
+        if(profilesBusy()){toast("Aguarde a transferência terminar antes de trocar de perfil.");return false;}
+        try{if(state.error.isEmpty())state.save();state=WalkerStore.selectProfile(this,profileId);startTracking(false);return true;}
+        catch(IOException ex){toast("Não foi possível abrir o perfil do widget: "+ex.getMessage());return false;}
+    }
+    @Override protected void onResume(){super.onResume();if(page.equals("classic")){handler.removeCallbacks(classicClock);handler.post(classicClock);}WalkerStore selected=WalkerStore.get(this);boolean changed=state!=selected;state=selected;syncBusy=peerSession==null&&state.syncing;if(changed)home();}
     @Override protected void onPause(){handler.removeCallbacks(imageHold);pressedImageButton=-1;handler.removeCallbacks(classicClock);stopClassicAudio();super.onPause();}
     @Override protected void onDestroy(){handler.removeCallbacks(redraw);handler.removeCallbacks(classicClock);stopClassicAudio();if(peerSession!=null)peerSession.close();pendingPeerPermission=null;generation++;super.onDestroy();}
     private int dp(float x){return (int)(x*getResources().getDisplayMetrics().density+.5f);}
     private TextView text(String s,int size,int color){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);v.setPadding(0,dp(5),0,dp(5));return v;}
-    private void heading(String title){appTitle.setVisibility(View.VISIBLE);stats.setVisibility(View.VISIBLE);picture.getLayoutParams().height=dp(page.equals("radar")||page.equals("dowsing")?260:320);picture.requestLayout();panel.removeAllViews();panel.addView(text(title,23,INK));}
+    private void heading(String title){appTitle.setText(title);appTitle.setVisibility(View.VISIBLE);homeProfileChip.setVisibility(View.GONE);homeMetrics.setVisibility(View.GONE);stats.setVisibility(View.VISIBLE);picture.setVisibility(View.VISIBLE);picture.getLayoutParams().height=dp(page.equals("radar")||page.equals("dowsing")?260:320);picture.requestLayout();panel.removeAllViews();}
+    private void addMetric(LinearLayout parent,String title,int which){
+        LinearLayout column=new LinearLayout(this);column.setOrientation(LinearLayout.VERTICAL);column.setGravity(Gravity.CENTER);column.setPadding(dp(4),dp(2),dp(4),dp(2));
+        TextView heading=text(title,10,MUTED);heading.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);heading.setGravity(Gravity.CENTER);column.addView(heading);
+        TextView value=text("—",20,INK);value.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);value.setGravity(Gravity.CENTER);column.addView(value);
+        TextView detail=text("",11,MUTED);detail.setGravity(Gravity.CENTER);column.addView(detail);
+        if(which==0){stepMetric=value;}else if(which==1){wattsMetric=value;}else{partnerMetric=value;partnerDetail=detail;}
+        parent.addView(column,new LinearLayout.LayoutParams(0,-2,1));
+    }
+    private void addMetricDivider(LinearLayout parent){View divider=new View(this);divider.setBackgroundColor(0xff294852);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(1),dp(44));parent.addView(divider,lp);}
     private void note(String message){panel.addView(text(message,17,MUTED));}
+    private void flowStep(String number,String title,String detail){flowStep(panel,number,title,detail);}
+    private void flowStep(LinearLayout parent,String number,String title,String detail){
+        LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.HORIZONTAL);card.setGravity(Gravity.CENTER_VERTICAL);card.setPadding(dp(12),dp(10),dp(12),dp(10));
+        GradientDrawable background=new GradientDrawable();background.setColor(0xff122833);background.setCornerRadius(dp(12));background.setStroke(dp(1),0xff294852);card.setBackground(background);
+        TextView badge=text(number,16,MINT);badge.setGravity(Gravity.CENTER);badge.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);badge.setBackground(round(0xff21483f,dp(9)));
+        LinearLayout.LayoutParams badgeLp=new LinearLayout.LayoutParams(dp(38),dp(38));badgeLp.rightMargin=dp(12);card.addView(badge,badgeLp);
+        LinearLayout copy=new LinearLayout(this);copy.setOrientation(LinearLayout.VERTICAL);copy.addView(text(title,16,INK));copy.addView(text(detail,14,MUTED));card.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.topMargin=dp(7);parent.addView(card,lp);
+    }
+    private GradientDrawable round(int color,int radius){GradientDrawable shape=new GradientDrawable();shape.setColor(color);shape.setCornerRadius(radius);return shape;}
     private Button button(String label,Runnable action){
         Button b=new Button(this);b.setText(label);b.setTextSize(17);b.setTextColor(INK);b.setAllCaps(false);
         GradientDrawable background=new GradientDrawable();background.setColor(PANEL);background.setCornerRadius(dp(12));b.setBackground(background);
@@ -115,23 +169,59 @@ public final class MainActivity extends Activity {
     }
     private void updateHeader(){
         synchronized(WalkerStore.LOCK){
-            if(state.returnPending)stats.setText("Return awaiting confirmation\nPhone copy locked · retry on the sync screen");
-            else if(state.data==null)stats.setText("Sync with a 3DS or NDS console over local Wi-Fi");
+            String profile=WalkerStore.profileName(this,state.profileId);
+            homeProfileChip.setText("◉   "+profile.toUpperCase(java.util.Locale.ROOT)+"   ▾");
+            String badge="CAMINHADA ATIVA";
+            if(!state.error.isEmpty())badge="ATENÇÃO · SAVE PROTEGIDO";
+            else if(state.returnPending)badge="RETORNO AGUARDANDO CONFIRMAÇÃO";
+            else if(!state.active()){
+                int armed=DirectSyncService.armedOperation(this);
+                boolean selectedReceiver=DirectSyncService.enabled(this)&&
+                        DirectSyncService.processRunning()&&
+                        state.profileId.equals(DirectSyncService.targetProfileId(this))&&
+                        armed==DirectSyncProtocol.OP_ARM_PUSH;
+                String receiverStatus=DirectSyncService.status(this);
+                if(!selectedReceiver)badge="SEM POKÉMON · CONNECT PARA RECEBER";
+                else if(receiverStatus.startsWith("Listening for DSi")||
+                        receiverStatus.startsWith("Waiting for DSi"))
+                    badge="RECEPTOR ATIVO · AGUARDANDO HGSS";
+                else if(receiverStatus.startsWith("Starting listener"))
+                    badge="INICIANDO RECEPTOR · AGUARDE";
+                else if(receiverStatus.startsWith("DSi TCP connected"))
+                    badge="CONSOLE CONECTADO · AGUARDANDO DADOS";
+                else if(receiverStatus.startsWith("DSi TCP closed before complete frame"))
+                    badge="DSI DESCONECTOU · TENTE HGSS";
+                else if(receiverStatus.startsWith("DSi TCP disconnected after protocol frame"))
+                    badge="CONSOLE DESCONECTADO · RECEPTOR ATIVO";
+                else if(receiverStatus.startsWith("DSi TCP timeout"))
+                    badge="CONEXÃO EXPIRADA · TENTE HGSS";
+                else if(receiverStatus.startsWith("Last DSi request failed"))
+                    badge="PEDIDO RECUSADO · RECEPTOR ATIVO";
+                else badge="RECEPTOR COM PROBLEMA · TOQUE CONNECT";
+            }
+            else if(state.revoked)badge="SESSÃO REVOGADA";
+            else if(!state.trackingIssue.isEmpty())badge="RASTREAMENTO PAUSADO";
+            else if(state.mode==2)badge="CAMINHADA ATIVA";
+            else if(state.mode==1)badge="CONTADOR POR TEMPO";
+            else if(state.mode==0)badge="CAMINHADA PAUSADA";
+            if(!badge.contentEquals(stats.getText()))stats.setText(badge);
+            if(state.data==null){stepMetric.setText("0");wattsMetric.setText("0");partnerMetric.setText("—");partnerDetail.setText("aguardando console");}
             else {
-                long[] i=Native.info(state.data);
-                String mode=state.revoked?"Session revoked":state.returnPending?"Return pending · phone copy locked":state.mode==2?"Phone pedometer":state.mode==1?"Time-based":"Walking paused";
-                stats.setText((i[Native.HAS_POKEMON]!=0?Native.species((int)i[Native.SPECIES])+" · Lv "+i[Native.LEVEL]:"No partner · send a Pokémon from HGSS")+"\n"+i[Native.STROLL]+" steps · "+i[Native.WATTS]+" watts\n"+Native.text(state.data,2)+"\nItems: "+packSummary(true)+"\nCaught: "+packSummary(false)+"\n"+mode);
+                long[] info=Native.info(state.data);
+                stepMetric.setText(String.valueOf(info[Native.TODAY]));wattsMetric.setText(String.valueOf(info[Native.WATTS]));
+                if(info[Native.HAS_POKEMON]!=0){partnerMetric.setText(Native.species((int)info[Native.SPECIES]));partnerDetail.setText("Lv "+info[Native.LEVEL]);}
+                else{partnerMetric.setText("—");partnerDetail.setText("sem parceiro");}
             }
             picture.invalidate();
         }
     }
     private void stopClassicAudio(){if(classicAudio!=null){classicAudio.release();classicAudio=null;}}
     private void playClassicScore(int score,int volume){
-        if(volume<=0)return;
+        if(state.data==null)return;
         short[] pcm=Native.classicSound(state.data,score);stopClassicAudio();
         if(pcm!=null&&pcm.length>0)try{
             classicAudio=new android.media.AudioTrack.Builder().setAudioAttributes(new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_GAME).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build()).setAudioFormat(new android.media.AudioFormat.Builder().setSampleRate(22050).setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO).setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT).build()).setTransferMode(android.media.AudioTrack.MODE_STATIC).setBufferSizeInBytes(pcm.length*2).build();
-            classicAudio.setVolume(volume==1?.25f:.5f);classicAudio.write(pcm,0,pcm.length);classicAudio.play();
+            classicAudio.setVolume(new float[]{.16f,.33f,.55f}[Math.max(0,Math.min(2,volume))]);classicAudio.write(pcm,0,pcm.length);classicAudio.play();
         }catch(RuntimeException ex){stopClassicAudio();}
     }
     private void showVisit(int[] reward){
@@ -148,73 +238,111 @@ public final class MainActivity extends Activity {
                 playClassicScore(score,state.classicVolume);
         }
     }
-    private void openClassic(){openClassic(true);}
-    private void openClassic(boolean only){
-        synchronized(WalkerStore.LOCK){if(!owned())return;classicProfile=state.profileId;classic=new int[40];classic[19]=state.classicVolume;classic[20]=state.classicContrast;}
-        classicOnly=only;generation++;page="classic";renderClassicControls();
+    private void addHomeSyncCard(){
+        LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setPadding(dp(14),dp(12),dp(14),dp(12));card.setBackground(round(PANEL,dp(16)));
+        LinearLayout header=new LinearLayout(this);header.setOrientation(LinearLayout.HORIZONTAL);header.setGravity(Gravity.CENTER_VERTICAL);card.addView(header);
+        TextView icon=text("↔",18,MINT);icon.setGravity(Gravity.CENTER);icon.setBackground(round(0xff21483f,dp(11)));header.addView(icon,new LinearLayout.LayoutParams(dp(40),dp(40)));
+        LinearLayout copy=new LinearLayout(this);copy.setOrientation(LinearLayout.VERTICAL);LinearLayout.LayoutParams copyLp=new LinearLayout.LayoutParams(0,-2,1);copyLp.leftMargin=dp(11);header.addView(copy,copyLp);
+        copy.addView(text("Console Wi-Fi Sync",17,INK));copy.addView(text("Enviar e devolver pelo hotspot",13,MUTED));
+        TextView action=text("Abrir sincronização",15,0xff06221d);action.setGravity(Gravity.CENTER);action.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);action.setBackground(round(MINT,dp(12)));action.setMinHeight(dp(48));
+        LinearLayout.LayoutParams actionLp=new LinearLayout.LayoutParams(-1,dp(50));actionLp.topMargin=dp(12);card.addView(action,actionLp);action.setOnClickListener(v->openConsoleSync());
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.topMargin=dp(9);panel.addView(card,lp);
+    }
+    private void addHomeTile(LinearLayout row,String title,String subtitle,Runnable action){
+        LinearLayout tile=new LinearLayout(this);tile.setOrientation(LinearLayout.VERTICAL);tile.setPadding(dp(12),dp(10),dp(12),dp(10));tile.setBackground(round(PANEL,dp(13)));tile.setMinimumHeight(dp(76));tile.setFocusable(true);tile.setClickable(true);
+        TextView name=text(title,15,INK);name.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);tile.addView(name);tile.addView(text(subtitle,12,MUTED));tile.setOnClickListener(v->action.run());
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);lp.setMargins(dp(3),dp(8),dp(3),dp(4));row.addView(tile,lp);
+    }
+    private void openClassic(){
+        synchronized(WalkerStore.LOCK){
+            if(!state.error.isEmpty()||state.syncing||syncBusy){toast("Conclua a sincronização ou a recuperação antes de abrir os menus.");return;}
+            classicProfile=state.profileId;classic=new int[40];classic[19]=state.classicVolume;classic[20]=state.classicContrast;classic[26]=WalkerClassicData.secondsOfDay();
+            classicLastInputAt=SystemClock.elapsedRealtime();
+            byte[] image=WalkerClassicData.image(state);
+            if(state.returnPending)image=image.clone();
+            classicPixels=Native.classicFrame(image,classic,SystemClock.elapsedRealtime());
+        }
+        generation++;page="classic";renderClassicControls();
         handler.removeCallbacks(classicClock);handler.post(classicClock);
     }
     private void renderClassicControls(){
-        panel.removeAllViews();appTitle.setVisibility(classicOnly?View.GONE:View.VISIBLE);stats.setVisibility(classicOnly?View.GONE:View.VISIBLE);
+        panel.removeAllViews();appTitle.setVisibility(View.GONE);stats.setVisibility(View.GONE);
         picture.getLayoutParams().height=dp(360);picture.requestLayout();
-        Switch toggle=new Switch(this);toggle.setText("Classic mode");toggle.setTextColor(INK);toggle.setTextSize(18);toggle.setChecked(classicOnly);
-        panel.addView(toggle,new LinearLayout.LayoutParams(-1,dp(56)));
-        toggle.setOnCheckedChangeListener((view,enabled)->{classicOnly=enabled;renderClassicControls();});
-        if(!classicOnly){
-            LinearLayout controls=patchRow();patch(controls,"◀",()->classicPress(0));Button centre=patch(controls,"●",()->classicPress(1));patch(controls,"▶",()->classicPress(2));
-            final boolean[] held={false};
-            final Runnable back=()->{if(page.equals("classic")&&centre.isAttachedToWindow()){held[0]=true;classicPress(3);}};
-            centre.setOnTouchListener((view,event)->{
-                switch(event.getActionMasked()){
-                case MotionEvent.ACTION_DOWN:held[0]=false;view.getParent().requestDisallowInterceptTouchEvent(true);handler.postDelayed(back,menuHoldMillis());return true;
-                case MotionEvent.ACTION_MOVE:if(event.getX()<0||event.getY()<0||event.getX()>view.getWidth()||event.getY()>view.getHeight()){handler.removeCallbacks(back);held[0]=true;}return true;
-                case MotionEvent.ACTION_UP:handler.removeCallbacks(back);if(!held[0])view.performClick();return true;
-                case MotionEvent.ACTION_CANCEL:handler.removeCallbacks(back);return true;
-                default:return true;
-                }
-            });
-            button("Connect",this::connectMenu);button("Back to app",this::home);
-        }
+        LinearLayout controls=patchRow();patch(controls,"◀",()->classicPress(0));Button centre=patch(controls,"●",()->classicPress(1));patch(controls,"▶",()->classicPress(2));
+        final boolean[] held={false};
+        final Runnable back=()->{if(page.equals("classic")&&centre.isAttachedToWindow()){held[0]=true;classicPress(3);}};
+        centre.setOnTouchListener((view,event)->{
+            switch(event.getActionMasked()){
+            case MotionEvent.ACTION_DOWN:held[0]=false;view.getParent().requestDisallowInterceptTouchEvent(true);handler.postDelayed(back,menuHoldMillis());return true;
+            case MotionEvent.ACTION_MOVE:if(event.getX()<0||event.getY()<0||event.getX()>view.getWidth()||event.getY()>view.getHeight()){handler.removeCallbacks(back);held[0]=true;}return true;
+            case MotionEvent.ACTION_UP:handler.removeCallbacks(back);if(!held[0])view.performClick();return true;
+            case MotionEvent.ACTION_CANCEL:handler.removeCallbacks(back);return true;
+            default:return true;
+            }
+        });
+        button("Voltar ao app",this::home);
     }
     private void classicPress(int button){
         if(!page.equals("classic"))return;
+        if(button>=0)classicLastInputAt=SystemClock.elapsedRealtime();
         synchronized(WalkerStore.LOCK){
-            if(!state.profileId.equals(classicProfile)||!state.active()||state.returnPending||state.syncing||!state.error.isEmpty()){handler.removeCallbacks(classicClock);stopClassicAudio();home();return;}
-            byte[] before=state.data.clone();
-            Native.classicInput(state.data,classic,button,Native.now(),SystemClock.elapsedRealtime(),state.expandedItems);
+            if(!state.profileId.equals(classicProfile)||state.syncing||!state.error.isEmpty()){handler.removeCallbacks(classicClock);stopClassicAudio();home();return;}
+            boolean protectedReturn=state.returnPending;
+            byte[] image=WalkerClassicData.image(state);
+            if(protectedReturn)image=image.clone();
+            byte[] before=image.clone();
+            classic[26]=WalkerClassicData.secondsOfDay();
+            Native.classicInput(image,classic,button,Native.now(),SystemClock.elapsedRealtime(),state.expandedItems);
             boolean controlsChanged=state.classicVolume!=classic[19]||state.classicContrast!=classic[20];
             state.classicVolume=classic[19];state.classicContrast=classic[20];
-            if(controlsChanged||!java.util.Arrays.equals(before,state.data)){
+            boolean dataChanged=!protectedReturn&&state.data!=null&&!java.util.Arrays.equals(before,state.data);
+            if(controlsChanged||dataChanged){
                 try{
-                    boolean reward=false;for(int n=0xce8c;n<0xcef0;n++)if(before[n]!=state.data[n]){reward=true;break;}
+                    boolean reward=false;if(dataChanged)for(int n=0xce8c;n<0xcef0;n++)if(before[n]!=state.data[n]){reward=true;break;}
                     if(reward)state.archiveCurrent("reward");state.save();
                 }catch(IOException ex){state.error="Save failed. Keep the app open and retry. "+ex.getMessage();state.mode=0;handler.removeCallbacks(classicClock);home();return;}
             }
-            if(classic[10]>0){
+            if(classic[10]>0&&state.data!=null&&!protectedReturn){
                 int score=classic[10]-1;classic[10]=0;
                 playClassicScore(score,classic[19]);
             }
-            classicPixels=Native.classicFrame(state.data,classic,SystemClock.elapsedRealtime());picture.invalidate();
+            if(classic[10]>0)classic[10]=0;
+            classic[26]=WalkerClassicData.secondsOfDay();
+            classicPixels=Native.classicFrame(image,classic,SystemClock.elapsedRealtime());picture.invalidate();
             if(classic[0]==10){handler.removeCallbacks(classicClock);connectMenu();}
-            else if(classic[0]==8&&classic[2]==1){handler.removeCallbacks(classicClock);syncScreen();}
+            else if(classic[0]==8&&classic[2]==1){handler.removeCallbacks(classicClock);openConsoleSync();}
         }
     }
     private void home(){
+        if(page.equals("sync")&&DirectSyncService.enabled(this)&&
+           state.profileId.equals(DirectSyncService.targetProfileId(this))){
+            DirectSyncService.stop(this);
+            WidgetConfigActivity.clearStatusForProfile(this,state.profileId);
+        }
         handler.removeCallbacks(classicClock);stopClassicAudio();
         visitReward=null;
         if(peerSession!=null){peerSession.close();peerSession=null;}
-        generation++;battleAnimating=false;page="home";heading("A little adventure");
-        LinearLayout controls=patchRow();for(int n=0;n<3;n++){final int key=n;patch(controls,n==0?"◀":n==1?"●":"▶",()->{openClassic(false);classicPress(key);});}
-        button("Walker profiles · "+WalkerStore.profileName(this),this::profilesScreen);
+        generation++;battleAnimating=false;page="home";appTitle.setText("Pokéwalker");appTitle.setVisibility(View.VISIBLE);
+        homeProfileChip.setVisibility(View.VISIBLE);homeProfileChip.setOnClickListener(v->profilesScreen());
+        picture.setVisibility(View.VISIBLE);picture.getLayoutParams().height=dp(250);picture.requestLayout();
+        stats.setVisibility(View.VISIBLE);homeMetrics.setVisibility(View.VISIBLE);panel.removeAllViews();
         synchronized(WalkerStore.LOCK){
-            if(!state.error.isEmpty()){note(state.error);button("Retry saving",()->{synchronized(WalkerStore.LOCK){if(state.visitBlocked)state=WalkerStore.recoverVisits(this);else save();home();}});}
-            if(state.returnPending)note("Return pending. Walking and activities are paused until the console confirms the return.");
-            if(state.revoked)note("This session was revoked. To recover this phone copy into a missing console target, use Receive phone copy on the console and Return Pokémon here.");
+            if(!state.error.isEmpty()){
+                note("Este perfil está protegido. O save original foi preservado.");note(state.error);
+                if(state.visitBlocked)button("Recuperar perfil",()->{synchronized(WalkerStore.LOCK){state=WalkerStore.recoverVisits(this);home();}});
+                else if(state.data!=null)button("Tentar salvar novamente",()->{synchronized(WalkerStore.LOCK){save();home();}});
+                button("Escolher outro perfil",this::profilesScreen);
+            }
+            if(state.returnPending)note("Retorno pendente. A cópia do celular fica bloqueada até o console confirmar.");
+            if(state.revoked)note("Esta sessão foi revogada. Use o menu de recuperação para concluir o retorno.");
+            if(state.active()&&!state.trackingIssue.isEmpty())note("O rastreamento de passos está pausado; os menus do Pokéwalker e a sincronização continuam disponíveis.");
             if(state.active()&&!state.returnPending){
-                if(state.battleRewardChoice>=0)button("Claim battle reward",this::claimBattleReward);
+                if(state.battleRewardChoice>=0)button("Resgatar prêmio da batalha",this::claimBattleReward);
             }
         }
-        button("Settings",this::settings);button("Console Wi-Fi sync",this::syncScreen);button("DSi Wi-Fi V4 (teste)",()->startActivity(new Intent(this,DSiV4Activity.class)));button("DSi Hotspot V5 (receber)",()->startActivity(new Intent(this,DSiV5Activity.class)));updateHeader();
+        button("Abrir menus do Pokéwalker",this::openClassic);
+        button("Connect · Nearby phone",this::connectMenu);
+        button("Configurações",this::settings);updateHeader();
     }
     private boolean profilesBusy(){if(syncBusy)return true;for(WalkerStore s:WalkerStore.all(this))if(s.syncing)return true;return false;}
     private void connectMenu(){
@@ -304,7 +432,7 @@ public final class MainActivity extends Activity {
                 WalkerStore candidate=null;for(WalkerStore item:WalkerStore.all(this))if(item.profileId.equals(e.id))candidate=item;
                 final String id=e.id;
                 button((id.equals(state.profileId)?"Selected · ":"")+e.name,()->{
-                    synchronized(WalkerStore.LOCK){if(profilesBusy()){toast("Wait for sync to finish.");return;}try{state.save();state=WalkerStore.selectProfile(this,id);syncFailure="";home();startTracking(false);}catch(IOException ex){toast(ex.getMessage());}}
+                    synchronized(WalkerStore.LOCK){if(profilesBusy()){toast("Wait for sync to finish.");return;}try{if(state.error.isEmpty())state.save();state=WalkerStore.selectProfile(this,id);home();startTracking(false);}catch(IOException ex){toast(ex.getMessage());}}
                 });
                 if(candidate!=null&&!candidate.error.isEmpty())note(candidate.error);
                 if(candidate!=null)note(candidate.data==null?"No active Pokémon":Native.text(candidate.data,3)+(candidate.returnPending?" · Return pending":candidate.revoked?" · Revoked":" · On phone"));
@@ -316,7 +444,7 @@ public final class MainActivity extends Activity {
         if(profilesBusy()){toast("Wait for the transfer to finish.");return;}
         EditText name=new EditText(this);name.setSingleLine(true);name.setHint("For example: HeartGold");if(!create)name.setText(WalkerStore.profileName(this));
         new AlertDialog.Builder(this).setTitle(create?"Add walker profile":"Rename profile").setView(name).setPositiveButton("Save",(dialog,which)->{
-            synchronized(WalkerStore.LOCK){if(profilesBusy()){toast("Wait for sync to finish.");return;}try{state.save();if(create)state=WalkerStore.createProfile(this,name.getText().toString());else WalkerStore.renameProfile(this,name.getText().toString());syncFailure="";profilesScreen();startTracking(false);}catch(IOException ex){toast(ex.getMessage());}}
+            synchronized(WalkerStore.LOCK){if(profilesBusy()){toast("Wait for sync to finish.");return;}try{if(state.error.isEmpty())state.save();if(create)state=WalkerStore.createProfile(this,name.getText().toString());else WalkerStore.renameProfile(this,name.getText().toString());profilesScreen();startTracking(false);}catch(IOException ex){toast(ex.getMessage());}}
         }).setNegativeButton("Cancel",null).show();
     }
     private void result(String title,String detail){generation++;page="result";heading(title);note(detail);button("Continue",this::home);}
@@ -327,6 +455,7 @@ public final class MainActivity extends Activity {
     private String menuHoldLabel(int milliseconds){return milliseconds==250?"0.25 seconds":milliseconds==500?"0.5 seconds":milliseconds==1000?"1 second":milliseconds==1500?"1.5 seconds":(milliseconds/1000)+" seconds";}
     private void settings(){
         generation++;page="settings";heading("Settings");
+        button("Back",this::home);
         button("Menu button hold: "+menuHoldLabel(menuHoldMillis()),()->{
             final int[] durations={250,500,1000,1500,2000,3000};String[] labels=new String[durations.length];int checked=0;
             for(int n=0;n<durations.length;n++){labels[n]=menuHoldLabel(durations[n]);if(durations[n]==menuHoldMillis())checked=n;}
@@ -349,13 +478,6 @@ public final class MainActivity extends Activity {
             new AlertDialog.Builder(this).setTitle("Enable expanded rewards?").setMessage("Adds Master Ball, PP items, TMs, vitamins, Rare Candy, EV-training items, evolution items, held items and Heart Scales. 92% of Dowsing finds still use the course. Off by default. Battle rewards expand only when both phones enable this option.")
                 .setPositiveButton("Opt in",(dialog,which)->{synchronized(WalkerStore.LOCK){if(state.syncing||state.returnPending)return;state.expandedItems=true;save();}settings();}).setNegativeButton("Cancel",null).show();
         });
-        boolean directDsi=DirectSyncService.enabled(this);
-        button("Direct DSi sync: "+(directDsi?"On":"Off"),()->{
-            if(directDsi)DirectSyncService.stop(this);else DirectSyncService.start(this);
-            new Handler(Looper.getMainLooper()).postDelayed(this::settings,250);
-        });
-        note("Experimental: the phone listens on TCP port "+DirectSyncProtocol.PORT+" for a modified nds-bootstrap running HGSS. Use an open 2.4 GHz hotspot compatible with the DSi. Status: "+DirectSyncService.status(this));
-        button("Nearby phone · Bluetooth",this::nearbyPurpose);
         boolean sensor=((SensorManager)getSystemService(SENSOR_SERVICE)).getDefaultSensor(Sensor.TYPE_STEP_COUNTER)!=null;
         note("One step source is active at a time. Physical steps are the default; no automatic timer fallback is used.");
         button("Phone pedometer: "+(state.mode==2?"On":"Off")+(sensor?"":" (unavailable)"),()->{
@@ -371,7 +493,7 @@ public final class MainActivity extends Activity {
                 dialog.dismiss();settings();
             }).setNegativeButton("Cancel",null).show();
         });
-        note("Tracking continues with an ongoing notification while the screen is off. Pause tracking here to stop it.");button("Diagnostics · battery, crashes and errors",()->startActivity(new Intent(this,DiagnosticsActivity.class)));button("Recovery copies",this::recoveryCopies);if(state.data!=null)button("Delete active walker",this::deleteActive);button("Privacy policy",()->startActivity(new Intent(this,PrivacyActivity.class)));button("About and licences",()->startActivity(new Intent(this,PrivacyActivity.class).putExtra("credits",true)));button("Back",this::home);
+        note("Tracking continues with an ongoing notification while the screen is off. Pause tracking here to stop it.");button("Diagnostics · battery, crashes and errors",()->startActivity(new Intent(this,DiagnosticsActivity.class)));button("Recovery copies",this::recoveryCopies);if(state.data!=null)button("Delete active walker",this::deleteActive);button("Privacy policy",()->startActivity(new Intent(this,PrivacyActivity.class)));button("About and licences",()->startActivity(new Intent(this,PrivacyActivity.class).putExtra("credits",true)));
     }
     private void recoveryCopies(){
         if(syncBusy){toast("Please wait for sync to finish.");return;}
@@ -433,7 +555,6 @@ public final class MainActivity extends Activity {
             if(ask) new AlertDialog.Builder(this).setTitle("Walking permissions")
                 .setMessage((state.mode==2?"Physical activity access lets the app count and store your walking steps, including while the app is in the background with its tracking notification active.":"The optional timer creates and stores virtual steps while its tracking notification is active, including in the background.")+" Steps stay on this phone unless you choose to return the Pokémon to your console. Location is not accessed. The notification provides a Pause control.")
                 .setPositiveButton("Continue",(dialog,which)->{getSharedPreferences("walking",MODE_PRIVATE).edit().putBoolean("trackingConsent",true).apply();if(needed.isEmpty())startTracking(false);else requestPermissions(needed.toArray(new String[0]),20);}).setNegativeButton("Cancel",null).show();
-            else toast("Open Settings and enable a walking mode to allow tracking.");
             if(ask||!consent||!hasTimer)return;
         }
         try{startForegroundService(new Intent(this,WalkingService.class));}catch(Exception ex){toast("Could not start tracking: "+ex.getMessage());}
@@ -537,95 +658,190 @@ public final class MainActivity extends Activity {
         synchronized(WalkerStore.LOCK){long[] i=Native.info(state.data);note("Trainer: "+Native.text(state.data,0));note("Route: "+Native.text(state.data,2));note("Bond: "+i[Native.BOND]+" / 255");note("Today: "+i[Native.TODAY]+" steps");note("Lifetime: "+i[Native.TOTAL]+" steps");}
         button("Back",this::home);
     }
-    private boolean validHost(String host){return host.matches("[A-Za-z0-9.:-]+");}
-    private void syncScreen(){
-        generation++;page="sync";heading("Console Wi-Fi sync");
-        note("On the console, open Settings → Phone sync. Enter its IP address below. Keep the console app open on the same local Wi-Fi.");
-        if(!syncFailure.isEmpty())note(syncFailure);
-        if(!state.pendingToken.isEmpty()&&!state.active())note("An unfinished receive can be retried with the same console. If you force-unlocked it, retry once more after the old session is refused.");
-        EditText host=new EditText(this);host.setSingleLine(true);host.setTextColor(INK);host.setHintTextColor(MUTED);host.setHint("Console IP, e.g. 192.168.1.20");host.setText(state.host);panel.addView(host);
-        button("Saved consoles",()->showSavedConsoles(host));
-        button("Save this console",()->saveConsole(host));
-        button("Receive Pokémon from console",()->{
-            if(state.active()){toast("Return your current Pokémon before receiving another.");return;}
-            Runnable receive=()->transfer(false,host.getText().toString().trim());
-            if(state.data!=null)new AlertDialog.Builder(this).setTitle("Receive a new Pokémon?").setMessage("The old phone copy will be preserved in recovery history before a fresh handoff. Its progress will not be merged into the incoming Pokémon.").setPositiveButton("Preserve and receive",(d,w)->receive.run()).setNegativeButton("Cancel",null).show();else receive.run();
-        });
-        button("Return Pokémon",()->transfer(true,host.getText().toString().trim()));button("Back",this::home);
-    }
-    private void saveConsole(EditText hostField){
-        String host=hostField.getText().toString().trim();
-        if(!validHost(host)){toast("Enter the console IP first.");return;}
-        EditText name=new EditText(this);name.setSingleLine(true);name.setHint("Console name");name.setText("My console");
-        new AlertDialog.Builder(this).setTitle("Save console").setMessage(host).setView(name).setPositiveButton("Save",(d,w)->{
-            String label=name.getText().toString().trim();if(label.isEmpty())label=host;
-            toast(SavedConsoles.save(this,label,host)?"Console saved.":"Could not save console.");
-        }).setNegativeButton("Cancel",null).show();
-    }
-    private void showSavedConsoles(EditText hostField){
-        java.util.ArrayList<SavedConsoles.Entry> list=SavedConsoles.load(this);
-        if(list.isEmpty()){toast("No saved consoles yet. Enter an IP and choose Save this console.");return;}
-        String[] labels=new String[list.size()];for(int n=0;n<labels.length;n++)labels[n]=list.get(n).label();
-        new AlertDialog.Builder(this).setTitle("Saved consoles").setItems(labels,(d,n)->hostField.setText(list.get(n).host))
-            .setNeutralButton("Remove a console",(d,w)->new AlertDialog.Builder(this).setTitle("Remove saved console").setItems(labels,(dialog,n)->
-                new AlertDialog.Builder(this).setTitle("Remove "+list.get(n).name+"?").setMessage("This only removes the saved address.").setPositiveButton("Remove",(confirm,which)->toast(SavedConsoles.remove(this,n)?"Console removed.":"Could not remove console.")).setNegativeButton("Cancel",null).show()
-            ).setNegativeButton("Cancel",null).show()).setNegativeButton("Cancel",null).show();
-    }
-    private void transfer(boolean returning,String host){
-        if(returning&&state.revoked&&state.data!=null){
-            new AlertDialog.Builder(this).setTitle("Recover phone copy?").setMessage("On the console walker list press Y, select the HGSS destination and confirm Receive phone copy. This only restores a missing target; an active console walker cannot be overwritten.")
-                .setPositiveButton("Return phone copy",(d,w)->transfer(returning,host,true)).setNegativeButton("Cancel",null).show();return;
-        }
-        transfer(returning,host,false);
-    }
-    private void transfer(boolean returning,String host,boolean recovery){
-        final WalkerStore transferState=state;
-        if(syncBusy||transferState.syncing)return;
-        if(!validHost(host)){toast("Enter the console IP address.");return;}
-        if(!getPreferences(MODE_PRIVATE).getBoolean("localSyncConsent",false)) {
-            new AlertDialog.Builder(this).setTitle("Sync over local Wi-Fi")
-                .setMessage("Walker data includes trainer information, Pokémon and step totals. It is sent directly to the console address you enter. This local connection is not encrypted; use a network you trust. No developer server receives it.")
-                .setPositiveButton("Continue",(dialog,which)->{getPreferences(MODE_PRIVATE).edit().putBoolean("localSyncConsent",true).apply();transfer(returning,host,recovery);}).setNegativeButton("Cancel",null).show();return;
-        }
-        final String session;final byte[] payload;final long operation;
-        synchronized(WalkerStore.LOCK){
-            if(transferState.syncing){toast("A sync is already in progress.");return;}
-            if(returning&&transferState.battleRewardChoice>=0){toast("Claim or leave your battle reward before returning.");return;}
-            if(returning&&transferState.active()&&transferState.mode==1)Native.timer(transferState.data,Native.now(),transferState.rate);
-            if(returning&&!transferState.active()&&!(recovery&&transferState.data!=null&&!transferState.token.isEmpty()&&!transferState.returnCompleted)){toast("No Pokémon is available to return.");return;}
-            if(returning)try{if(transferState.completedSession(transferState.token)){toast("This phone session was already returned or deleted.");return;}}catch(IOException ex){toast(ex.getMessage());return;}
-            if(!returning&&transferState.active()){toast("Return your Pokémon before receiving another.");return;}
-            try{if(!returning&&!transferState.pendingToken.isEmpty()&&transferState.completedSession(transferState.pendingToken))transferState.pendingToken="";transferState.archiveCurrent(returning?"returning":"replaced");}catch(IOException ex){toast("Sync stopped: "+ex.getMessage());return;}
-            if(transferState.trainerKey.isEmpty()&&transferState.data!=null)transferState.trainerKey=Native.text(transferState.data,4);
-            transferState.host=host;
-            if(returning){transferState.mode=0;transferState.returnPending=true;payload=transferState.data.clone();session=transferState.token;}
-            else {payload=null;if(transferState.pendingToken.isEmpty()){byte[] random=new byte[16];new SecureRandom().nextBytes(random);StringBuilder b=new StringBuilder();for(byte value:random)b.append(String.format(java.util.Locale.ROOT,"%02x",value&255));transferState.pendingToken=b.toString();}session=transferState.pendingToken;}
-            try{transferState.save();operation=transferState.beginSync();}catch(IOException ex){toast(ex.getMessage());return;}
-        }
-        syncBusy=true;syncFailure="";generation++;startTracking(false);heading(returning?"Returning Pokémon…":"Receiving Pokémon…");note("Keep both devices connected. Interrupted transfers retry automatically using the same session.");
-        new Thread(()->{
-            try {
-                final byte[] incoming;
-                try {incoming=WalkerSync.exchange(returning,host,session,payload,transferState.trainerKey,message->runOnUiThread(()->{if(state!=transferState||!transferState.currentSync(operation)||isDestroyed())return;heading(message);note("Keep the console sync screen open. Your recovery snapshot is preserved.");}));}
-                catch(WalkerSync.Rejected ex){
-                    synchronized(WalkerStore.LOCK){
-                        if(!transferState.currentSync(operation))throw new IOException("This sync has been superseded");
-                        if(!returning&&ex.status==410)transferState.pendingToken="";
-                        if(returning&&ex.status==410){transferState.revoked=true;transferState.mode=0;transferState.returnPending=false;}
-                        transferState.save();
-                    }
-                    throw ex;
-                }
+    private void widgetErrorScreen(String profileId){
+        WalkerStore affected=profileId==null?state:WalkerStore.forProfile(this,profileId);
+        generation++;handler.removeCallbacks(classicClock);stopClassicAudio();page="widgetError";heading("Widget needs attention");
+        if(affected==null){note("This widget profile is no longer available. Reconfigure the widget from its profile chooser.");}
+        else{
+            note("Profile: "+WalkerStore.profileName(this,affected.profileId));
+            String issue=affected.error;
+            boolean recoverableSave=affected.recoverableWriteFailure();
+            if(recoverableSave)note("The saved Pokémon data is still valid, but its latest app state was not saved.");
+            else if(affected.data!=null)note("This profile is protected by an interrupted operation. Keep its saved data intact and resolve the operation before using menus.");
+            else note("The saved state could not be safely opened or verified. The app has not written over it.");
+            note(issue.isEmpty()?"No saved-state error is currently reported.":issue);
+            if(recoverableSave)button("Retry verified save",()->{
                 synchronized(WalkerStore.LOCK){
-                    if(!transferState.currentSync(operation))throw new IOException("This sync has been superseded");
-                    if(returning){transferState.completeReturn(session,payload);transferState.data=null;transferState.token="";transferState.pendingToken="";transferState.revoked=false;transferState.returnPending=false;transferState.sensorLast=-1;}
-                    else {if(incoming.length!=65536||!Native.walkable(incoming))throw new IOException("Invalid walker received");String receivedKey=Native.text(incoming,4);if(!receivedKey.matches("[a-f0-9]{36}"))throw new IOException("Trainer details are unavailable");if(!transferState.trainerKey.isEmpty()&&!transferState.trainerKey.equals(receivedKey))throw new IOException("Trainer name or ID does not match this profile. Recover the console handoff; choose the matching profile.");transferState.trainerKey=receivedKey;if(transferState.completedSession(session))throw new IOException("This handoff was already returned. Start a fresh receive.");transferState.returnCompleted=false;transferState.battlePaid=transferState.battleDone=transferState.battleRewarded=false;transferState.battleSession=transferState.battlePeer="";transferState.battleWinner=0;transferState.battleRewardChoice=-1;transferState.data=incoming;transferState.token=session;transferState.pendingToken="";transferState.revoked=false;transferState.returnPending=false;transferState.sensorLast=-1;transferState.boot=-1;transferState.mode=2;Native.resume(transferState.data,Native.now(),transferState.rate);transferState.archiveCurrent("received");}
-                    transferState.save();transferState.finishSync(operation);
+                    try{
+                        affected.save();
+                        PokewalkerWidgetProvider.updateAll(this);
+                        toast("Save verified. Pokéwalker menus are available again.");
+                        if(state.profileId.equals(affected.profileId))home();else widgetErrorScreen(profileId);
+                    }catch(IOException ex){
+                        toast("Save still needs attention: "+ex.getMessage());
+                        widgetErrorScreen(profileId);
+                    }
                 }
-                runOnUiThread(()->{if(state!=transferState||!transferState.currentSync(operation)||isDestroyed())return;syncBusy=false;home();toast(returning?"Returned. Console unlocked.":"Received. Console copy is locked.");startTracking(!returning);});
-            } catch(Exception ex){runOnUiThread(()->{if(state!=transferState||!transferState.currentSync(operation)||isDestroyed())return;syncBusy=false;syncFailure="Sync failed: "+ex.getMessage()+"\nRetry here with the same console. You can also choose Recover on the console to cancel the handoff and restore its snapshot.";syncScreen();startTracking(false);});}
-            finally{synchronized(WalkerStore.LOCK){transferState.finishSync(operation);}}
-        },"walker-sync").start();
+            });
+        }
+        button("Choose another profile",this::profilesScreen);button("Back to app",this::home);
+    }
+    private void syncScreen(){
+        generation++;page="sync";heading("Sync do console");picture.setVisibility(View.GONE);stats.setVisibility(View.GONE);homeProfileChip.setVisibility(View.GONE);homeMetrics.setVisibility(View.GONE);
+        syncReceiverStatus=null;syncConnectionStatus=null;syncNetworkEvents=null;syncPhoneWalkerStatus=null;syncLastEvent=null;
+        syncStatusBadge=null;syncStatusTitle=null;syncStatusDetail=null;syncStepTcp=null;syncStepFrame=null;syncStepSaved=null;
+        note("O app escuta. O DSi inicia a conexão.");
+        LinearLayout profile=syncCard(PANEL);profile.setOrientation(LinearLayout.HORIZONTAL);profile.setGravity(Gravity.CENTER_VERTICAL);profile.setPadding(dp(12),dp(9),dp(12),dp(9));
+        TextView profileDot=text("●",13,0xff0b1a28);profileDot.setGravity(Gravity.CENTER);profileDot.setBackground(round(MINT,dp(16)));profile.addView(profileDot,new LinearLayout.LayoutParams(dp(30),dp(30)));
+        TextView profileName=text("PERFIL  ·  "+WalkerStore.profileName(this,state.profileId).toUpperCase(java.util.Locale.ROOT),13,INK);profileName.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);LinearLayout.LayoutParams profileNameLp=new LinearLayout.LayoutParams(0,-2,1);profileNameLp.leftMargin=dp(10);profile.addView(profileName,profileNameLp);addCard(profile);
+
+        LinearLayout status=syncCard(PANEL);status.setOrientation(LinearLayout.VERTICAL);status.setPadding(dp(14),dp(13),dp(14),dp(14));
+        syncStatusBadge=text("AGUARDANDO",11,GOLD);syncStatusBadge.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);status.addView(syncStatusBadge);
+        syncStatusTitle=text("Receptor ativo",19,INK);syncStatusTitle.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);status.addView(syncStatusTitle);
+        syncStatusDetail=text("Esperando conexão do DSi",14,MUTED);status.addView(syncStatusDetail);
+        syncConnectionStatus=text("TCP "+DirectSyncProtocol.PORT+" · sem IP manual",13,MINT);syncConnectionStatus.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);status.addView(syncConnectionStatus);
+        addCard(status);
+
+        LinearLayout stages=syncCard(PANEL);stages.setOrientation(LinearLayout.VERTICAL);stages.setPadding(dp(13),dp(10),dp(13),dp(11));
+        TextView stageHeader=text("ETAPAS DA SESSÃO",11,MUTED);stageHeader.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);stages.addView(stageHeader);
+        flowStep(stages,"1","Connect → Console","Arma o perfil e deixa o celular escutando na porta TCP "+DirectSyncProtocol.PORT+".");
+        addSyncStep(stages,"2","TCP aceito do DSi","Aguardando conexão",0);
+        addSyncStep(stages,"3","Quadro do protocolo","Aguardando pedido",1);
+        addSyncStep(stages,"4","Save / retorno confirmado","Nenhuma transferência recebida ainda",2);
+        addCard(stages);
+
+        LinearLayout events=syncCard(PANEL);events.setOrientation(LinearLayout.VERTICAL);events.setPadding(dp(13),dp(10),dp(13),dp(11));
+        TextView eventHeader=text("EVENTOS RECENTES",11,MUTED);eventHeader.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);events.addView(eventHeader);
+        syncNetworkEvents=text(DirectSyncService.connectionEvents(this),13,INK);syncNetworkEvents.setPadding(0,dp(5),0,0);events.addView(syncNetworkEvents);
+        syncLastEvent=text("Último evento · "+DirectSyncService.lastEvent(this),12,MUTED);events.addView(syncLastEvent);
+        addCard(events);
+
+        LinearLayout phone=syncCard(0xff123a3a);phone.setOrientation(LinearLayout.VERTICAL);phone.setPadding(dp(13),dp(11),dp(13),dp(11));
+        TextView phoneHeader=text("POKÉMON NO CELULAR",11,MINT);phoneHeader.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);phone.addView(phoneHeader);
+        syncPhoneWalkerStatus=text(receiverWalkerStatus(),15,INK);phone.addView(syncPhoneWalkerStatus);addCard(phone);
+
+        note("No Connect do Pokéwalker, escolha Console. O app identifica a direção pelo Pokémon deste perfil e espera o pedido do homebrew.");
+        note("Sem TCP aceito, o app não vê tentativas bloqueadas antes da porta.");
+        if(state.returnPending)note("Retorno pendente: mantenha o receptor ligado enquanto o homebrew conclui a gravação no save HGSS.");
+        else if(state.active())note("Este perfil tem um Pokémon no celular. Use Return to HGSS (Y) para devolvê-lo.");
+        else note("Este perfil está vazio. Use Send to phone (A) para receber do HGSS.");
+
+        boolean enabled=DirectSyncService.enabled(this)&&state.profileId.equals(DirectSyncService.targetProfileId(this));
+        button(enabled?"Connect to Console · rearmar":"Iniciar receptor · Connect to Console",()->{
+            startConsoleReceiver();handler.postDelayed(this::syncScreen,350);
+        });
+        if(enabled)button("Parar receptor",()->{
+            DirectSyncService.stop(this);WidgetConfigActivity.clearStatusForProfile(this,state.profileId);handler.postDelayed(this::syncScreen,350);
+        });
+        button("Atualizar status",this::syncScreen);button("Voltar",this::home);
+        refreshSyncReceiverStatus();
+    }
+    private LinearLayout syncCard(int color){LinearLayout card=new LinearLayout(this);card.setBackground(round(color,dp(14)));return card;}
+    private void addCard(View card){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.topMargin=dp(8);panel.addView(card,lp);}
+    private void addSyncStep(LinearLayout parent,String number,String title,String initial,int index){
+        LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(0,dp(4),0,dp(4));
+        TextView badge=text(number,12,0xff0b1a28);badge.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);badge.setGravity(Gravity.CENTER);badge.setBackground(round(0xff9ebeb7,dp(12)));LinearLayout.LayoutParams badgeLp=new LinearLayout.LayoutParams(dp(24),dp(24));badgeLp.rightMargin=dp(10);row.addView(badge,badgeLp);
+        LinearLayout copy=new LinearLayout(this);copy.setOrientation(LinearLayout.VERTICAL);row.addView(copy,new LinearLayout.LayoutParams(0,-2,1));copy.addView(text(title,14,INK));
+        TextView detail=text(initial,12,MUTED);copy.addView(detail);if(index==0)syncStepTcp=detail;else if(index==1)syncStepFrame=detail;else syncStepSaved=detail;
+        parent.addView(row);
+    }
+    private String consoleReceiverWaitingStatus(){
+        return DirectSyncService.operationFor(state)==DirectSyncProtocol.OP_ARM_PULL
+                ?"Connect to Console armado · Return to HGSS · esperando o homebrew"
+                :"Connect to Console armado · Send to phone · esperando o homebrew";
+    }
+    private void startConsoleReceiver(){
+        try{
+            WidgetConfigActivity.setStatusForProfile(this,state.profileId,consoleReceiverWaitingStatus());
+            DirectSyncService.start(this,state.profileId,DirectSyncService.operationFor(state));
+        }catch(RuntimeException ex){
+            WidgetConfigActivity.setStatusForProfile(this,state.profileId,"Erro: "+ex.getMessage());
+            toast("Não foi possível iniciar o receptor DSi Sync: "+ex.getMessage());
+        }
+    }
+    private void openConsoleSync(){
+        startConsoleReceiver();
+        syncScreen();
+        handler.postDelayed(()->{if(page.equals("sync"))syncScreen();},400);
+    }
+    private void refreshSyncReceiverStatus(){
+        if(!page.equals("sync"))return;
+        String status=DirectSyncService.status(this);String event=DirectSyncService.lastEvent(this);
+        if(syncStatusBadge!=null)syncStatusBadge.setText(syncBadge(status));
+        if(syncStatusTitle!=null)syncStatusTitle.setText(syncTitle(status));
+        if(syncStatusDetail!=null)syncStatusDetail.setText(connectionStatus());
+        if(syncReceiverStatus!=null)syncReceiverStatus.setText("Receptor: "+receiverStatus());
+        if(syncConnectionStatus!=null){syncConnectionStatus.setText("TCP "+DirectSyncProtocol.PORT+" · sem IP manual");styleConnectionIndicator();}
+        if(syncNetworkEvents!=null)syncNetworkEvents.setText(DirectSyncService.connectionEvents(this));
+        if(syncLastEvent!=null)syncLastEvent.setText("Último evento · "+event);
+        if(syncPhoneWalkerStatus!=null)syncPhoneWalkerStatus.setText(receiverWalkerStatus());
+        boolean accepted=status.startsWith("DSi TCP connected from ")||status.contains("protocol frame")||status.startsWith("DSi direction approved")||status.equals("DSi waiting for Connect to Console direction");
+        boolean frame=status.contains("protocol frame")||status.startsWith("DSi direction approved")||status.equals("DSi waiting for Connect to Console direction");
+        boolean saved=event.contains("Pokémon salvo no celular")||event.contains("Retorno confirmado pelo DSi");
+        if(syncStepTcp!=null){syncStepTcp.setText(accepted?"Conexão TCP aceita":"Aguardando conexão do DSi");syncStepTcp.setTextColor(accepted?MINT:MUTED);}
+        if(syncStepFrame!=null){syncStepFrame.setText(frame?"Pedido recebido · aguardando autorização":"Aguardando quadro do protocolo");syncStepFrame.setTextColor(frame?MINT:MUTED);}
+        if(syncStepSaved!=null){syncStepSaved.setText(saved?"Transferência confirmada":"Nenhuma transferência confirmada ainda");syncStepSaved.setTextColor(saved?MINT:MUTED);}
+    }
+    private String syncBadge(String status){if(status.equals("Stopped"))return "PARADO";if(status.startsWith("Could not listen")||status.startsWith("Direct sync error")||status.startsWith("Last DSi request failed"))return "ATENÇÃO";if(status.startsWith("DSi TCP connected")||status.contains("protocol frame")||status.startsWith("DSi direction approved"))return "CONECTADO";return "AGUARDANDO";}
+    private String syncTitle(String status){if(status.equals("Stopped"))return "Receptor parado";if(status.startsWith("Could not listen")||status.startsWith("Direct sync error")||status.startsWith("Last DSi request failed"))return "Falha na conexão";if(status.startsWith("DSi TCP connected")||status.contains("protocol frame")||status.startsWith("DSi direction approved"))return "DSi conectado";return "Receptor ativo";}
+    private String receiverWalkerStatus(){
+        synchronized(WalkerStore.LOCK){
+            WalkerStore receiver=DirectSyncService.targetStore(this);
+            String pokemon=receiver.data==null?"nenhum":Native.text(receiver.data,3);
+            return "Pokémon no celular ("+DirectSyncService.targetProfileName(this)+"): "+pokemon+(receiver.returnPending?" · retorno pendente":"");
+        }
+    }
+    private String receiverStatus(){
+        String status=DirectSyncService.status(this);
+        if(status.equals("Stopped"))return "parado";
+        if(status.startsWith("Starting listener on port "))return "iniciando listener TCP na porta "+DirectSyncProtocol.PORT;
+        String listeningPrefix="Listening for DSi on port "+DirectSyncProtocol.PORT+" · ";
+        if(status.startsWith(listeningPrefix))return "escutando TCP na porta "+DirectSyncProtocol.PORT+" · direção armada: "+status.substring(listeningPrefix.length());
+        if(status.startsWith("Waiting for DSi on port "))return "aguardando o DSi na porta "+DirectSyncProtocol.PORT;
+        String acceptedPrefix="DSi TCP connected from ";
+        if(status.startsWith(acceptedPrefix))return "TCP aceito do DSi ("+status.substring(acceptedPrefix.length())+") · aguardando quadro";
+        if(status.equals("DSi protocol frame received · processing request"))return "quadro do protocolo recebido · processando solicitação";
+        if(status.startsWith("DSi direction approved · "))return "direção autorizada pelo Connect to Console · "+status.substring("DSi direction approved · ".length());
+        if(status.equals("DSi waiting for Connect to Console direction"))return "TCP aceito · esperando o jogador armar a mesma direção no app";
+        if(status.equals("DSi TCP closed before complete frame"))return "TCP do DSi aceito, mas fechado antes do quadro completo";
+        if(status.equals("DSi TCP disconnected after protocol frame"))return "cliente fechou o TCP depois de enviar um quadro; receptor continua ativo";
+        if(status.equals("DSi TCP timeout waiting for frame"))return "TCP aceito, mas o quadro não chegou antes do tempo limite";
+        if(status.equals("DSi connected · processing request"))return "DSi conectado · processando solicitação";
+        if(status.startsWith("Could not listen: "))return "não foi possível iniciar a escuta: "+status.substring("Could not listen: ".length());
+        if(status.startsWith("Last DSi request failed: "))return "última solicitação falhou: "+status.substring("Last DSi request failed: ".length());
+        if(status.startsWith("Direct sync error: "))return "erro de conexão: "+status.substring("Direct sync error: ".length());
+        return status;
+    }
+    private String connectionStatus(){
+        String status=DirectSyncService.status(this);
+        if(status.equals("Stopped"))return "RECEPTOR PARADO";
+        if(status.startsWith("Starting listener on port "))return "INICIANDO · preparando TCP "+DirectSyncProtocol.PORT;
+        String listeningPrefix="Listening for DSi on port "+DirectSyncProtocol.PORT+" · ";
+        if(status.startsWith(listeningPrefix))return "SEM CONEXÃO ACEITA · escutando na porta "+DirectSyncProtocol.PORT+" · "+status.substring(listeningPrefix.length());
+        if(status.startsWith("Waiting for DSi on port "))return "SEM CONEXÃO ACEITA · escutando na porta "+DirectSyncProtocol.PORT;
+        String accepted="DSi TCP connected from ";
+        if(status.startsWith(accepted))return "TCP CONECTADO · "+status.substring(accepted.length());
+        if(status.equals("DSi protocol frame received · processing request"))return "QUADRO RECEBIDO · processando protocolo";
+        if(status.startsWith("DSi direction approved · "))return "DIREÇÃO AUTORIZADA · "+status.substring("DSi direction approved · ".length());
+        if(status.equals("DSi waiting for Connect to Console direction"))return "TCP CONECTADO · aguardando autorização no Connect to Console";
+        if(status.equals("DSi TCP closed before complete frame"))return "DESCONEXÃO · fechou antes do quadro completo";
+        if(status.equals("DSi TCP disconnected after protocol frame"))return "DESCONECTADO · listener segue ativo";
+        if(status.equals("DSi TCP timeout waiting for frame"))return "TEMPO ESGOTADO · TCP aceito, sem quadro completo";
+        if(status.startsWith("Could not listen: "))return "ERRO AO ABRIR A PORTA · "+status.substring("Could not listen: ".length());
+        if(status.startsWith("Last DSi request failed: "))return "FALHA NO QUADRO · "+status.substring("Last DSi request failed: ".length());
+        if(status.startsWith("Direct sync error: "))return "ERRO NO LISTENER · "+status.substring("Direct sync error: ".length());
+        return status;
+    }
+    private void styleConnectionIndicator(){
+        if(syncConnectionStatus==null)return;
+        String status=DirectSyncService.status(this);
+        int tint;
+        if(status.startsWith("DSi TCP connected from ")||status.equals("DSi protocol frame received · processing request")||status.startsWith("DSi direction approved · "))tint=MINT;
+        else if(status.startsWith("Listening for DSi")||status.startsWith("Waiting for DSi")||status.startsWith("Starting listener")||status.equals("DSi waiting for Connect to Console direction"))tint=GOLD;
+        else if(status.equals("Stopped"))tint=MUTED;
+        else tint=0xffff786f;
+        syncConnectionStatus.setTextColor(MINT);
+        if(syncStatusBadge!=null){syncStatusBadge.setTextColor(tint);syncStatusBadge.setPadding(dp(8),dp(1),dp(8),dp(1));syncStatusBadge.setBackground(round(tint==MINT?0xff123a3a:tint==GOLD?0xff4b3922:0xff402a2c,dp(8)));}
     }
     @Override public void onBackPressed(){if(syncBusy){toast("Please wait for sync to finish.");return;}if(!page.equals("home"))home();else super.onBackPressed();}
     private final class WalkerPicture extends View {
@@ -689,11 +905,12 @@ public final class MainActivity extends Activity {
                 else if(page.equals("classic"))pixels=classicPixels;
                 if(pixels==null&&state.data!=null&&!state.returnPending&&!state.revoked&&!state.returnCompleted)
                     pixels=Native.classicFrame(state.data,new int[40],SystemClock.elapsedRealtime());
+                else if(pixels==null&&state.data==null)
+                    pixels=Native.classicFrame(WalkerClassicData.image(null),new int[40],SystemClock.elapsedRealtime());
                 if(page.equals("battle")&&battle!=null&&state.data!=null)drawBattle(canvas,lcd.left,lcd.top,lcd.right,lcd.bottom);
                 else if(pixels!=null){
                     float scale=Math.min(lcd.width()/96,lcd.height()/64),x=lcd.centerX()-48*scale,y=lcd.centerY()-32*scale;
-                    int[][] shades={{0xffb4b7aa,0xff9a9f91,0xff787e6f,0xff535b4b},{0xffb4b7aa,0xff8d9383,0xff555e4c,0xff232b1d},{0xffb4b7aa,0xff7f8675,0xff3e4835,0xff10180d}};
-                    int[] colors=shades[Math.max(0,Math.min(2,state.classicContrast))];paint.setAntiAlias(false);paint.setFilterBitmap(false);
+                    int[] colors=WalkerLcdPalette.colors(state.classicContrast);paint.setAntiAlias(false);paint.setFilterBitmap(false);
                     for(int py=0;py<64;py++)for(int px=0;px<96;px++){
                         paint.setColor(colors[pixels[py*96+px]&3]);
                         canvas.drawRect(Math.round(x+px*scale),Math.round(y+py*scale),Math.round(x+(px+1)*scale),Math.round(y+(py+1)*scale),paint);

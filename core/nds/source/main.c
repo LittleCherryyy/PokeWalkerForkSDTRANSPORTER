@@ -54,6 +54,7 @@ static int32_t classic[WALKER_CLASSIC_STATE];
 static uint8_t classicPixels[WALKER_CLASSIC_PIXELS], nextClassicPixels[WALKER_CLASSIC_PIXELS];
 static uint64_t deadline;
 static int resultReturn = UI_HOME;
+static int syncWasLegacy;
 
 static uint32_t now(void) {
   time_t t = time(NULL);
@@ -689,13 +690,57 @@ static void onPhoneEvent(int event) {
     if(wasSync && opened>=0 && ui.loaded)ui.screen=UI_SYNC;
   }
 }
+static void startPhoneReturn(void);
 static void startPhoneSync(void) {
   if (opened < 0)
     return;
+  WalkerLease lease;
+  int lock=leaseInspect(paths[opened], &lease);
+  if(lock==1 && lease.direct) {
+    /* A direct lease proves this is the same save/session that checked out
+     * the phone Pokémon. Return it automatically; do not ask for A/Y again. */
+    startPhoneReturn();
+    return;
+  }
+  if(lock<0) {
+    syncStop();ui.screen=UI_SYNC;
+    snprintf(ui.syncStatus,sizeof(ui.syncStatus),"Walker session lock is damaged. Use Recovery before syncing.");
+    return;
+  }
+  if(lock==0) {
+    WalkerInfo info;
+    if(!walkerRead(ee,&info) || !info.registered || !info.hasPokemon) {
+      syncStop();ui.screen=UI_SYNC;
+      snprintf(ui.syncStatus,sizeof(ui.syncStatus),"No Pokémon or phone session in this save. Send a Pokémon from HGSS first.");
+      return;
+    }
+  }
+  syncWasLegacy = 0;
   ui.screen = UI_SYNC;
   if (!syncStart(paths[opened], beforePhoneCheckout, onPhoneEvent))
     snprintf(ui.syncStatus, sizeof(ui.syncStatus),
-             "Could not start Wi-Fi. Check console network settings.");
+             "%.150s", syncStatus());
+}
+static void startPhoneSyncLegacy(void) {
+  /* Resume an older HTTP lease only; new checkouts use DSi Sync auto TCP. */
+  if (opened < 0)
+    return;
+  syncWasLegacy = 1;
+  ui.screen = UI_SYNC;
+  if (!syncStartLegacy(paths[opened], beforePhoneCheckout, onPhoneEvent))
+    snprintf(ui.syncStatus, sizeof(ui.syncStatus),
+             "%.150s", syncStatus());
+}
+static void startPhoneReturn(void) {
+  if (opened < 0)
+    return;
+  WalkerLease lease;
+  int locked = leaseInspect(paths[opened], &lease);
+  syncWasLegacy = locked == 1 && !lease.direct;
+  ui.screen = UI_SYNC;
+  if (!syncStartReturn(paths[opened], onPhoneEvent))
+    snprintf(ui.syncStatus, sizeof(ui.syncStatus),
+             "%.150s", syncStatus());
 }
 static void beginWifiSetup(void) {
   int index=opened>=0?opened:ui.cursor;
@@ -716,6 +761,8 @@ static void classicStep(int button) {
   int32_t previous[WALKER_CLASSIC_STATE];
   memcpy(previous, classic, sizeof(previous));
   uint32_t ms = (uint32_t)osGetTime();
+  time_t wall=time(NULL);struct tm *local=localtime(&wall);
+  classic[26]=local?local->tm_hour*3600+local->tm_min*60+local->tm_sec:0;
   walkerClassicInput(ee, classic, button, now(), ms, ui.expandedItems);
   ui.classicContrast = classic[20];
   if (classic[10] || classic[19] != previous[19])
@@ -748,7 +795,7 @@ static void homeAction(void) {
     }
     memset(classic, 0, sizeof(classic));
     classic[19] = 2;
-    classic[20] = 1;
+    classic[20] = 5;
     ui.classicPixels = classicPixels;
     ui.screen = UI_CLASSIC;
     classicStep(-1);
@@ -1080,7 +1127,9 @@ static void input(u32 down) {
     if (down & KEY_START) { requestExit(); return; }
     if(down & KEY_R){openBackups();return;}
     if (down & KEY_A)
-      startPhoneSync();
+      syncWasLegacy ? startPhoneSyncLegacy() : startPhoneSync();
+    if (down & KEY_Y)
+      startPhoneReturn();
     if (down & KEY_X)
       ui.screen = UI_FORCE;
     if (down & KEY_B) {
@@ -1104,6 +1153,10 @@ static void input(u32 down) {
     return;
   }
   if (ui.screen == UI_SYNC) {
+    if (down & KEY_A)
+      syncWasLegacy ? startPhoneSyncLegacy() : startPhoneSync();
+    if ((down & KEY_Y) && ui.phoneLocked)
+      startPhoneReturn();
     if (down & KEY_X && ui.phoneLocked)
       ui.screen = UI_FORCE;
     if (down & KEY_B)
@@ -1150,9 +1203,10 @@ static void input(u32 down) {
     if (down & KEY_TOUCH) {
       touchPosition p;
       hidTouchRead(&p);
-      if (p.py >= 43 && p.py < 211) {
-        int n = ui.page + (p.py - 43) / 24;
-        if (n < ui.count) {
+      if (p.py >= 35 && p.py < 168) {
+        int row = (p.py - 35) / 19;
+        int n = ui.page + row;
+        if (row < 7 && n < ui.count) {
           ui.cursor = n;
           down |= KEY_A;
         }

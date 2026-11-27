@@ -27,11 +27,18 @@ static void put32(uint8_t *p, uint32_t n) {
     p[i] = (uint8_t)(n >> (8 * i));
 }
 static int fail(char *error, unsigned size, const char *why) {
-  snprintf(error, size, "%s", why);
+  if (error && size) snprintf(error, size, "%s", why);
   return 0;
 }
 static int path(char *out, const char *base, const char *suffix) {
   int n = snprintf(out, 600, "%s%s", base, suffix);
+  return n > 0 && n < 600;
+}
+static int directReturnPath(char *out, const char *base,
+                            const uint8_t token[16]) {
+  char text[33];
+  leaseTokenText(token, text);
+  int n = snprintf(out, 600, "%s.return-%s", base, text);
   return n > 0 && n < 600;
 }
 static int readExact(const char *p, void *out, unsigned length) {
@@ -155,6 +162,7 @@ int leaseInspect(const char *p, WalkerLease *out) {
     int record=receipt(p,m+8,0,0,0);
     if(record<0)return -1;
     out->revoked = m[40] != 0 || record == 2;
+    out->direct = m[41] == 1;
   }
   return 1;
 }
@@ -239,7 +247,7 @@ int leaseSessionRevoked(const char *p, const uint8_t token[16]) {
   return receipt(p, token, 0, 0, 0) == 2;
 }
 int leaseCheckout(const char *p, const uint8_t token[16], uint8_t *snapshot,
-                  WalkerLease *out, char *error, unsigned size) {
+                  int direct, WalkerLease *out, char *error, unsigned size) {
   char name[600];
   uint8_t m[64] = {0};
   WalkerInfo info;
@@ -290,6 +298,7 @@ int leaseCheckout(const char *p, const uint8_t token[16], uint8_t *snapshot,
   put32(m + 24, crc);
   put32(m + 28, info.walkStart);
   put32(m + 32, walkerCrc(snapshot + 0xed, 104));
+  m[41] = direct ? 1 : 0;
   put32(m + 60, walkerCrc(m, 60));
   path(name, p, ".lease");
   if (!publish(name, m, 64))
@@ -307,6 +316,7 @@ int leaseCheckout(const char *p, const uint8_t token[16], uint8_t *snapshot,
     out->baseCrc = crc;
     out->walkStart = info.walkStart;
     out->revoked = 0;
+    out->direct = direct != 0;
   }
   return 1;
 }
@@ -419,6 +429,143 @@ int leaseReturn(const char *p, const uint8_t token[16], const uint8_t *incoming,
     return fail(error, size,
                 "Pokémon saved. Retry sync to finish unlocking the console.");
   if(!sameFile(p,incoming))return fail(error,size,"Final .walker verification failed after lock cleanup. The phone keeps its copy.");
+  return 1;
+}
+static int validateDirectReturn(const char *p, const WalkerLease *loan,
+                                const uint8_t *incoming, char *error,
+                                unsigned size) {
+  char name[600], trainerBefore[37], trainerAfter[37];
+  WalkerInfo originalInfo, incomingInfo;
+  uint8_t *original = malloc(WALKER_FILE_SIZE);
+  uint8_t *checked = malloc(WALKER_FILE_SIZE);
+  if (!original || !checked) {
+    free(original);
+    free(checked);
+    return fail(error, size, "Not enough memory to verify the returned walker.");
+  }
+  path(name, p, ".phone");
+  int ok = readExact(name, original, WALKER_FILE_SIZE) &&
+           walkerCrc(original, WALKER_FILE_SIZE) == loan->baseCrc &&
+           walkerRead(original, &originalInfo) && walkerCanWalk(original) &&
+           walkerTrainerKey(original, trainerBefore) &&
+           walkerRead(incoming, &incomingInfo) && walkerCanWalk(incoming) &&
+           incomingInfo.hasPokemon &&
+           walkerTrainerKey(incoming, trainerAfter) &&
+           !strcmp(trainerBefore, trainerAfter) &&
+           compatible(original, incoming);
+  if (ok) {
+    memcpy(checked, incoming, WALKER_FILE_SIZE);
+    walkerRepairRecords(checked);
+    ok = walkerValidate(checked) &&
+         !memcmp(checked, incoming, WALKER_FILE_SIZE);
+  }
+  free(original);
+  free(checked);
+  if (!ok)
+    return fail(error, size,
+                "Return does not match the phone session, trainer, stroll, or walker records.");
+  return 1;
+}
+/* Returns 1 for a verified staged image, 0 when no image is staged, and -1
+ * when the session or its pending file cannot be trusted. */
+int leaseDirectReturnPending(const char *p, const uint8_t token[16],
+                             uint8_t *out, char *error, unsigned size) {
+  if (error && size) error[0] = 0;
+  WalkerLease loan;
+  int locked = leaseInspect(p, &loan);
+  if (locked != 1 || !loan.direct || loan.revoked ||
+      memcmp(loan.token, token, 16)) {
+    fail(error, size, "No matching direct phone session is available to return.");
+    return -1;
+  }
+  char name[600];
+  if (!directReturnPath(name, p, token)) {
+    fail(error, size, "Return staging path is too long.");
+    return -1;
+  }
+  struct stat st;
+  if (stat(name, &st)) {
+    if (errno == ENOENT) return 0;
+    fail(error, size, "Cannot inspect the staged phone return.");
+    return -1;
+  }
+  if (!out || !readExact(name, out, WALKER_FILE_SIZE) ||
+      !validateDirectReturn(p, &loan, out, error, size)) {
+    if (!error || !size || !error[0])
+      fail(error, size, "Staged phone return failed verification.");
+    return -1;
+  }
+  return 1;
+}
+int leaseStageDirectReturn(const char *p, const uint8_t token[16],
+                           const uint8_t *incoming, char *error,
+                           unsigned size) {
+  WalkerLease loan;
+  if (leaseInspect(p, &loan) != 1 || !loan.direct || loan.revoked ||
+      memcmp(loan.token, token, 16))
+    return fail(error, size, "No matching direct phone session is available to return.");
+  if (!validateDirectReturn(p, &loan, incoming, error, size)) return 0;
+  char name[600];
+  if (!directReturnPath(name, p, token))
+    return fail(error, size, "Return staging path is too long.");
+  struct stat st;
+  if (!stat(name, &st)) {
+    if (sameFile(name, incoming)) return 1;
+    return fail(error, size,
+                "A different return is already staged. Existing data was kept.");
+  }
+  if (errno != ENOENT)
+    return fail(error, size, "Cannot inspect the return staging file.");
+  if (!archive(p, token, "return", incoming))
+    return fail(error, size,
+                "Could not preserve the returned walker history.");
+  if (!publish(name, incoming, WALKER_FILE_SIZE) || !sameFile(name, incoming))
+    return fail(error, size,
+                "Could not stage and verify the returned walker. Phone ownership remains active.");
+  return 1;
+}
+int leaseFinalizeDirectReturn(const char *p, const uint8_t token[16],
+                              char *error, unsigned size) {
+  uint8_t *incoming = malloc(WALKER_FILE_SIZE);
+  if (!incoming)
+    return fail(error, size, "Not enough memory to finish the phone return.");
+  int pending = leaseDirectReturnPending(p, token, incoming, error, size);
+  if (pending != 1) {
+    free(incoming);
+    return pending == 0
+               ? fail(error, size, "No verified phone return is staged.")
+               : 0;
+  }
+  const uint32_t crc = walkerCrc(incoming, WALKER_FILE_SIZE);
+  if (!emptyOrSame(p, incoming)) {
+    free(incoming);
+    return fail(error, size,
+                "A different walker is on the console. Return refused; both copies are kept.");
+  }
+  if (!publish(p, incoming, WALKER_FILE_SIZE)) {
+    free(incoming);
+    return fail(error, size,
+                "Could not publish the returned walker. The staged copy is kept.");
+  }
+  if (!sameFile(p, incoming)) {
+    free(incoming);
+    return fail(error, size,
+                "Published walker failed verification. The staged copy is kept.");
+  }
+  if (!receipt(p, token, crc, 1, 1)) {
+    free(incoming);
+    return fail(error, size,
+                "Walker saved, but the session receipt failed. Retry phone confirmation.");
+  }
+  finish(p);
+  if (leaseInspect(p, 0) != 0 || !sameFile(p, incoming)) {
+    free(incoming);
+    return fail(error, size,
+                "Walker saved, but the console lock cleanup needs retry.");
+  }
+  char name[600];
+  if (directReturnPath(name, p, token)) remove(name);
+  free(incoming);
   return 1;
 }
 int leaseForceUnlock(const char *p, char *error, unsigned size) {

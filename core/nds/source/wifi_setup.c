@@ -280,8 +280,9 @@ int ndsWifiSetupInput(UIState *s, unsigned down) {
     if (down & KEY_TOUCH) {
       touchPosition p;
       touchRead(&p);
-      int row = (p.py - 38) / 21;
-      if (p.py >= 38 && row < 6 && s->wifiCursor / 6 * 6 + row < s->wifiCount) {
+      int row = (p.py - 49) / 18;
+      if (p.py >= 49 && p.py < 155 && row < 6 &&
+          s->wifiCursor / 6 * 6 + row < s->wifiCount) {
         s->wifiCursor = s->wifiCursor / 6 * 6 + row;
         down |= KEY_A;
       }
@@ -315,8 +316,8 @@ int ndsWifiSetupInput(UIState *s, unsigned down) {
     if (down & KEY_TOUCH) {
       touchPosition p;
       touchRead(&p);
-      if (p.px >= 8 && p.px < 248 && p.py >= 68 && p.py < 164) {
-        s->wifiKeyCursor = (p.py - 68) / 16 * 8 + (p.px - 8) / 30;
+      if (p.px >= 8 && p.px < 248 && p.py >= 76 && p.py < 164) {
+        s->wifiKeyCursor = (p.py - 76) / 15 * 8 + (p.px - 8) / 30;
         down |= KEY_A;
       }
     }
@@ -343,8 +344,8 @@ int ndsWifiSetupInput(UIState *s, unsigned down) {
     if (down & KEY_TOUCH) {
       touchPosition p;
       touchRead(&p);
-      if (p.px >= 8 && p.px < 248 && p.py >= 65 && p.py < 161) {
-        int col = (p.px - 8) / 60, row = (p.py - 65) / 24;
+      if (p.px >= 8 && p.px < 248 && p.py >= 73 && p.py < 158) {
+        int col = (p.px - 8) / 60, row = (p.py - 73) / 22;
         if (col < 4 && row < 4) {
           s->wifiKeyCursor = row * 4 + col;
           down |= KEY_A;
